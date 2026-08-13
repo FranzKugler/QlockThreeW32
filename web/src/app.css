@@ -119,6 +119,7 @@ nav button[aria-current="page"] {
 
 input[type="text"],
 input[type="number"],
+input[type="password"],
 select {
   font: inherit;
   color: var(--text);
@@ -127,6 +128,16 @@ select {
   border-radius: 7px;
   padding: 0.4rem 0.55rem;
   min-width: 0;
+}
+
+/* Controls in a field row share one width, so a card reads as an aligned
+   column instead of each control sizing itself to its longest option.
+   Shrinkable, so they still fit on narrow screens. */
+.field > select,
+.field > input[type="text"],
+.field > input[type="number"],
+.field > input[type="password"] {
+  flex: 0 1 15rem;
 }
 
 input[type="text"]:focus-visible,
