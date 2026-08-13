@@ -4,20 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-QlockThreeW32 is ESP32 firmware for a "word clock": a letter matrix backlit so the current time reads as a sentence (in German, Swiss German, English, French, Italian, Dutch, or Spanish), updated every 5 minutes, with four corner LEDs indicating the remaining minutes. It's a long-running hobby project (originally AVR-based, later ported to ESP32) and carries legacy cruft from that history — expect dead code paths, commented-out alternatives, and compile-time options for hardware that is no longer used.
+QlockThreeW32 is ESP32 firmware for a "word clock": a letter matrix backlit so the current time reads as a sentence (in German, Swiss German, English, French, Italian, Dutch, or Spanish), updated every 5 minutes, with four corner LEDs indicating the remaining minutes. It's a long-running hobby project (originally AVR-based, later ported to ESP32) and carries some legacy cruft from that history — expect dead code paths and commented-out alternatives, though the project has been consolidated onto a single hardware target (see below).
 
 The repo has three parts:
 - **Firmware** (`src/`) — PlatformIO/Arduino C++ for the ESP32, drives the LED matrix and hosts a small config web server.
 - **Web UI** (`data/`) — static HTML/JS/CSS flashed to the ESP32's LittleFS filesystem; this is the config page served by the firmware's web server.
 - **Mock server** (`server.js`) — a Node/Express stand-in for the firmware's REST API, used to develop `data/` on a desktop browser without hardware.
 
-Note: this repository currently has no git commits (fresh `master` branch).
+The target hardware is fixed: a Seeed XIAO ESP32-S3 driving a 114-pixel WS2812B strip. Support for other boards (NodeMCU-32S, ESP32-C3) and other LED drivers/peripherals from the project's history has been removed — see "Consolidation history" below.
 
 ## Commands
 
 ### Firmware (PlatformIO)
 
-There is no `pio` CLI on PATH in this environment — development normally happens through the PlatformIO VSCode extension. If the CLI is available elsewhere, the equivalent commands are:
+`pio` is not on PATH in this environment, but is installed via the PlatformIO VSCode extension at `%USERPROFILE%\.platformio\penv\Scripts\pio.exe`. Invoke it by full path (or add that directory to PATH):
 
 ```
 pio run                          # build (uses default_envs from platformio.ini)
@@ -29,12 +29,7 @@ pio device monitor                # serial monitor (115200 baud)
 
 There are no automated tests in this project.
 
-Build environments are defined in [platformio.ini](platformio.ini):
-- `seeed_xiao_esp32s3` — the active default (`default_envs`), `LED_OUTPUT_PIN=4`, USB serial upload.
-- `nodemcu-32s` — older board, OTA upload over WiFi (`espota`, port 8266, password `admin`) instead of serial.
-- `esp32-c3-display` — Seeed XIAO ESP32-C3 variant, `LED_OUTPUT_PIN=4`, USB serial upload.
-
-Only one env is active at a time; switch by editing `default_envs` or passing `-e <env>`.
+[platformio.ini](platformio.ini) defines a single build environment, `seeed_xiao_esp32s3` (`LED_OUTPUT_PIN=4`, USB serial upload via esptool at 460800 baud).
 
 ### Web UI mock server
 
@@ -71,18 +66,30 @@ When changing this API, update both implementations and `data/main.js`/`data/ind
 
 ### LED output
 
-`LedDriver` ([src/LedDriver.h](src/LedDriver.h)) is an abstract base (legacy: designed to allow swapping in shift-register/MAX7219/etc. drivers). The only concrete implementation in active use is `LedDriverWS2812FastLED` ([src/LedDriverWS2812FastLED.cpp](src/LedDriverWS2812FastLED.cpp)), which drives a 114-pixel WS2812B strip via FastLED, wired serpentine with the corner LEDs fed separately (see the wiring diagram in the header's comment). It owns HSV color, brightness scaling, and corner-color/animation state, and converts the `matrix[16]` bitmap to physical pixel writes in `writeScreenBufferToMatrix`.
+`LedDriverWS2812FastLED` ([src/LedDriverWS2812FastLED.cpp](src/LedDriverWS2812FastLED.cpp)/[.h](src/LedDriverWS2812FastLED.h)) is the sole, concrete LED driver (an earlier `LedDriver` abstract base for swapping in other drivers was folded into this class — there is no longer an interface to implement). It drives a 114-pixel WS2812B strip via FastLED, wired serpentine with the corner LEDs fed separately (see the wiring diagram in the header's comment). It owns HSV color, brightness scaling, and corner-color/animation state, and converts the `matrix[16]` bitmap to physical pixel writes in `writeScreenBufferToMatrix`.
 
 ### Settings persistence
 
 `Settings` ([src/Settings.h](src/Settings.h)/[src/Settings.cpp](src/Settings.cpp)) holds all user-configurable state (language, corner rendering, brightness, color, LDR use, mode, NTP server, and both standard/DST timezone rules) and (de)serializes it to/from LittleFS as JSON, plus exposes `getJSONSettings()` for the REST API response.
 
-### `Configuration.h`
+### Light sensor (currently unused, kept for potential future wiring)
 
-[src/Configuration.h](src/Configuration.h) is a large block of compile-time `#define` toggles inherited from the original AVR/DCF77/multi-driver-era project (alarm, DCF77 receiver tuning, alternate LED drivers, RTC chip selection, IR remote variants). Most of these do not apply to the current ESP32/WS2812B/NTP build — check whether a given `#define` is actually referenced (`LED_DRIVER_WS8212B` and NTP-related paths are the ones in active use) before assuming it affects behavior.
+`LDR`/`BH1750` ([src/LDR.h](src/LDR.h)/[src/LDR.cpp](src/LDR.cpp)) supports an optional BH1750 light sensor for automatic brightness. It is intentionally not instantiated: the `LDR ldr;` declaration and the brightness-adjustment block in `main .cpp`'s `loop()` are commented out. The `automaticLum`/`UseLdr` setting still exists end-to-end (UI checkbox, `/autoluminance` REST endpoint, `Settings`), but currently has no effect — toggling it doesn't do anything until the LDR is wired back in.
+
+### Debugging
+
+`RemoteDebug` (telnet-style remote log console, `debugI`/`debugW`/`debugE`/`debugA` macros used throughout `main .cpp`) is the only debug facility in the project. Its companion GUI library, `RemoteDebugger` (variable watch/manipulation via a web console), was already inert before consolidation — the include and its init calls were commented out in `main .cpp` — and has been removed from `lib_deps` entirely, since it no longer compiles against the current ESP32 Arduino core (`std::byte` ambiguity in its vendored source). Its vendored web client, `RemoteDebugApp/`, was removed with it. A browser-based log console (e.g. the WebSerial library) was considered as a replacement but rejected: it requires migrating the whole web server from the synchronous `WebServer` used here to `ESPAsyncWebServer`/`AsyncTCP`, and current WebSerial releases are AGPL-3.0-licensed.
 
 ### Vendored/generated content (not project source)
 
-- `RemoteDebugApp/` — a vendored offline copy of the third-party RemoteDebug web console (for use with the `RemoteDebug` telnet-style debug library); not maintained as part of this project.
 - `.pio/`, `dist/`, `compile_commands.json`, `idedata.json` — PlatformIO build cache and IDE tooling metadata, not hand-maintained.
-- `partitions.csv` / `min_spiffs.csv` — flash partition tables referenced by `platformio.ini` (`board_build.partitions`).
+
+### Hardware consolidation
+
+This project originally targeted several boards and LED drivers. It has been consolidated to a single target: Seeed XIAO ESP32-S3 + WS2812B. As part of that, the following were removed as dead/unreachable code:
+- The `nodemcu-32s` and `esp32-c3-display` PlatformIO environments, and the `partitions.csv`/`min_spiffs.csv` partition tables that only they referenced.
+- `src/Configuration.h`, a large block of compile-time `#define` toggles for the original AVR/DCF77/multi-driver-era hardware (alarm, DCF77 receiver, alternate LED drivers, RTC chip selection, IR remote variants). It was already unreferenced by any active code path before removal.
+- The `LedDriver` abstract base class, merged into `LedDriverWS2812FastLED` since it was the only implementation.
+- The `RemoteDebugger` lib_dep and vendored `RemoteDebugApp/` web client (see "Debugging" above).
+
+The BH1750 light sensor support (see above) was deliberately left in place, unlike the rest of the legacy hardware options.

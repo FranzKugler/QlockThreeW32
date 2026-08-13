@@ -22,7 +22,6 @@
  */
 #include "LedDriverWS2812FastLED.h"
 
-//#include "Configuration.h"
 // #define DEBUG
 // #include "Debug.h"
 
@@ -321,4 +320,30 @@ uint32_t LedDriverWS2812FastLED::_wheel(byte wheelPos)
 byte LedDriverWS2812FastLED::_brightnessScaleColor(byte colorPart)
 {
 	return map(_brightnessInPercent, 0, 100, 0, colorPart);
+}
+
+void LedDriverWS2812FastLED::setColor(byte red, byte green, byte blue) {
+    _red = red;
+    _green = green;
+    _blue = blue;
+}
+
+byte LedDriverWS2812FastLED::getRed() {
+    return _red;
+}
+
+byte LedDriverWS2812FastLED::getGreen() {
+    return _green;
+}
+
+byte LedDriverWS2812FastLED::getBlue() {
+    return _blue;
+}
+
+void LedDriverWS2812FastLED::setPixelInScreenBuffer(byte x, byte y, word matrix[16]) {
+    matrix[y] |= 0b1000000000000000 >> x;
+}
+
+boolean LedDriverWS2812FastLED::getPixelFromScreenBuffer(byte x, byte y, word matrix[16]) {
+    return (matrix[y] & (0b1000000000000000 >> x)) == (0b1000000000000000 >> x);
 }

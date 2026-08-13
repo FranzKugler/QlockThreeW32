@@ -26,7 +26,6 @@
 #define FASTLED_INTERRUPT_RETRY_COUNT 1
 
 #include "Arduino.h"
-#include "LedDriver.h"
 
 #define FASTLED_INTERNAL
 #define FASTLED_ALLOW_INTERRUPTS 0
@@ -34,7 +33,7 @@
 
 #define NUM_PIXEL 114
 
-class LedDriverWS2812FastLED : public LedDriver {
+class LedDriverWS2812FastLED {
 public:
 	LedDriverWS2812FastLED(void);
 
@@ -44,11 +43,11 @@ public:
 
     void writeScreenBufferToMatrix(word matrix[16], boolean onChange);
     void updateFunkStatus(byte status);
-    
+
 	void setColorHS(byte hue, byte sat);
     void setColorCorners(boolean flag, boolean cw) {_colorCorners = flag; _cw = cw;}
     void setTimeForCorners(byte Minute, byte Second) {_minute = Minute; _second = Second;}
-  
+
 	void setBrightness(byte brightnessInPercent);
     byte getBrightness();
 
@@ -59,6 +58,14 @@ public:
 
     void clearData();
 
+    void setColor(byte red, byte green, byte blue);
+    byte getRed();
+    byte getGreen();
+    byte getBlue();
+
+    void setPixelInScreenBuffer(byte x, byte y, word matrix[16]);
+    boolean getPixelFromScreenBuffer(byte x, byte y, word matrix[16]);
+
 private:
     byte _brightnessInPercent;
     boolean _dirty;
@@ -67,6 +74,7 @@ private:
     byte _minute;
     byte _second;
     byte _funkStatus;
+    byte _red, _green, _blue;
 
     void _setPixel(byte x, byte y, CRGB c);
  	void _setPixel(byte num, CRGB c);

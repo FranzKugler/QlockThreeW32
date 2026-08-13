@@ -18,7 +18,6 @@
 
 // debug library
 #include <RemoteDebug.h>          //https://github.com/JoaoLopesF/RemoteDebug
-//#include <RemoteDebugger.h>       //https://github.com/JoaoLopesF/RemoteDebugger    
 
 // needed for NTP
 #include <TimeLib.h>
@@ -29,7 +28,6 @@
 #include "ArduinoJson.h"
 
 #include "LDR.h"
-#include "LedDriver.h"
 #include "LedDriverWS2812FastLED.h"
 #include "Renderer.h"
 #include "Staben.h"
