@@ -10,5 +10,8 @@ dist/
 compile_commands.json
 idedata.json
 
+# LittleFS image, generated from web/ by `npm run build`
+data/
+
 # old full-project backup archive, superseded by git
 QlockThreeW32.zip

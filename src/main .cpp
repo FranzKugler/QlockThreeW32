@@ -257,7 +257,7 @@ bool handleFileRead(String path)
 // when the index.html page is loaded, this is called to send the actual settings for a correct display
 void sendCurrentState()
 {
-    server.send(200, "application/json", server.arg(0) + "(" + settings.getJSONSettings() + ");");
+    server.send(200, "application/json", settings.getJSONSettings());
 }
 
 void updateDisplay()

@@ -1,0 +1,25 @@
+/**
+ * Leading-and-trailing throttle. Dragging the colour wheel emits a change event
+ * per pointer move; without this every one of them would become a POST to the
+ * ESP32's single-threaded web server (and push back its deferred flash write).
+ */
+export function throttle(fn, ms) {
+  let timer = null;
+  let pending = null;
+
+  const fire = () => {
+    if (pending === null) {
+      timer = null;
+      return;
+    }
+    const args = pending;
+    pending = null;
+    fn(...args);
+    timer = setTimeout(fire, ms);
+  };
+
+  return (...args) => {
+    pending = args;
+    if (timer === null) fire();
+  };
+}
