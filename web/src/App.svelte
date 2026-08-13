@@ -5,11 +5,13 @@
   import Display from './sections/Display.svelte';
   import Color from './sections/Color.svelte';
   import Timezone from './sections/Timezone.svelte';
+  import Wifi from './sections/Wifi.svelte';
 
   const TABS = [
     { id: 'display', label: 'Anzeige' },
     { id: 'color', label: 'Farbe' },
-    { id: 'timezone', label: 'Timezone' }
+    { id: 'timezone', label: 'Timezone' },
+    { id: 'wifi', label: 'WLAN' }
   ];
 
   let active = $state('display');
@@ -54,8 +56,10 @@
       <Display state={clock} />
     {:else if active === 'color'}
       <Color state={clock} />
-    {:else}
+    {:else if active === 'timezone'}
       <Timezone state={clock} />
+    {:else}
+      <Wifi />
     {/if}
   {:else if loadError}
     <p class="centered">

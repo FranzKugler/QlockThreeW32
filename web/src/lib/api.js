@@ -41,3 +41,23 @@ export const setConfiguration = ({ language, cornerColor, cornerDirection }) =>
   post('/configuration', { language, cornerColor, cornerDirection });
 
 export const setTimezone = (tz) => post('/timezone', tz);
+
+/**
+ * Current WiFi connection. Throws, because the caller polls this while the
+ * clock is switching networks and must tolerate it being briefly unreachable
+ * without flagging that as an error to the user.
+ */
+export async function fetchWifi() {
+  const res = await fetch('/wifi');
+  if (!res.ok) throw new Error(`/wifi: HTTP ${res.status}`);
+  return res.json();
+}
+
+/** One poll of the async scan: `{ scanning: true }` or `{ networks: [...] }`. */
+export async function fetchWifiScan() {
+  const res = await fetch('/wifi/scan');
+  if (!res.ok) throw new Error(`/wifi/scan: HTTP ${res.status}`);
+  return res.json();
+}
+
+export const connectWifi = ({ ssid, password }) => post('/wifi', { ssid, password });

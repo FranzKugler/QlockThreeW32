@@ -9,7 +9,8 @@ const API_ROUTES = [
   '/color',
   '/autoluminance',
   '/configuration',
-  '/timezone'
+  '/timezone',
+  '/wifi'
 ];
 
 export default defineConfig({

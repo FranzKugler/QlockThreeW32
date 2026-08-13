@@ -106,7 +106,8 @@ nav button[aria-current="page"] {
   padding: 0.4rem 0;
 }
 
-.field > label {
+.field > label,
+.field > .key {
   flex: 0 0 auto;
 }
 
@@ -257,6 +258,70 @@ select:disabled {
 .grid input,
 .grid select {
   width: 100%;
+}
+
+/* ---------- wifi ---------- */
+
+.netlist {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.netname {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 0.9rem;
+}
+
+.bars i {
+  width: 3px;
+  background: var(--border);
+  border-radius: 1px;
+}
+
+.bars i:nth-child(1) { height: 25%; }
+.bars i:nth-child(2) { height: 50%; }
+.bars i:nth-child(3) { height: 75%; }
+.bars i:nth-child(4) { height: 100%; }
+
+.bars i.on {
+  background: var(--accent);
+}
+
+.lock {
+  font-size: 0.8rem;
+  opacity: 0.65;
+}
+
+button[type="submit"],
+button.secondary {
+  font: inherit;
+  padding: 0.5rem 1.1rem;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+button.secondary {
+  background: var(--surface);
+  color: var(--text);
+}
+
+button[type="submit"]:disabled,
+button.secondary:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* ---------- messages ---------- */

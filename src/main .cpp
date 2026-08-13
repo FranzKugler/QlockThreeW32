@@ -58,6 +58,26 @@ NTPSyncEvent_t ntpEvent;
 bool wifiConnected = false;
 bool wifiFirstConnected = true;
 
+// ------ Switching WiFi networks from the web UI ------
+// A wrong password would otherwise lock us out of the network for good, so the
+// switch runs as a state machine in loop(): try the new credentials, and fall
+// back to the previous ones if they don't come up within WIFI_SWITCH_TIMEOUT.
+#define WIFI_SWITCH_TIMEOUT 20000
+
+enum WifiSwitchState {
+    WIFI_SWITCH_IDLE,
+    WIFI_SWITCH_START,      // request accepted, not acted on yet
+    WIFI_SWITCH_WAIT_NEW,   // waiting for the new network
+    WIFI_SWITCH_WAIT_OLD    // new one failed, waiting for the old one again
+};
+
+WifiSwitchState wifiSwitchState = WIFI_SWITCH_IDLE;
+String wifiPendingSsid, wifiPendingPass;
+String wifiPreviousSsid, wifiPreviousPass;
+unsigned long wifiSwitchDeadline = 0;
+// Empty unless the last switch failed; shown by the web UI.
+String wifiLastError;
+
 // Set web server port number to 80
 WebServer server(80);
 
@@ -369,7 +389,162 @@ void updateTimezone()
     server.send(200, "application/json", "{msg: ''}");       
 }
 
-void setup() 
+// Restyles the WiFiManager config portal to match the SPA in LittleFS. The
+// portal is only reachable in AP mode, where the SPA does not exist, so this is
+// the only way to give first-time setup the same look. Follows the system
+// light/dark preference, like the SPA does.
+static const char PORTAL_STYLE[] = R"CSS(<style>
+:root{--bg:#f4f5f7;--surface:#fff;--text:#1c1f23;--muted:#6b7280;--border:#d9dce1;--accent:#3b6ea5}
+@media(prefers-color-scheme:dark){:root{--bg:#16181c;--surface:#1f2228;--text:#e6e8eb;--muted:#9aa1ab;--border:#343941;--accent:#6ea8dc}}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:26rem;padding:0 1rem}
+h1,h3{font-weight:600;letter-spacing:.02em}
+button,.b{background:var(--accent);border:0;border-radius:7px;color:#fff;font-size:1rem;padding:.65rem}
+input,select{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:.45rem .55rem;font-size:1rem}
+a,a:hover{color:var(--accent)}
+.q{color:var(--muted)}
+.msg{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem}
+</style>)CSS";
+
+// ------ WiFi endpoints for the web UI ------
+
+// Current connection, plus the outcome of a switch requested via POST /wifi.
+void sendWifiStatus()
+{
+    JsonDocument doc;
+    doc["connected"] = (WiFi.status() == WL_CONNECTED);
+    doc["ssid"]      = WiFi.SSID();
+    doc["ip"]        = WiFi.localIP().toString();
+    doc["rssi"]      = WiFi.RSSI();
+    doc["mac"]       = WiFi.macAddress();
+    doc["hostname"]  = "QlockThreeW32";
+    doc["switching"] = (wifiSwitchState != WIFI_SWITCH_IDLE);
+    doc["error"]     = wifiLastError;
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+// Async scan: the first call kicks one off, the web UI polls until it is done.
+void sendWifiScan()
+{
+    JsonDocument doc;
+    int found = WiFi.scanComplete();
+
+    if (found == WIFI_SCAN_RUNNING)
+    {
+        doc["scanning"] = true;
+    }
+    else if (found == WIFI_SCAN_FAILED)
+    {
+        // Nothing running and nothing cached: start one.
+        WiFi.scanNetworks(true);
+        doc["scanning"] = true;
+    }
+    else
+    {
+        doc["scanning"] = false;
+        JsonArray networks = doc["networks"].to<JsonArray>();
+        for (int i = 0; i < found && i < 20; i++)
+        {
+            JsonObject net = networks.add<JsonObject>();
+            net["ssid"]   = WiFi.SSID(i);
+            net["rssi"]   = WiFi.RSSI(i);
+            net["secure"] = (WiFi.encryptionType(i) != WIFI_AUTH_OPEN);
+        }
+        // Drop the cache so the next poll starts a fresh scan.
+        WiFi.scanDelete();
+    }
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+// Accepts new credentials and answers immediately - the actual switch happens
+// in loop(), otherwise the response would never make it out of the old network.
+void updateWifi()
+{
+    JsonDocument doc;
+    deserializeJson(doc, server.arg("plain"));
+
+    wifiPendingSsid = doc["ssid"].as<const char*>();
+    wifiPendingPass = doc["password"] | "";
+
+    if (wifiPendingSsid.length() == 0)
+    {
+        server.send(400, "application/json", "{\"error\":\"ssid missing\"}");
+        return;
+    }
+
+    // Remember what we are on now, so we can come back to it.
+    wifiPreviousSsid = WiFi.SSID();
+    wifiPreviousPass = WiFi.psk();
+    wifiLastError = "";
+    wifiSwitchState = WIFI_SWITCH_START;
+
+    debugI("WiFi switch requested: %s", wifiPendingSsid.c_str());
+    server.send(200, "application/json", "{msg: ''}");
+}
+
+// Drives the switch started by updateWifi(), including the fallback.
+void handleWifiSwitch()
+{
+    switch (wifiSwitchState)
+    {
+        case WIFI_SWITCH_START:
+        {
+            NTP.stop();
+            WiFi.disconnect();
+            WiFi.begin(wifiPendingSsid.c_str(), wifiPendingPass.c_str());
+            wifiSwitchDeadline = millis() + WIFI_SWITCH_TIMEOUT;
+            wifiSwitchState = WIFI_SWITCH_WAIT_NEW;
+            break;
+        }
+        case WIFI_SWITCH_WAIT_NEW:
+        {
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                debugI("WiFi switch done: %s", WiFi.SSID().c_str());
+                wifiSwitchState = WIFI_SWITCH_IDLE;
+                wifiConnected = true;
+                wifiFirstConnected = true;  // re-init NTP and the servers
+            }
+            else if ((long)(millis() - wifiSwitchDeadline) >= 0)
+            {
+                debugW("WiFi switch failed, falling back to %s", wifiPreviousSsid.c_str());
+                wifiLastError = "Verbindung zu '" + wifiPendingSsid + "' fehlgeschlagen";
+                WiFi.disconnect();
+                WiFi.begin(wifiPreviousSsid.c_str(), wifiPreviousPass.c_str());
+                wifiSwitchDeadline = millis() + WIFI_SWITCH_TIMEOUT;
+                wifiSwitchState = WIFI_SWITCH_WAIT_OLD;
+            }
+            break;
+        }
+        case WIFI_SWITCH_WAIT_OLD:
+        {
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                wifiSwitchState = WIFI_SWITCH_IDLE;
+                wifiConnected = true;
+                wifiFirstConnected = true;
+            }
+            else if ((long)(millis() - wifiSwitchDeadline) >= 0)
+            {
+                // Both networks are gone; the normal reconnect logic takes over.
+                debugE("Fallback to %s failed too", wifiPreviousSsid.c_str());
+                wifiLastError += " - Rueckfall auf '" + wifiPreviousSsid + "' ebenfalls fehlgeschlagen";
+                wifiSwitchState = WIFI_SWITCH_IDLE;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void setup()
 {
     // setup serial
     Serial.begin(115200);
@@ -431,6 +606,10 @@ void setup()
         syncEventTriggered = true;
     });
 
+    // give the config portal the same look as the SPA
+    wifiManager.setTitle("QlockThreeW32");
+    wifiManager.setCustomHeadElement(PORTAL_STYLE);
+
     //tries to connect to last known settings
     //if it does not connect it starts an access point with the specified name
     //and goes into a blocking loop awaiting configuration
@@ -486,9 +665,11 @@ void setup()
     server.on("/color", updateColor);
     server.on("/display", updateDisplay);
     server.on("/autoluminance", updateAutoLuminance);
-    server.on("/color", updateColor);
     server.on("/configuration", updateConfiguration);
     server.on("/timezone", updateTimezone);
+    server.on("/wifi", HTTP_GET, sendWifiStatus);
+    server.on("/wifi", HTTP_POST, updateWifi);
+    server.on("/wifi/scan", HTTP_GET, sendWifiScan);
     server.begin();
 /*
     // over the air update
@@ -594,8 +775,12 @@ ArduinoOTA.begin();
 
 void loop() 
 {
-    // this is to check if we have a connection to the WLAN 
-    if (!wifiConnected)
+    // drive a network switch requested through the web UI
+    handleWifiSwitch();
+
+    // this is to check if we have a connection to the WLAN
+    // (skipped while switching networks, which manages the connection itself)
+    if (!wifiConnected && wifiSwitchState == WIFI_SWITCH_IDLE)
     {
         debugI("Wifi lost");
         NTP.stop();
