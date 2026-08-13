@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+  <title>QlockThreeW Configuration</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <!-- <link rel="stylesheet" type="text/css" href="css/bootstrap.min.css"> -->
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.3.1/css/all.css">
+  <link rel="stylesheet" type="text/css" href="main.css">
+  
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
+
+</head>
+
+<body onload=bodyOnLoad();>
+
+  <header class="page-header header container-fluid">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">QlockThreeW32</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" href="#" onclick="showForm('Display')">Anzeige</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" onclick="showForm('Color')">Farbe</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" onclick="showForm('Timezone')">Timezone</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>    
+
+    <div class="container">
+      <div id="formDisplay">
+        <form class="px-4 py-3">
+          <fieldset>
+            <div class="form-group">
+              <div class="row">
+                <legend class="col-form-label col-sm-2 pt-0"><b>Anzeige</b></legend>
+                <div class="col-sm-10">
+                  <div class="custom-control custom-radio">
+                    <input class="custom-control-input" type="radio" name="displayRadio" onclick=setDisplay(1)
+                      id="displayRadio1" value="option1" checked>
+                    <label class="custom-control-label" for="displayRadio1">
+                      Uhrzeit
+                    </label>
+                  </div>
+                  <div class="custom-control custom-radio">
+                    <input class="custom-control-input" type="radio" name="displayRadio" onclick=setDisplay(6)
+                      id="displayRadio6" value="option6" checked>
+                    <label class="custom-control-label" for="displayRadio6">
+                      Uhrzeit mit WiFi Status
+                    </label>
+                  </div>
+                  <div class="custom-control custom-radio">
+                    <input class="custom-control-input" type="radio" name="displayRadio" onclick=setDisplay(0)
+                      id="displayRadio0" value="option0">
+                    <label class="custom-control-label" for="displayRadio0">
+                      Aus (dunkel)
+                    </label>
+                  </div>
+                  <div class="custom-control custom-radio">
+                    <input class="custom-control-input" type="radio" name="displayRadio" onclick=setDisplay(2)
+                      id="displayRadio2" value="option2">
+                    <label class="custom-control-label" for="displayRadio2">
+                      Sekunden
+                    </label>
+                  </div>
+                  <div class="custom-control custom-radio">
+                    <input class="custom-control-input" type="radio" name="displayRadio" onclick=setDisplay(3)
+                      id="displayRadio3" value="option3">
+                    <label class="custom-control-label" for="displayRadio3">
+                      Test
+                    </label>
+                  </div>
+                  <div class="custom-control custom-radio">
+                    <input class="custom-control-input" type="radio" name="displayRadio" onclick=setDisplay(4)
+                      id="displayRadio4" value="option4">
+                    <label class="custom-control-label" for="displayRadio4">
+                      Status
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+          <div class="form-group row align-items-center">
+            <label for="languageSelect" class="col-sm-2 col-form-label"><b>Sprache</b></label>
+            <div class="col-sm-10">
+              <select class="custom-select mr-sm-2" onchange=setConfiguration() id="languageSelect">
+                <option value="0">Deutsch</option>
+                <option value="1">Schwäbisch</option>
+                <option value="2">Bayrisch</option>
+                <option value="3">Sächsisch</option>
+                <option value="4">Schweizerisch</option>
+                <option value="5">Englisch</option>
+                <option value="6">Französisch</option>
+                <option value="7">Italienisch</option>
+                <option value="8">Niederländisch</option>
+                <option value="9">Spanisch</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group row align-items-center">
+            <label for="cornerDirectionSelect" class="col-sm-2 col-form-label"><b>Ecken</b></label>
+            <div class="col-sm-10">
+              <select class="custom-select mr-sm-2" onchange=setConfiguration() id="cornerDirectionSelect">
+                <option value=1>im Uhrzeigersinn</option>
+                <option value=0>gegen den Uhrzeigersinn</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group row align-items-center">
+            <label for="cornerColorSelect" class="col-sm-2 col-form-label"><b>Minuten</b></label>
+            <div class="col-sm-10">
+              <select class="custom-select mr-sm-2" onchange=setConfiguration() id="cornerColorSelect">
+                <option value=0>monochrom</option>
+                <option value=1>farbig</option>
+              </select>
+            </div>
+          </div>
+
+        </form>
+      </div>
+      <div id="formColor" class="hidden">
+        <form class="px-4 py-3">
+          <div class="form-group row">
+            <label for="picker" class="col-sm-2 col-form-label"><b>Farbe</b></label>
+            <div class="col-sm-5">
+              <div id="picker"></div>
+            </div>
+          </div>
+          <div class="form-group row align-items-center">
+            <label for="lumAutomaticCheck" class="col-sm-3 col-form-label"><b>Automatik</b></label>
+            <div class="col-sm-1 form-check form-switch">
+              <input class="form-check-input" type="checkbox" checked="" onclick=setAutoLuminance() id="lumAutomaticCheck">
+            </div>
+          </div>      
+        </form>
+      </div>
+      <div id="formTimezone" class="hidden">
+       
+        <form>
+          <div class="row">
+            <label for="ntpServer" class="col-sm-3 col-form-label"><b>NTP Server</b></label>
+              <div class="col-sm-5">
+                <input type="text" class="form-control" id="ntpServer" placeholder="pool.ntp.org" onchange=setTimezone()>
+              </div>
+          </div>
+        </form>
+
+        <form>
+          <div class="row align-items-center">
+            <label class="col-sm-12 col-form-label"><b>Timezone</b></label>
+          </div> 
+          <div class="row">
+            <label class="col-sm-4 col-form-label">Sommerzeit</label>
+            <div class="col-sm-1 form-check form-switch">
+              <input class="form-check-input" type="checkbox" checked="" onclick=setTimezone() id="tzDst">
+            </div>
+          </div>
+          <div class="row">
+            <div class="col"><label>ID</label></div>
+            <div class="col"><label>Woche</label></div>
+            <div class="col"><label>Tag</label></div>
+            <div class="col"><label>Monat</label></div>
+            <div class="col"><label>Stunde</label></div>
+            <div class="col"><label>Offset</label></div>
+          </div>
+          <div class="row align-items-center">
+            <div class="col">
+              <input type="text" class="form-control sm" id="tzName" placeholder="CET" onchange=setTimezone()>
+            </div>
+            <div class="col">
+              <select class="custom-select sm" onchange=setTimezone() id="tzWeek">
+                <option value="0">Letzer</option>
+                <option value="1">1.</option>
+                <option value="2">2.</option>
+                <option value="3">3.</option>
+                <option value="4">4.</option>
+              </select>
+            </div>
+            <div class="col">
+              <select class="custom-select xl " onchange=setTimezone() id="tzDay">
+                <option value="1">So.</option>
+                <option value="2">Mo.</option>
+                <option value="3">Di.</option>
+                <option value="4">Mi.</option>
+                <option value="5">Do.</option>
+                <option value="6">Fr.</option>
+                <option value="7">Sa.</option>
+              </select>
+            </div>      
+            <div class="col">
+              <select class="custom-select " onchange=setTimezone() id="tzMonth">
+                <option value="1">Jan.</option>
+                <option value="2">Feb.</option>
+                <option value="3">Mär.</option>
+                <option value="4">Apr.</option>
+                <option value="5">Mai.</option>
+                <option value="6">Jun.</option>
+                <option value="7">Jul.</option>
+                <option value="8">Aug.</option>
+                <option value="9">Sep.</option>
+                <option value="10">Okt.</option>
+                <option value="11">Nov.</option>
+                <option value="12">Dez.</option>
+              </select>
+            </div>   
+            <div class="col">
+              <select class="custom-select sm" onchange=setTimezone() id="tzHour">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="13">13</option>
+                <option value="14">14</option>
+                <option value="15">15</option>
+                <option value="16">16</option>
+                <option value="17">17</option>
+                <option value="18">18</option>
+                <option value="19">19</option>   
+                <option value="20">20</option>
+                <option value="21">21</option>
+                <option value="22">22</option>
+                <option value="23">23</option>                                 
+              </select>
+            </div>    
+            <div class="col">
+              <input type="text" class="form-control sm" id="tzOffset" placeholder="60" onchange=setTimezone()>
+            </div>                                   
+          </div>
+          <div class="row align-items-center">
+            <div class="col">
+              <input type="text" class="form-control sm" id="tzDsName" placeholder="CEST" onchange=setTimezone()>
+            </div>
+            <div class="col">
+              <select class="custom-select sm" onchange=setTimezone() id="tzDsWeek">
+                <option value="0">Letzer</option>
+                <option value="1">1.</option>
+                <option value="2">2.</option>
+                <option value="3">3.</option>
+                <option value="4">4.</option>
+              </select>
+            </div>
+            <div class="col">
+              <select class="custom-select xl " onchange=setTimezone() id="tzDsDay">
+                <option value="1">So.</option>
+                <option value="2">Mo.</option>
+                <option value="3">Di.</option>
+                <option value="4">Mi.</option>
+                <option value="5">Do.</option>
+                <option value="6">Fr.</option>
+                <option value="7">Sa.</option>
+              </select>
+            </div>      
+            <div class="col">
+              <select class="custom-select " onchange=setTimezone() id="tzDsMonth">
+                <option value="1">Jan.</option>
+                <option value="2">Feb.</option>
+                <option value="3">Mär.</option>
+                <option value="4">Apr.</option>
+                <option value="5">Mai.</option>
+                <option value="6">Jun.</option>
+                <option value="7">Jul.</option>
+                <option value="8">Aug.</option>
+                <option value="9">Sep.</option>
+                <option value="10">Okt.</option>
+                <option value="11">Nov.</option>
+                <option value="12">Dez.</option>
+              </select>
+            </div>   
+            <div class="col">
+              <select class="custom-select sm" onchange=setTimezone() id="tzDsHour">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+                <option value="8">8</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+                <option value="11">11</option>
+                <option value="12">12</option>
+                <option value="13">13</option>
+                <option value="14">14</option>
+                <option value="15">15</option>
+                <option value="16">16</option>
+                <option value="17">17</option>
+                <option value="18">18</option>
+                <option value="19">19</option>   
+                <option value="20">20</option>
+                <option value="21">21</option>
+                <option value="22">22</option>
+                <option value="23">23</option>                                 
+              </select>
+            </div>    
+            <div class="col">
+              <input type="text" class="form-control sm" id="tzDsOffset" placeholder="120" onchange=setTimezone()>
+            </div>                                   
+          </div>        
+        </form>
+      </div>
+    </div>
+  </header> 
+
+  <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
+  <script src="main.js"></script> 
+</body>
+</html>
