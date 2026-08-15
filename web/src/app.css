@@ -53,6 +53,23 @@ body {
   padding: 1rem;
 }
 
+/*
+ * Stays put while the rest scrolls. The negative top margin cancels the
+ * padding of .app so the initial layout is unchanged, while the padding makes
+ * that space part of the sticky box - and the space below the separator is
+ * padding rather than margin for the same reason: anything left as margin is
+ * unpainted, and scrolling content would show through the gap.
+ */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  margin-top: -1rem;
+  padding-top: 1rem;
+  padding-bottom: 1.25rem;
+}
+
 header h1 {
   margin: 0.25rem 0 1rem;
   font-size: 1.35rem;
@@ -62,13 +79,15 @@ header h1 {
 /* ---------- tabs ---------- */
 
 nav {
-  display: flex;
-  gap: 0.25rem;
   border-bottom: 1px solid var(--border);
-  margin-bottom: 1.25rem;
 }
 
-nav button {
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tabs button {
   appearance: none;
   border: none;
   background: none;
@@ -80,14 +99,179 @@ nav button {
   margin-bottom: -1px;
 }
 
-nav button:hover {
+.tabs button:hover {
   color: var(--text);
 }
 
-nav button[aria-current="page"] {
+.tabs button[aria-current="page"] {
   color: var(--accent);
   border-bottom-color: var(--accent);
   font-weight: 600;
+}
+
+/* The menu button only exists on narrow screens; see the media query below. */
+.menu-toggle {
+  display: none;
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0.2rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+/* Three bars, drawn rather than loaded - nothing here may need the network. */
+.burger {
+  position: relative;
+  display: block;
+  width: 1.15rem;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  transition: background-color 0.15s;
+}
+
+.burger::before,
+.burger::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: currentColor;
+  border-radius: inherit;
+  transition: transform 0.15s;
+}
+
+.burger::before {
+  transform: translateY(-6px);
+}
+
+.burger::after {
+  transform: translateY(6px);
+}
+
+/* Open: the bars fold into a cross. */
+nav.open .burger {
+  background-color: transparent;
+}
+
+nav.open .burger::before {
+  transform: rotate(45deg);
+}
+
+nav.open .burger::after {
+  transform: rotate(-45deg);
+}
+
+/*
+ * Below this the five tabs no longer fit on one line. The threshold is set for
+ * the longest translation (Italian, "Visualizzazione … Aggiornamento"), so the
+ * row never wraps in any language.
+ *
+ * Vertical space is the scarce resource on a phone, so the title and the menu
+ * button share one bar, and the menu opens as a floating panel rather than
+ * pushing the content down.
+ */
+@media (max-width: 40rem) {
+  .app {
+    padding: 0.75rem;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: -0.75rem;
+    padding-top: 0.75rem;
+    /* 0.4rem down to the separator, 0.9rem below it - both painted. */
+    padding-bottom: 1.3rem;
+  }
+
+  /*
+   * The separator, drawn inside the padding instead of as a border, so the gap
+   * beneath it still belongs to the sticky box. Absolutely positioned, so it is
+   * not a flex item of the bar.
+   */
+  header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0.9rem;
+    height: 1px;
+    background: var(--border);
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  nav {
+    position: relative;
+    border-bottom: none;
+  }
+
+  .menu-toggle {
+    display: flex;
+    width: auto;
+    padding: 0.3rem 0.1rem;
+    color: var(--muted);
+  }
+
+  .tabs {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.55rem);
+    z-index: 10;
+    flex-direction: column;
+    gap: 0;
+    min-width: 11rem;
+    padding: 0.3rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+  }
+
+  nav.open .tabs {
+    display: flex;
+  }
+
+  .tabs button {
+    padding: 0.55rem 0.7rem;
+    text-align: left;
+    border-bottom: none;
+    border-left: 2px solid transparent;
+    border-radius: 6px;
+    margin-bottom: 0;
+  }
+
+  .tabs button[aria-current="page"] {
+    border-bottom-color: transparent;
+    border-left-color: var(--accent);
+  }
+
+  .card {
+    padding: 0.85rem 0.9rem;
+    margin-bottom: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .burger,
+  .burger::before,
+  .burger::after {
+    transition: none;
+  }
 }
 
 /* ---------- cards & fields ---------- */
