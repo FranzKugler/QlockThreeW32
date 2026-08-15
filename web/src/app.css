@@ -224,19 +224,156 @@ select:disabled {
 
 /* ---------- colour section ---------- */
 
-.wheel {
+.picker {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  gap: 1rem;
   padding: 0.5rem 0 1rem;
 }
 
-.readout {
+.wheel {
+  flex: 0 0 auto;
+}
+
+/* Preview of the lit clock face. Square and the same size as the wheel (both
+   from WHEEL_SIZE in Color.svelte). The ground is a light grey standing in for
+   the clock's face rather than black, so letters set to white stay visible.
+   Fixed in both themes, since it represents the physical clock. */
+.preview {
+  flex: 0 0 auto;
+  width: var(--size);
+  height: var(--size);
   display: flex;
+  flex-direction: column;
   justify-content: center;
-  gap: 1.5rem;
-  font-variant-numeric: tabular-nums;
+  gap: 0.35rem;
+  padding: 1rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgb(192 192 192);
+  text-align: center;
+}
+
+.preview span {
+  color: var(--led);
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.16em;
+  text-shadow: 0 0 10px var(--led);
+  transition: color 0.08s linear, text-shadow 0.08s linear;
+}
+
+/* slider rows (hue, brightness) */
+
+.ctl {
+  padding: 0.45rem 0;
+}
+
+.ctl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.3rem;
+}
+
+.ctl-head output {
   color: var(--muted);
   font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctl-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ctl-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+button.step {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  font: inherit;
+  line-height: 1;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+button.step:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button.step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* range inputs need their track and thumb styled per engine */
+
+input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  /* same height as button.step, so a slider row lines up */
+  height: 2rem;
+  margin: 0;
+  /* every slider sets its own track inline (SliderRow's `track` prop) */
+  --track: var(--border);
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  box-sizing: border-box;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--track);
+}
+
+input[type="range"]::-moz-range-track {
+  box-sizing: border-box;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--track);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin-top: 0.29rem;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+}
+
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 999px;
 }
 
 /* ---------- timezone rules ---------- */
