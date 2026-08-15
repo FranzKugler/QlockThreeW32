@@ -1,7 +1,8 @@
 /**
  * Settings
- * The user settings of the clock, persisted to LittleFS as JSON and served to
- * the web UI.
+ * The user settings of the clock, persisted to NVS as JSON and served to the
+ * web UI. NVS rather than the filesystem, because the filesystem partition is
+ * overwritten wholesale by an update of the web UI.
  *
  * @mc       ESP32S3
  * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
@@ -20,10 +21,17 @@
 #include <RemoteDebug.h>
 extern RemoteDebug Debug;
 
-// Where the settings are parked while a filesystem image is written. NVS has
-// its own partition, so an update to the filesystem leaves it alone.
+// The settings live in NVS, not in the filesystem: NVS has its own partition,
+// which neither a firmware nor a filesystem update touches. The whole record
+// goes in as one JSON string rather than as individual keys - partly to share
+// the serialisation with getJSONSettings(), partly because NVS keys are capped
+// at 15 characters and "RenderColorCorner" does not fit.
 #define NVS_NAMESPACE "qlock"
 #define NVS_KEY_CONF  "conf"
+
+// Where the settings used to live. Read once on the first start after the
+// update, then removed.
+#define LEGACY_CONF_FILE "/qlockconf.json"
 
 
 /**
@@ -56,49 +64,85 @@ Settings::Settings()
     TzDsOffset = 120;
 }
 
+/**
+ * Takes over settings written by a firmware that still kept them in the
+ * filesystem. Returns the JSON it found, or an empty string. The file is
+ * removed once it is safely in NVS, so this happens exactly once.
+ */
+String Settings::migrateLegacyFile(Preferences &preferences)
+{
+    if (!LittleFS.exists(LEGACY_CONF_FILE)) return String("");
+
+    File file = LittleFS.open(LEGACY_CONF_FILE, "r");
+    if (!file) return String("");
+
+    String json = file.readString();
+    file.close();
+
+    if (json.length() == 0) return String("");
+
+    if (preferences.putString(NVS_KEY_CONF, json) > 0)
+    {
+        LittleFS.remove(LEGACY_CONF_FILE);
+        debugA("Settings migrated from the filesystem to NVS.\n");
+    }
+    return json;
+}
+
 void Settings::loadSettings()
 {
-    if (LittleFS.exists("/qlockconf.json"))
+    Preferences preferences;
+    if (!preferences.begin(NVS_NAMESPACE, false))
     {
-        // If the file exists, open for read
-        File file = LittleFS.open("/qlockconf.json", "r");
-
-        // generate JSON doc
-        StaticJsonDocument<512> doc;
-        DeserializationError error = deserializeJson(doc, file);
-        
-        // check if there was a problem
-        if (error) 
-        {
-            debugE("Failed to read file qlockconf.json.\n");
-        }
-
-        // get values - even if we failed before because then we get the default values
-        Language =          doc["Language"] | LANGUAGE_DE_BA;
-        RenderCornersCw =   doc["RenderCornersCw"] | true;
-        RenderColorCorner = doc["RenderColorCorner"] | false;
-        UseLdr =            doc["UseLdr"] | false;
-        Brightness =        doc["Brightness"] | 50;
-        ColorHue =          doc["ColorHue"] | 0;
-        ColorSat =          doc["ColorSat"] | 0;
-
-        strcpy(NTPServer, doc["NTPServer"] | "pool.ntp.org");
-        UseDs =             doc["UseDs"] | true;
-        strcpy(TzName, doc["TzName"] | "CET");
-        TzWeek =            doc["TzWeek"] | 0;
-        TzDoW =             doc["TzDoW"] | 1;
-        TzMonth =           doc["TzMonth"] | 10;
-        TzHour =            doc["TzHour"] | 3;
-        TzOffset =          doc["TzOffset"] | 60;
-        strcpy(TzDsName, doc["TzDsName"] | "CEST");
-        TzDsWeek =            doc["TzDsWeek"] | 0;
-        TzDsDoW =             doc["TzDsDoW"] | 1;
-        TzDsMonth =           doc["TzDsMonth"] | 3;
-        TzDsHour =            doc["TzDsHour"] | 2;
-        TzDsOffset =          doc["TzDsOffset"] | 120;        
- 
-        file.close(); 
+        debugE("Cannot open NVS, keeping the default settings.\n");
+        return;
     }
+
+    String json = preferences.getString(NVS_KEY_CONF, "");
+    if (json.length() == 0) json = migrateLegacyFile(preferences);
+    preferences.end();
+
+    // Nothing stored yet: first start, or after the NVS partition was erased.
+    // The constructor has already set the defaults, so there is nothing to do.
+    if (json.length() == 0)
+    {
+        debugI("No stored settings found, using the defaults.\n");
+        return;
+    }
+
+    // generate JSON doc
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, json);
+
+    // check if there was a problem
+    if (error)
+    {
+        debugE("Failed to parse the stored settings.\n");
+    }
+
+    // get values - even if we failed before because then we get the default values
+    Language =          doc["Language"] | LANGUAGE_DE_BA;
+    RenderCornersCw =   doc["RenderCornersCw"] | true;
+    RenderColorCorner = doc["RenderColorCorner"] | false;
+    UseLdr =            doc["UseLdr"] | false;
+    Brightness =        doc["Brightness"] | 50;
+    ColorHue =          doc["ColorHue"] | 0;
+    ColorSat =          doc["ColorSat"] | 0;
+
+    strcpy(NTPServer, doc["NTPServer"] | "pool.ntp.org");
+    UseDs =             doc["UseDs"] | true;
+    strcpy(TzName, doc["TzName"] | "CET");
+    TzWeek =            doc["TzWeek"] | 0;
+    TzDoW =             doc["TzDoW"] | 1;
+    TzMonth =           doc["TzMonth"] | 10;
+    TzHour =            doc["TzHour"] | 3;
+    TzOffset =          doc["TzOffset"] | 60;
+    strcpy(TzDsName, doc["TzDsName"] | "CEST");
+    TzDsWeek =            doc["TzDsWeek"] | 0;
+    TzDsDoW =             doc["TzDsDoW"] | 1;
+    TzDsMonth =           doc["TzDsMonth"] | 3;
+    TzDsHour =            doc["TzDsHour"] | 2;
+    TzDsOffset =          doc["TzDsOffset"] | 120;
 }
 
 void Settings::fillDocument(JsonDocument &doc)
@@ -133,41 +177,23 @@ void Settings::storeSettings()
     JsonDocument doc;
     fillDocument(doc);
 
-    // open for write
-    File file = LittleFS.open("/qlockconf.json", "w+");
-
-    // Serialize JSON to file
-    if (serializeJson(doc, file) == 0) 
-    {
-        debugE("Failed to write file qlockconf.json.\n");
-    }
-    else
-    {
-        debugI("Successful write to file qlockconf.json.\n");
-    }
-    
-    file.flush();
-    file.close();
-}
-
-/**
- * Parks the current settings in NVS, to be picked up by restoreFromNvs() after
- * the next boot. Called before a filesystem image is written, because that
- * image covers the whole partition and takes qlockconf.json with it.
- */
-bool Settings::backupToNvs()
-{
-    JsonDocument doc;
-    fillDocument(doc);
-
     String json;
     serializeJson(doc, json);
 
     Preferences preferences;
     if (!preferences.begin(NVS_NAMESPACE, false))
     {
-        debugE("Cannot open NVS to back up the settings.\n");
-        return false;
+        debugE("Cannot open NVS to store the settings.\n");
+        return;
+    }
+
+    // Nothing to do when the stored record is already identical. NVS appends a
+    // new entry on every write and only erases a sector once a page is full,
+    // so skipping the no-ops here directly saves erase cycles.
+    if (preferences.getString(NVS_KEY_CONF, "") == json)
+    {
+        preferences.end();
+        return;
     }
 
     size_t written = preferences.putString(NVS_KEY_CONF, json);
@@ -175,57 +201,12 @@ bool Settings::backupToNvs()
 
     if (written == 0)
     {
-        debugE("Failed to write the settings backup to NVS.\n");
-        return false;
+        debugE("Failed to write the settings to NVS.\n");
     }
-
-    debugI("Settings backed up to NVS (%u bytes).\n", written);
-    return true;
-}
-
-/**
- * Writes a backup left by backupToNvs() back to the filesystem, so the settings
- * survive a filesystem update. Does nothing when qlockconf.json is present -
- * the file always wins, the backup is only for the case where it is gone.
- */
-bool Settings::restoreFromNvs()
-{
-    if (LittleFS.exists("/qlockconf.json")) return false;
-
-    Preferences preferences;
-    if (!preferences.begin(NVS_NAMESPACE, false)) return false;
-
-    String json = preferences.getString(NVS_KEY_CONF, "");
-    if (json.length() == 0)
+    else
     {
-        preferences.end();
-        return false;
+        debugI("Successful write of %u bytes to NVS.\n", written);
     }
-
-    File file = LittleFS.open("/qlockconf.json", "w+");
-    if (!file)
-    {
-        preferences.end();
-        debugE("Cannot write qlockconf.json while restoring from NVS.\n");
-        return false;
-    }
-
-    size_t written = file.print(json);
-    file.flush();
-    file.close();
-
-    // One shot: a later, deliberate wipe of the filesystem should start from
-    // the defaults rather than resurrect settings from an old update.
-    if (written == json.length()) preferences.remove(NVS_KEY_CONF);
-    preferences.end();
-
-    if (written != json.length())
-    {
-        debugE("Settings restore from NVS incomplete.\n");
-        return false;
-    }
-
-    return true;
 }
 
 

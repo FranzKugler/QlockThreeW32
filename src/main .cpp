@@ -636,16 +636,10 @@ void handleOtaUploadData()
 
                 if (otaCommand == U_SPIFFS)
                 {
-                    // The image covers the whole partition, so qlockconf.json
-                    // goes with it. Park a copy in NVS; setup() puts it back on
-                    // the next boot.
-                    if (!settings.backupToNvs())
-                    {
-                        debugW("Settings backup failed, the update will reset them");
-                    }
-                    // Unmount only after the backup, and before writing:
-                    // LittleFS caches writes, and flushing them after the image
-                    // has been written would corrupt it.
+                    // Unmount before writing: LittleFS caches writes, and
+                    // flushing them after the image has been written would
+                    // corrupt it. The settings are unaffected - they live in
+                    // NVS, which is a partition of its own.
                     LittleFS.end();
                 }
 
@@ -738,13 +732,7 @@ void setup()
         debugA("LittleFS Mount succesfull");
         // version of the web UI in flash, for the update tab
         otaFsVersion = readFsVersion();
-        // a filesystem update wipes qlockconf.json; put back the copy that
-        // was parked in NVS before the image was written
-        if (settings.restoreFromNvs())
-        {
-            debugA("Settings restored from NVS after a filesystem update");
-        }
-        // load settings from FLASH
+        // load settings from NVS (and take over an old qlockconf.json once)
         settings.loadSettings();
         // set NTPServerName and timezones right away
         NTPServerName = String(settings.getNTPServer());

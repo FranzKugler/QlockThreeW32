@@ -1,7 +1,8 @@
 /**
  * Settings
- * The user settings of the clock, persisted to LittleFS as JSON and served to
- * the web UI.
+ * The user settings of the clock, persisted to NVS as JSON and served to the
+ * web UI. NVS rather than the filesystem, because the filesystem partition is
+ * overwritten wholesale by an update of the web UI.
  *
  * @mc       ESP32S3
  * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
@@ -17,6 +18,7 @@
 #include <FS.h>
 #include "Arduino.h"
 #include <ArduinoJson.h>
+#include <Preferences.h>
 
 class Settings
 {
@@ -25,12 +27,6 @@ public:
     void loadSettings();
     void storeSettings();
     String getJSONSettings();
-
-    // A filesystem update overwrites the whole partition, qlockconf.json
-    // included. These carry the settings across it through NVS, which lives in
-    // its own partition and is not touched by an update.
-    bool backupToNvs();
-    bool restoreFromNvs();
 
     // setters and getters
     void    setFS(fs::FS* fileSystem) {this->fileSystem = fileSystem;}
@@ -81,9 +77,11 @@ public:
     int     getTzDsOffset() {return this->TzDsOffset;}
 
 private:
-    // Fills a document with the stored representation, shared by storeSettings()
-    // and backupToNvs() so the field list exists only once.
+    // Fills a document with the stored representation. Kept separate so the
+    // field list exists once, next to the one that reads it back.
     void fillDocument(JsonDocument &doc);
+    // Takes over settings from a firmware that kept them in the filesystem.
+    String migrateLegacyFile(Preferences &preferences);
 
     fs::FS  *fileSystem;
     byte    Language;
