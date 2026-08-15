@@ -16,6 +16,9 @@
    */
   import { onMount, onDestroy } from 'svelte';
   import * as api from '../lib/api.js';
+  import { dict } from '../lib/i18n.svelte.js';
+
+  const t = $derived(dict());
 
   let info = $state(null);
   let infoError = $state(null);
@@ -84,9 +87,7 @@
 
     if (!back) {
       phase = 'failed';
-      error =
-        'Die Uhr hat sich nach dem Neustart nicht zurückgemeldet. ' +
-        'Sie startet bei einem fehlerhaften Image mit der bisherigen Version.';
+      error = t.noResponseAfterReboot;
       return;
     }
 
@@ -108,7 +109,10 @@
     return false;
   }
 
-  const KIND_LABEL = { firmware: 'Firmware-Image', filesystem: 'Dateisystem-Image (Weboberfläche)' };
+  const kindLabel = $derived({
+    firmware: t.firmwareImage,
+    filesystem: t.filesystemImage
+  });
 
   function size(bytes) {
     if (!bytes && bytes !== 0) return '—';
@@ -119,27 +123,31 @@
 </script>
 
 <section class="card">
-  <h2>Installiert</h2>
+  <h2>{t.installed}</h2>
 
   {#if infoError}
-    <p class="banner">Status nicht abrufbar — {infoError}</p>
+    <p class="banner">{t.statusUnavailable} — {infoError}</p>
   {:else if info}
-    <div class="field"><span class="key">Firmware</span><span>{info.firmwareVersion || '—'}</span></div>
     <div class="field">
-      <span class="key">Weboberfläche</span><span>{info.fsVersion || 'unbekannt'}</span>
+      <span class="key">{t.firmware}</span><span>{info.firmwareVersion || '—'}</span>
     </div>
-    <div class="field"><span class="key">Belegt</span><span>{size(info.sketchSize)}</span></div>
-    <div class="field"><span class="key">Platz für Update</span><span>{size(info.freeSpace)}</span></div>
+    <div class="field">
+      <span class="key">{t.webUi}</span><span>{info.fsVersion || t.unknown}</span>
+    </div>
+    <div class="field"><span class="key">{t.used}</span><span>{size(info.sketchSize)}</span></div>
+    <div class="field">
+      <span class="key">{t.roomForUpdate}</span><span>{size(info.freeSpace)}</span>
+    </div>
   {:else}
-    <p class="hint">wird geladen …</p>
+    <p class="hint">{t.loadingShort}</p>
   {/if}
 </section>
 
 <section class="card">
-  <h2>Image hochladen</h2>
+  <h2>{t.uploadImage}</h2>
 
   <div class="field">
-    <label for="image">Datei</label>
+    <label for="image">{t.file}</label>
     <input
       id="image"
       type="file"
@@ -151,16 +159,13 @@
 
   {#if file}
     <div class="field">
-      <span class="key">Erkannt als</span>
-      <span>{KIND_LABEL[kind]} · {size(file.size)}</span>
+      <span class="key">{t.detectedAs}</span>
+      <span>{kindLabel[kind]} · {size(file.size)}</span>
     </div>
   {/if}
 
   {#if kind === 'filesystem'}
-    <p class="hint">
-      Das Dateisystem-Image überschreibt die gesamte Partition. Die Uhr sichert
-      ihre Einstellungen vorher im NVS und stellt sie beim Neustart wieder her.
-    </p>
+    <p class="hint">{t.filesystemHint}</p>
   {/if}
 
   {#if phase === 'uploading' || phase === 'rebooting'}
@@ -169,17 +174,16 @@
     </div>
     <p class="hint">
       {#if phase === 'uploading'}
-        Wird geschrieben … {Math.round(progress * 100)} %
+        {t.writing(Math.round(progress * 100))}
       {:else}
-        Die Uhr startet neu — bitte warten.
+        {t.rebooting}
       {/if}
     </p>
   {/if}
 
   {#if phase === 'done'}
     <p class="hint success">
-      Update eingespielt. Firmware {info?.firmwareVersion}, Weboberfläche
-      {info?.fsVersion || 'unbekannt'}.
+      {t.updateDone(info?.firmwareVersion, info?.fsVersion || t.unknown)}
     </p>
   {/if}
 
@@ -192,16 +196,10 @@
     onclick={upload}
     disabled={!file || phase === 'uploading' || phase === 'rebooting'}
   >
-    {phase === 'uploading' || phase === 'rebooting' ? 'Läuft …' : 'Hochladen und neu starten'}
+    {phase === 'uploading' || phase === 'rebooting' ? t.running : t.upload}
   </button>
 
-  <p class="hint">
-    <em>firmware.bin</em> und <em>littlefs.bin</em> entstehen mit
-    <em>pio run</em> bzw. <em>pio run -t buildfs</em> im Ordner
-    <em>.pio/build/seeed_xiao_esp32s3/</em>. Die Uhr prüft die Prüfsumme, bevor
-    sie auf das neue Image umschaltet — ein abgebrochener Upload macht also
-    nichts kaputt, sie startet dann einfach mit der bisherigen Version.
-  </p>
+  <p class="hint">{t.buildHint}</p>
 </section>
 
 <style>

@@ -11,6 +11,8 @@
    * @created  15.8.2026
    * @updated  15.8.2026
    */
+  import { dict } from '../lib/i18n.svelte.js';
+
   let {
     id,
     label,
@@ -25,6 +27,8 @@
     wrap = false,
     onchange
   } = $props();
+
+  const t = $derived(dict());
 
   function stepBy(delta) {
     const next = value + delta;
@@ -49,7 +53,7 @@
       class="step"
       onclick={() => stepBy(-stepSize)}
       disabled={!wrap && value <= min}
-      aria-label="{label} um {stepSize}{unit} verringern"
+      aria-label={t.decreaseBy(label, `${stepSize}${unit}`)}
     >
       −
     </button>
@@ -59,7 +63,7 @@
       class="step"
       onclick={() => stepBy(stepSize)}
       disabled={!wrap && value >= max}
-      aria-label="{label} um {stepSize}{unit} erhöhen"
+      aria-label={t.increaseBy(label, `${stepSize}${unit}`)}
     >
       +
     </button>

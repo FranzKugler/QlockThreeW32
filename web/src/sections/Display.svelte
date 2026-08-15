@@ -9,32 +9,15 @@
    * @updated  15.8.2026
    */
   import * as api from '../lib/api.js';
+  import { dict } from '../lib/i18n.svelte.js';
 
   let { state } = $props();
 
-  // Values match the STD_MODE_* / EXT_MODE_* defines in src/main .cpp.
-  const MODES = [
-    { value: 1, label: 'Uhrzeit' },
-    { value: 6, label: 'Uhrzeit mit WiFi-Status' },
-    { value: 0, label: 'Aus (dunkel)' },
-    { value: 2, label: 'Sekunden' },
-    { value: 3, label: 'Test' },
-    { value: 4, label: 'Status' }
-  ];
+  const t = $derived(dict());
 
-  // Values match the LANGUAGE_* defines in src/Renderer.h.
-  const LANGUAGES = [
-    'Deutsch',
-    'Schwäbisch',
-    'Bayrisch',
-    'Sächsisch',
-    'Schweizerisch',
-    'Englisch',
-    'Französisch',
-    'Italienisch',
-    'Niederländisch',
-    'Spanisch'
-  ];
+  // Values match the STD_MODE_* / EXT_MODE_* defines in src/main .cpp; the
+  // labels are t.modes in the same order.
+  const MODE_VALUES = [1, 6, 0, 2, 3, 4];
 
   const pushConfiguration = () =>
     api.setConfiguration({
@@ -45,50 +28,50 @@
 </script>
 
 <section class="card">
-  <h2>Anzeige</h2>
-  {#each MODES as mode (mode.value)}
+  <h2>{t.displayTitle}</h2>
+  {#each MODE_VALUES as value, i (value)}
     <label class="choice">
       <input
         type="radio"
         name="display"
-        value={mode.value}
+        {value}
         bind:group={state.display}
         onchange={() => api.setDisplay(state.display)}
       />
-      {mode.label}
+      {t.modes[i]}
     </label>
   {/each}
 </section>
 
 <section class="card">
-  <h2>Darstellung</h2>
+  <h2>{t.appearance}</h2>
 
   <div class="field">
-    <label for="language">Sprache</label>
+    <label for="language">{t.language}</label>
     <select id="language" bind:value={state.language} onchange={pushConfiguration}>
-      {#each LANGUAGES as label, value (value)}
+      {#each t.languages as label, value (value)}
         <option {value}>{label}</option>
       {/each}
     </select>
   </div>
 
   <div class="field">
-    <label for="cornerDirection">Ecken</label>
+    <label for="cornerDirection">{t.corners}</label>
     <select
       id="cornerDirection"
       bind:value={state.cornerDirection}
       onchange={pushConfiguration}
     >
-      <option value={1}>im Uhrzeigersinn</option>
-      <option value={0}>gegen den Uhrzeigersinn</option>
+      <option value={1}>{t.clockwise}</option>
+      <option value={0}>{t.counterClockwise}</option>
     </select>
   </div>
 
   <div class="field">
-    <label for="cornerColor">Minuten</label>
+    <label for="cornerColor">{t.minutes}</label>
     <select id="cornerColor" bind:value={state.cornerColor} onchange={pushConfiguration}>
-      <option value={0}>monochrom</option>
-      <option value={1}>farbig</option>
+      <option value={0}>{t.monochrome}</option>
+      <option value={1}>{t.colored}</option>
     </select>
   </div>
 </section>

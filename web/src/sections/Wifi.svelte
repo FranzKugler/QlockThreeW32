@@ -12,6 +12,9 @@
    */
   import { onMount, onDestroy } from 'svelte';
   import * as api from '../lib/api.js';
+  import { dict } from '../lib/i18n.svelte.js';
+
+  const t = $derived(dict());
 
   let status = $state(null);
   let statusError = $state(null);
@@ -74,22 +77,21 @@
       if (await loadStatus({ quiet: true })) {
         if (!status.switching) {
           connecting = false;
-          if (!status.error) note = `Verbunden mit ${status.ssid}.`;
+          if (!status.error) note = t.connectedTo(status.ssid);
           return;
         }
       }
     }
     connecting = false;
-    note =
-      'Keine Rückmeldung. Wenn die Uhr in ein anderes Netz gewechselt ist, ist ' +
-      'sie unter dieser Adresse nicht mehr erreichbar.';
+    note = t.noResponse;
   }
 
-  function quality(rssi) {
-    if (rssi >= -55) return { label: 'sehr gut', bars: 4 };
-    if (rssi >= -67) return { label: 'gut', bars: 3 };
-    if (rssi >= -75) return { label: 'mittel', bars: 2 };
-    return { label: 'schwach', bars: 1 };
+  /** Signal strength as 1..4 bars; t.quality holds the matching labels. */
+  function bars(rssi) {
+    if (rssi >= -55) return 4;
+    if (rssi >= -67) return 3;
+    if (rssi >= -75) return 2;
+    return 1;
   }
 
   onMount(async () => {
@@ -100,35 +102,35 @@
 </script>
 
 <section class="card">
-  <h2>Verbindung</h2>
+  <h2>{t.connection}</h2>
 
   {#if statusError}
-    <p class="banner">Status nicht abrufbar — {statusError}</p>
+    <p class="banner">{t.statusUnavailable} — {statusError}</p>
   {:else if status}
-    <div class="field"><span class="key">Netz</span><span>{status.ssid || '—'}</span></div>
-    <div class="field"><span class="key">Adresse</span><span>{status.ip}</span></div>
+    <div class="field"><span class="key">{t.network}</span><span>{status.ssid || '—'}</span></div>
+    <div class="field"><span class="key">{t.address}</span><span>{status.ip}</span></div>
     <div class="field">
-      <span class="key">Signal</span>
-      <span>{quality(status.rssi).label} ({status.rssi} dBm)</span>
+      <span class="key">{t.signal}</span>
+      <span>{t.quality[bars(status.rssi) - 1]} ({status.rssi} dBm)</span>
     </div>
-    <div class="field"><span class="key">Hostname</span><span>{status.hostname}.local</span></div>
-    <div class="field"><span class="key">MAC</span><span>{status.mac}</span></div>
+    <div class="field"><span class="key">{t.hostname}</span><span>{status.hostname}.local</span></div>
+    <div class="field"><span class="key">{t.mac}</span><span>{status.mac}</span></div>
 
     {#if status.error}
       <p class="banner">{status.error}</p>
     {/if}
   {:else}
-    <p class="hint">wird geladen …</p>
+    <p class="hint">{t.loadingShort}</p>
   {/if}
 </section>
 
 <section class="card">
-  <h2>Verfügbare Netze</h2>
+  <h2>{t.availableNetworks}</h2>
 
   {#if scanning}
-    <p class="hint">Suche läuft …</p>
+    <p class="hint">{t.scanning}</p>
   {:else if networks.length === 0}
-    <p class="hint">Keine Netze gefunden.</p>
+    <p class="hint">{t.noNetworks}</p>
   {:else}
     <ul class="netlist">
       {#each networks as net (net.ssid)}
@@ -136,12 +138,12 @@
           <label class="choice">
             <input type="radio" name="ssid" value={net.ssid} bind:group={selected} />
             <span class="netname">{net.ssid}</span>
-            <span class="bars" title="{net.rssi} dBm" aria-label={quality(net.rssi).label}>
+            <span class="bars" title="{net.rssi} dBm" aria-label={t.quality[bars(net.rssi) - 1]}>
               {#each [1, 2, 3, 4] as bar (bar)}
-                <i class:on={bar <= quality(net.rssi).bars}></i>
+                <i class:on={bar <= bars(net.rssi)}></i>
               {/each}
             </span>
-            {#if net.secure}<span class="lock" title="verschlüsselt">🔒</span>{/if}
+            {#if net.secure}<span class="lock" title={t.encrypted}>🔒</span>{/if}
           </label>
         </li>
       {/each}
@@ -149,31 +151,31 @@
   {/if}
 
   <button type="button" class="secondary" onclick={scan} disabled={scanning || connecting}>
-    Erneut suchen
+    {t.rescan}
   </button>
 </section>
 
 <section class="card">
-  <h2>Netz wechseln</h2>
+  <h2>{t.switchNetwork}</h2>
 
   <form onsubmit={connect}>
     <div class="field">
-      <label for="ssid">Netz</label>
+      <label for="ssid">{t.network}</label>
       <input id="ssid" type="text" bind:value={selected} placeholder="SSID" />
     </div>
     <div class="field">
-      <label for="pass">Passwort</label>
+      <label for="pass">{t.password}</label>
       <input
         id="pass"
         type="password"
         bind:value={password}
         autocomplete="off"
-        placeholder="leer lassen für offene Netze"
+        placeholder={t.passwordPlaceholder}
       />
     </div>
 
     <button type="submit" disabled={connecting || !selected}>
-      {connecting ? 'Verbinde …' : 'Verbinden'}
+      {connecting ? t.connecting : t.connect}
     </button>
   </form>
 
@@ -181,10 +183,5 @@
     <p class="hint">{note}</p>
   {/if}
 
-  <p class="hint">
-    Die Uhr trennt sich kurz vom Netz. Klappt die Verbindung nicht, kehrt sie
-    automatisch ins bisherige Netz zurück. Nach einem Wechsel kann sich die
-    Adresse ändern — dann ist sie unter
-    <em>{status?.hostname ?? 'QlockThreeW32'}.local</em> erreichbar.
-  </p>
+  <p class="hint">{t.wifiHint(status?.hostname ?? 'QlockThreeW32')}</p>
 </section>

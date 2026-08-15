@@ -32,7 +32,7 @@ There are no automated tests in this project.
 
 [platformio.ini](platformio.ini) defines a single build environment, `seeed_xiao_esp32s3` (`LED_OUTPUT_PIN=4`, USB serial upload via esptool at 460800 baud).
 
-The target is the **XIAO ESP32-S3 Plus with 16 MB flash**, but PlatformIO's board definition describes the 8 MB model and would default to `default_8MB.csv`, wasting half the flash. The environment therefore overrides `board_upload.flash_size`, `board_upload.maximum_size` and points `board_build.partitions` at [partitions.csv](partitions.csv) — stock `default_16MB.csv` layout: 6.5 MB per OTA slot (firmware uses ~1.3 MB) and a 3.5 MB LittleFS partition. Reflashing with a changed partition table moves the filesystem, so `qlockconf.json` is lost and `uploadfs` has to be run again; do that over USB rather than OTA.
+The target is the **XIAO ESP32-S3 Plus with 16 MB flash**, but PlatformIO's board definition describes the 8 MB model and would default to `default_8MB.csv`, wasting half the flash. The environment therefore overrides `board_upload.flash_size`, `board_upload.maximum_size` and points `board_build.partitions` at [partitions.csv](partitions.csv) — stock `default_16MB.csv` layout: 6.5 MB per OTA slot (firmware uses ~1.3 MB) and a 3.5 MB LittleFS partition. Reflashing with a changed partition table moves the filesystem, so `uploadfs` has to be run again; do that over USB rather than OTA. The settings survive it, as they live in NVS.
 
 ### Web UI
 
@@ -85,6 +85,7 @@ Points worth knowing:
 - With "Sommerzeit" off, the changeover fields of both rules are disabled but the standard rule's abbreviation and offset stay editable — the same rule the old `setDst()` implemented.
 - Everything is bundled locally. The old page pulled Bootstrap, FontAwesome, jQuery and iro.js from CDNs, so it rendered broken on a LAN without internet access. The colour wheel is still iro.js, now bundled. The built page requests exactly three files, all from the clock: the JS bundle, the CSS and the favicon — no webfonts, no `url()` in the CSS, no `@import`. Keep it that way; the clock has to work on a network with no internet at all.
 - Failed writes surface as a banner via [web/src/lib/status.svelte.js](web/src/lib/status.svelte.js), instead of being dropped as they were by the old `.done()`-only handlers.
+- **The UI language is not a setting of its own**: it follows the clock's language. [web/src/lib/i18n.svelte.js](web/src/lib/i18n.svelte.js) maps the `LANGUAGE_*` number onto one of six locales in [web/src/lib/locales/](web/src/lib/locales/) — the four German dialects and Swiss German all share `de.js`. `App.svelte` drives it from a single `$effect` on `clock.language`, so no section has to know about it. Components read texts with `const t = $derived(dict())`; that `$derived` is what makes the page re-render on a change. `de.js` is the reference: same keys, same order, same array lengths in every locale — nothing falls back per key, a missing key renders as `undefined`.
 
 ### WiFi configuration (two separate paths)
 
@@ -112,7 +113,7 @@ Details that are easy to get wrong:
 - `Update.end(true)` verifies the image before switching the boot partition, so a truncated upload is harmless — the clock keeps booting the old one. There is **no** rollback for an image that flashes fine but then crashes: the Arduino bootloader is built without `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, so that case needs USB.
 - Before writing a filesystem image the firmware calls `LittleFS.end()`, otherwise cached writes would be flushed over the freshly written image.
 - The reboot happens in `loop()` via `otaRebootAt`, not in the handler, so the HTTP response makes it onto the wire. While that is pending `loop()` returns early — the deferred settings write must not run against an unmounted or just-overwritten filesystem.
-- **A filesystem update wipes `qlockconf.json`**, since the image covers the whole partition. `Settings::backupToNvs()` therefore parks the settings in NVS (its own partition, untouched by the update) just before the image is written, and `Settings::restoreFromNvs()` writes them back in `setup()` — but only when the file is absent, so the filesystem always wins, and the NVS copy is dropped once used. This only covers updates that go through `/ota/upload`; `pio run -t uploadfs` over USB bypasses it and does reset the settings.
+- A filesystem update overwrites the whole partition. That used to take `qlockconf.json` with it, which is why the settings now live in NVS instead — see "Settings persistence". Nothing has to be backed up or restored around an update.
 - The OTA endpoints have **no authentication**, deliberately (as does ArduinoOTA). Anyone on the LAN can flash the clock. A `server.authenticate()` at the top of both handlers is the whole fix if that changes.
 
 ### Versioning
@@ -129,7 +130,14 @@ Details that are easy to get wrong:
 
 ### Settings persistence
 
-`Settings` ([src/Settings.h](src/Settings.h)/[src/Settings.cpp](src/Settings.cpp)) holds all user-configurable state (language, corner rendering, brightness, color, LDR use, mode, NTP server, and both standard/DST timezone rules) and (de)serializes it to/from LittleFS as JSON, plus exposes `getJSONSettings()` for the REST API response.
+`Settings` ([src/Settings.h](src/Settings.h)/[src/Settings.cpp](src/Settings.cpp)) holds all user-configurable state (language, corner rendering, brightness, color, LDR use, mode, NTP server, and both standard/DST timezone rules) and (de)serializes it as JSON, plus exposes `getJSONSettings()` for the REST API response — a different shape, keyed the way the web UI wants it.
+
+It is stored in **NVS**, not in the filesystem, because the filesystem partition is overwritten wholesale by a web UI update. Details:
+
+- The whole record goes in under one key as a JSON string, not as 21 individual keys. That shares `fillDocument()` with the file format, and NVS keys are capped at 15 characters — `RenderColorCorner` would not fit.
+- `storeSettings()` compares against the stored string first and returns if nothing changed, so a no-op save costs no flash write. Together with the deferred write in `main .cpp` (`WAIT_BEFORE_SETTINGS_WRITE`) that keeps writes down to roughly one per settings change.
+- `migrateLegacyFile()` takes over a `qlockconf.json` from a pre-2.1 firmware on the first boot and deletes it afterwards. Harmless to keep; it costs one `LittleFS.exists()` per boot.
+- Clearing NVS therefore resets the clock to defaults — reflashing the filesystem no longer does.
 
 ### Light sensor (currently unused, kept for potential future wiring)
 

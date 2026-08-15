@@ -12,9 +12,12 @@
   import iro from '@jaames/iro';
   import * as api from '../lib/api.js';
   import { throttle } from '../lib/throttle.js';
+  import { dict } from '../lib/i18n.svelte.js';
   import SliderRow from './SliderRow.svelte';
 
   let { state } = $props();
+
+  const t = $derived(dict());
 
   const push = throttle((hue, sat, lum) => api.setColor({ hue, sat, lum }), 120);
   const send = () => push(state.hue, state.sat, state.lum);
@@ -122,21 +125,21 @@
 </script>
 
 <section class="card">
-  <h2>Farbe</h2>
+  <h2>{t.colorTitle}</h2>
 
   <div class="picker">
     <div class="wheel" use:wheel></div>
 
     <div class="preview" style="--led: {ledColor}; --size: {WHEEL_SIZE}px">
-      <span>ES IST</span>
-      <span>FÜNF NACH</span>
-      <span>ZWEI</span>
+      {#each t.preview as line (line)}
+        <span>{line}</span>
+      {/each}
     </div>
   </div>
 
   <SliderRow
     id="hue"
-    label="Farbton"
+    label={t.hue}
     unit="°"
     min={0}
     max={359}
@@ -149,7 +152,7 @@
 
   <SliderRow
     id="sat"
-    label="Sättigung"
+    label={t.saturation}
     unit="%"
     bind:value={state.sat}
     track={satTrack}
@@ -158,7 +161,7 @@
 
   <SliderRow
     id="lum"
-    label="Helligkeit"
+    label={t.brightness}
     unit="%"
     bind:value={state.lum}
     track={lumTrack}
@@ -167,10 +170,10 @@
 </section>
 
 <section class="card">
-  <h2>Automatik</h2>
+  <h2>{t.automatic}</h2>
 
   <div class="field">
-    <label for="autoLum">Helligkeit automatisch</label>
+    <label for="autoLum">{t.autoBrightness}</label>
     <span class="switch">
       <input
         id="autoLum"
@@ -182,8 +185,5 @@
     </span>
   </div>
 
-  <p class="hint">
-    Ohne Wirkung, solange die LDR-Auswertung in der Firmware auskommentiert ist
-    (siehe src/LDR.cpp).
-  </p>
+  <p class="hint">{t.ldrHint}</p>
 </section>

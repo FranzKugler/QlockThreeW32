@@ -9,6 +9,7 @@
  * @updated  15.8.2026
  */
 import { status } from './status.svelte.js';
+import { dict } from './i18n.svelte.js';
 
 async function post(path, body) {
   try {
@@ -116,8 +117,8 @@ export function uploadImage(file, onProgress) {
 
     // Fires when the connection dies mid-upload, which on a clock that is
     // being reflashed is not necessarily a failure - the caller checks back.
-    xhr.onerror = () => reject(new Error('Verbindung zur Uhr unterbrochen'));
-    xhr.onabort = () => reject(new Error('Upload abgebrochen'));
+    xhr.onerror = () => reject(new Error(dict().connectionLost));
+    xhr.onabort = () => reject(new Error(dict().uploadAborted));
 
     xhr.send(body);
   });

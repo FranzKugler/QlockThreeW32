@@ -9,9 +9,12 @@
    * @updated  15.8.2026
    */
   import * as api from '../lib/api.js';
+  import { dict } from '../lib/i18n.svelte.js';
   import TzRule from './TzRule.svelte';
 
   let { state } = $props();
+
+  const t = $derived(dict());
 
   // Every change posts the complete timezone object, as the firmware rebuilds
   // both TimeChangeRules from it in one go.
@@ -35,9 +38,9 @@
 </script>
 
 <section class="card">
-  <h2>Zeitserver</h2>
+  <h2>{t.timeServer}</h2>
   <div class="field">
-    <label for="ntpServer">NTP Server</label>
+    <label for="ntpServer">{t.ntpServer}</label>
     <input
       id="ntpServer"
       type="text"
@@ -49,10 +52,10 @@
 </section>
 
 <section class="card">
-  <h2>Zeitzone</h2>
+  <h2>{t.timezoneTitle}</h2>
 
   <div class="field">
-    <label for="useDs">Sommerzeit</label>
+    <label for="useDs">{t.dst}</label>
     <span class="switch">
       <input id="useDs" type="checkbox" bind:checked={state.useDs} onchange={push} />
       <span></span>
@@ -60,7 +63,8 @@
   </div>
 
   <TzRule
-    title="Normalzeit"
+    id="std"
+    title={t.standardTime}
     bind:name={state.tzName}
     bind:week={state.tzWeek}
     bind:dow={state.tzDoW}
@@ -72,7 +76,8 @@
   />
 
   <TzRule
-    title="Sommerzeit"
+    id="dst"
+    title={t.dst}
     bind:name={state.tzDsName}
     bind:week={state.tzDsWeek}
     bind:dow={state.tzDsDoW}
@@ -84,9 +89,6 @@
   />
 
   {#if !state.useDs}
-    <p class="hint">
-      Ohne Sommerzeit gilt durchgehend der Offset der Normalzeit; die
-      Umschaltzeitpunkte werden nicht ausgewertet.
-    </p>
+    <p class="hint">{t.noDstHint}</p>
   {/if}
 </section>

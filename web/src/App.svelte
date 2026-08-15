@@ -12,23 +12,27 @@
   import { onMount } from 'svelte';
   import { fetchState } from './lib/api.js';
   import { status } from './lib/status.svelte.js';
+  import { dict, setLanguage } from './lib/i18n.svelte.js';
   import Display from './sections/Display.svelte';
   import Color from './sections/Color.svelte';
   import Timezone from './sections/Timezone.svelte';
   import Wifi from './sections/Wifi.svelte';
   import Ota from './sections/Ota.svelte';
 
-  const TABS = [
-    { id: 'display', label: 'Anzeige' },
-    { id: 'color', label: 'Farbe' },
-    { id: 'timezone', label: 'Timezone' },
-    { id: 'wifi', label: 'WLAN' },
-    { id: 'ota', label: 'Update' }
-  ];
+  // Labels come from t.tabs, in this order.
+  const TAB_IDS = ['display', 'color', 'timezone', 'wifi', 'ota'];
 
   let active = $state('display');
   let clock = $state(null);
   let loadError = $state(null);
+
+  const t = $derived(dict());
+
+  // The UI speaks whatever the clock speaks, so changing the language in the
+  // display tab switches this page over as well.
+  $effect(() => {
+    if (clock) setLanguage(clock.language);
+  });
 
   async function load() {
     loadError = null;
@@ -49,19 +53,19 @@
 
   {#if clock}
     <nav>
-      {#each TABS as tab (tab.id)}
+      {#each TAB_IDS as id, i (id)}
         <button
           type="button"
-          aria-current={active === tab.id ? 'page' : undefined}
-          onclick={() => (active = tab.id)}
+          aria-current={active === id ? 'page' : undefined}
+          onclick={() => (active = id)}
         >
-          {tab.label}
+          {t.tabs[i]}
         </button>
       {/each}
     </nav>
 
     {#if status.error}
-      <p class="banner">Übertragung fehlgeschlagen — {status.error}</p>
+      <p class="banner">{t.writeFailed} — {status.error}</p>
     {/if}
 
     {#if active === 'display'}
@@ -77,11 +81,11 @@
     {/if}
   {:else if loadError}
     <p class="centered">
-      Uhr nicht erreichbar — {loadError}
+      {t.clockUnreachable} — {loadError}
       <br />
-      <button type="button" onclick={load}>Erneut versuchen</button>
+      <button type="button" onclick={load}>{t.retry}</button>
     </p>
   {:else}
-    <p class="centered">Einstellungen werden geladen …</p>
+    <p class="centered">{t.loading}</p>
   {/if}
 </div>
