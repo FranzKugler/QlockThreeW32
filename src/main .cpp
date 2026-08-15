@@ -37,7 +37,7 @@
 // needed for NTP
 #include <TimeLib.h>
 #include <Timezone.h>               // https://github.com/JChristensen/Timezone
-#include <NtpClientLib.h>
+#include <esp_sntp.h>               // the core's own SNTP client, see below
 
 // JSON library
 #include "ArduinoJson.h"
@@ -72,8 +72,21 @@ TimeChangeRule CET = {"CET ", Last, Sun, Oct, 3, 60};       // Central European 
 Timezone ActiveTimezone(CEST, CET);
 String NTPServerName = String("pool.ntp.org");
 
-boolean syncEventTriggered = false;     // True if a time event has been triggered
-NTPSyncEvent_t ntpEvent;   
+// ------ Time synchronisation ------
+// The core's SNTP client keeps the system clock in UTC; TimeLib reads it
+// through the sync provider below, and the Timezone rules turn UTC into local
+// time where it is displayed. NtpClientLib used to do this, but it depends on
+// an old release of the Time library whose deprecated Time.h shadows <time.h>
+// for every other source in the build, which made HTTPClient impossible to
+// compile.
+
+// A system clock still sitting near the epoch has never been set. Anything
+// after 2023-11 is a real time.
+#define TIME_LOOKS_VALID 1700000000
+
+// Set from the SNTP callback, which runs in another task - hence volatile.
+volatile time_t ntpLastSync = 0;
+volatile bool ntpSyncPending = false;
 
 bool wifiConnected = false;
 bool wifiFirstConnected = true;
@@ -190,8 +203,9 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
         case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
             debugW("Disconnected from SSID: %s", (char*)info.wifi_sta_disconnected.ssid);
             debugW("Reason: %d", (int)event);
-            NTP.stop(); // NTP sync can be disabled to avoid sync errors
-            wifiConnected = false;            
+            // SNTP is left running: it retries by itself once the network is
+            // back, and the system clock keeps counting in the meantime.
+            wifiConnected = false;
             break;
         case ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE:
             debugI("Authentication mode of access point has changed");
@@ -263,19 +277,34 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
 }
 
 // ------ NTP functions ------
-void processSyncEvent (NTPSyncEvent_t ntpEvent) {
-    if (ntpEvent < 0) {
-        debugE("Time Sync error %d:", ntpEvent);
-        if (ntpEvent == noResponse)
-            debugE("NTP server not reachable");
-        else if (ntpEvent == invalidAddress)
-            debugE("Invalid NTP server address");
-    } else if (!ntpEvent) {
-        debugI("Got NTP time: %s", NTP.getTimeDateString(NTP.getLastNTPSync()).c_str() );
-         if(!startTime) startTime = now();
-    } else {
-        debugI("NTP request Sent");
-    }
+
+/**
+ * Where TimeLib gets its time from. Returning 0 leaves timeStatus() at
+ * timeNotSet, which is what we want until SNTP has answered for the first time
+ * - otherwise the clock would confidently display 1970.
+ */
+time_t syncFromSystemClock()
+{
+    time_t systemTime = time(nullptr);
+    return systemTime > TIME_LOOKS_VALID ? systemTime : 0;
+}
+
+/** Called by the SNTP task whenever it has set the system clock. */
+void onNtpSync(struct timeval *received)
+{
+    ntpLastSync = received->tv_sec;
+    ntpSyncPending = true;
+}
+
+/**
+ * Points SNTP at the configured server. Safe to call again later: that is how
+ * a server changed through the web UI takes effect.
+ */
+void startNtp()
+{
+    // UTC, both offsets zero - the Timezone rules do the local conversion.
+    configTime(0, 0, NTPServerName.c_str());
+    debugI("SNTP started, server %s", NTPServerName.c_str());
 }
 
 // ------ Webserver related functions ------
@@ -415,7 +444,7 @@ void updateTimezone()
     {
         debugI("Timeserver changed from %s to %s", NTPServerName.c_str(), settings.getNTPServer());
         NTPServerName = String(settings.getNTPServer());
-        NTP.setNtpServerName(NTPServerName);
+        startNtp();
     }
 
     needsUpdateFromRtc = true;
@@ -530,7 +559,6 @@ void handleWifiSwitch()
     {
         case WIFI_SWITCH_START:
         {
-            NTP.stop();
             WiFi.disconnect();
             WiFi.begin(wifiPendingSsid.c_str(), wifiPendingPass.c_str());
             wifiSwitchDeadline = millis() + WIFI_SWITCH_TIMEOUT;
@@ -775,12 +803,12 @@ void setup()
     //Local intialization. Once its business is done, there is no need to keep it around
     WiFiManager wifiManager;
 
-    // register handler for NTP events
-    NTP.onNTPSyncEvent ([](NTPSyncEvent_t event) 
-    {
-        ntpEvent = event;
-        syncEventTriggered = true;
-    });
+    // Feed TimeLib from the system clock, and let SNTP tell us when it has set
+    // it. The interval is how often TimeLib re-reads the system clock, not how
+    // often SNTP asks the server - that stays at the core's default.
+    setSyncProvider(syncFromSystemClock);
+    setSyncInterval(60);
+    sntp_set_time_sync_notification_cb(onNtpSync);
 
     // give the config portal the same look as the SPA
     wifiManager.setTitle("QlockThreeW32");
@@ -928,7 +956,6 @@ void loop()
     if (!wifiConnected && wifiSwitchState == WIFI_SWITCH_IDLE)
     {
         debugI("Wifi lost");
-        NTP.stop();
         // we hopefully have a valid SSID stored
         if (WiFi.SSID()) 
         {
@@ -956,19 +983,21 @@ void loop()
         //ArduinoOTA.setHostname("QlockThreeW32");
         //ArduinoOTA.begin();
         
-        // get time again
-        NTP.setInterval (300);
-        NTP.begin ("pool.ntp.org", timeZone, true, minutesTimeZone);
-        
+        // get time again - now from the server the settings name, where the
+        // old code always asked pool.ntp.org whatever was configured
+        startNtp();
+
         // update the display too
         needsUpdateFromRtc = true;
     }
 
-    // this is true when we got a new time from the ntp server
-    if (syncEventTriggered) 
+    // this is true when SNTP has just set the system clock
+    if (ntpSyncPending)
     {
-        processSyncEvent (ntpEvent);
-        syncEventTriggered = false;
+        ntpSyncPending = false;
+        debugI("Got NTP time, epoch %lu", (unsigned long)ntpLastSync);
+        // The uptime display counts from the first time we knew the time.
+        if (!startTime) startTime = now();
     }
 
     // things to do when we have WiFi
@@ -1086,7 +1115,7 @@ void loop()
             }
             case EXT_MODE_DCF_DEBUG:
             {
-                int hoursSinceLastSync = (now() - NTP.getLastNTPSync()) / 3600;
+                int hoursSinceLastSync = ntpLastSync ? (now() - ntpLastSync) / 3600 : 99;
                 renderer.clearScreenBuffer(matrix);
                 for (byte i = 0; i < 7; i++)
                 {
