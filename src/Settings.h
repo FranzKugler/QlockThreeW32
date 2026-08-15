@@ -76,6 +76,17 @@ public:
     void    setTzDsOffset(int TzDsOffset) {this->TzDsOffset = TzDsOffset;}
     int     getTzDsOffset() {return this->TzDsOffset;}
 
+    // Update channel: 0 = stable (tagged releases), 1 = edge (every commit).
+    void    setOtaChannel(byte OtaChannel) {this->OtaChannel = OtaChannel;}
+    byte    getOtaChannel() {return this->OtaChannel;}
+    // Off by default: a bad image that flashes cleanly and then crashes can
+    // only be recovered over USB, so installing unattended is opt-in.
+    void    setOtaAutoUpdate(boolean OtaAutoUpdate) {this->OtaAutoUpdate = OtaAutoUpdate;}
+    boolean getOtaAutoUpdate() {return this->OtaAutoUpdate;}
+    // Hours between checks. 0 switches checking off entirely.
+    void    setOtaCheckInterval(byte OtaCheckInterval) {this->OtaCheckInterval = OtaCheckInterval;}
+    byte    getOtaCheckInterval() {return this->OtaCheckInterval;}
+
 private:
     // Fills a document with the stored representation. Kept separate so the
     // field list exists once, next to the one that reads it back.
@@ -110,6 +121,11 @@ private:
     uint8_t TzDsMonth;    // 1=Jan, 2=Feb, ... 12=Dec
     uint8_t TzDsHour;     // 0-23
     int     TzDsOffset;   // offset from UTC in minutes
+
+    // Over the air updates from the release channel
+    byte    OtaChannel;       // 0 = stable, 1 = edge
+    boolean OtaAutoUpdate;    // install without asking
+    byte    OtaCheckInterval; // hours between checks, 0 = never
 };
 
 #endif

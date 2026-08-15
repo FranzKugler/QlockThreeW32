@@ -62,6 +62,10 @@ Settings::Settings()
     TzDsMonth = 3;
     TzDsHour = 2;
     TzDsOffset = 120;
+
+    OtaChannel = 0;        // stable
+    OtaAutoUpdate = false; // opt-in, see Settings.h
+    OtaCheckInterval = 24;
 }
 
 /**
@@ -143,6 +147,10 @@ void Settings::loadSettings()
     TzDsMonth =           doc["TzDsMonth"] | 3;
     TzDsHour =            doc["TzDsHour"] | 2;
     TzDsOffset =          doc["TzDsOffset"] | 120;
+
+    OtaChannel =          doc["OtaChannel"] | 0;
+    OtaAutoUpdate =       doc["OtaAutoUpdate"] | false;
+    OtaCheckInterval =    doc["OtaCheckInterval"] | 24;
 }
 
 void Settings::fillDocument(JsonDocument &doc)
@@ -169,6 +177,10 @@ void Settings::fillDocument(JsonDocument &doc)
     doc["TzDsMonth"]        = TzDsMonth;   
     doc["TzDsHour"]         = TzDsHour;
     doc["TzDsOffset"]       = TzDsOffset;
+
+    doc["OtaChannel"]       = OtaChannel;
+    doc["OtaAutoUpdate"]    = OtaAutoUpdate;
+    doc["OtaCheckInterval"] = OtaCheckInterval;
 }
 
 void Settings::storeSettings()
