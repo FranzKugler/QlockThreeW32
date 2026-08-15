@@ -1,0 +1,44 @@
+# License
+
+**Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported
+(CC BY-NC-SA 3.0)**
+
+- Summary: https://creativecommons.org/licenses/by-nc-sa/3.0/
+- Full legal code: https://creativecommons.org/licenses/by-nc-sa/3.0/legalcode
+
+## Why this license
+
+This firmware descends from **Qlockthree** by Christian Aschoff. His download
+page states, next to the firmware itself:
+
+> "Die Programme unterliegen der CC BY-NC-SA 3.0-Lizenz (Namensnennung -
+> Nicht-kommerziell - Weitergabe unter gleichen Bedingungen 3.0)."
+>
+> — http://www.christians-bastel-laden.de/DOWNLOADS/index.html
+
+The ShareAlike term requires derivative works to be distributed under the same
+or a comparable license, so this is inherited rather than chosen. Files that
+still carry his authorship say so in their headers.
+
+## What it means in practice
+
+- **Attribution** — keep the author lines in the file headers, and name the
+  origin when you pass the work on.
+- **NonCommercial** — no commercial use. Selling clocks or kits running this
+  firmware is not covered.
+- **ShareAlike** — anything you build on it goes out under these same terms.
+
+Note that CC BY-NC-SA is not an OSI-approved open source license, and Creative
+Commons themselves advise against using CC licenses for software. It applies
+here because the upstream work does, not because it is a good fit for code.
+
+## Authors
+
+| | |
+|---|---|
+| Christian Aschoff | original Qlockthree firmware, most of the rendering code |
+| Thomas Schuler | Swiss German variant |
+| Rudolf Klimesch | Dutch variant |
+| Franz Kugler | ESP32-S3 port, web interface, OTA updates |
+
+See the header of each file for who wrote what.

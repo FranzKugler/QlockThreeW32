@@ -148,15 +148,36 @@ npm run dev      # Vite with hot reload on :5173
 
 ## Origins
 
-This is a long-running hobby project. It began as
-**Qlockthree** by *Christian Aschoff*, written for AVR microcontrollers from
-2011 onwards, and was later ported to the ESP32. Much of the rendering code is
-still his, as the file headers record.
+This is a long-running hobby project, and not the beginning of the story. It
+descends from **Qlockthree** by *Christian Aschoff* — firmware for a
+self-built QLOCKTWO-style clock, written for the Arduino/ATmega328 from
+November 2011 onwards and maintained through version 3.4.9. Much of the
+rendering code here is still his, as the file headers record.
 
-The Swiss German variant goes back to *Thomas Schuler*, the Dutch one to
-*Rudolf Klimesch*.
+- Project and downloads: <http://www.christians-bastel-laden.de/DOWNLOADS/index.html>
+- Shop and build instructions: <http://www.christians-bastel-laden.de/>
+
+The upstream firmware is not on GitHub itself; it is published as ZIP archives
+on that page. Several people have mirrored and continued it, among them
+[bracci/Qlockthree](https://github.com/bracci/Qlockthree),
+[schwabe/qlockthree](https://github.com/schwabe/qlockthree) and
+[cactus-online/Qlockthree](https://github.com/cactus-online/Qlockthree).
+[bracci/QlockWiFive](https://github.com/bracci/QlockWiFive) and
+[ch570512/Qlockwork](https://github.com/ch570512/Qlockwork) are separate ESP
+firmwares for the same hardware idea.
+
+Beyond that, the Swiss German variant goes back to *Thomas Schuler* and the
+Dutch one to *Rudolf Klimesch*.
+
+This repository takes that lineage to an ESP32-S3, and adds the web interface,
+the WiFi handling and the over-the-air updates.
 
 ## License
 
-Not yet settled — see the file headers for authorship. If you want to reuse
-anything here, please ask first.
+**CC BY-NC-SA 3.0** — Attribution, NonCommercial, ShareAlike. See
+[`LICENSE`](LICENSE).
+
+This is inherited, not chosen: Christian Aschoff puts the original firmware
+under CC BY-NC-SA 3.0, and the ShareAlike term carries over to anything built
+on it. In short — keep the attributions, do not use it commercially, and pass
+derivatives on under the same terms.
