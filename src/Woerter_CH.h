@@ -16,8 +16,8 @@
  * 9 ZWÖUFINAUHR
  *
  * @mc       ESP32S3
- * @autor    Thomas Schuler / thomas.schuler _AT_ vtg _DOT_ admin _DOT_ ch (base)
- * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com (adaptation)
+ * @author   Thomas Schuler / thomas.schuler _AT_ vtg _DOT_ admin _DOT_ ch (base)
+ * @author   Christian Aschoff / caschoff _AT_ mac _DOT_ com (adaptation)
  * @version  2.0
  * @created  18.3.2012
  * @updated  15.8.2026

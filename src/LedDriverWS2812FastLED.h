@@ -6,7 +6,7 @@
  * https://learn.adafruit.com/adafruit-neopixel-uberguide/overview
  *
  * @mc       ESP32S3
- * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
+ * @author   Christian Aschoff / caschoff _AT_ mac _DOT_ com
  * @version  2.0
  * @created  5.1.2015
  * @updated  15.8.2026

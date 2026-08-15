@@ -24,6 +24,7 @@ pio run                          # build (uses default_envs from platformio.ini)
 pio run -e seeed_xiao_esp32s3    # build a specific environment
 pio run -t upload                # build and flash firmware
 pio run -t uploadfs              # build and flash the data/ folder as a LittleFS image
+pio run -t buildfs               # build littlefs.bin without flashing (for a browser OTA)
 pio device monitor                # serial monitor (115200 baud)
 ```
 
@@ -67,6 +68,8 @@ Both [src/main .cpp](src/main%20.cpp) and [server.js](server.js) implement the s
 - `GET /wifi` — connection status (`ssid`, `ip`, `rssi`, `mac`, `hostname`, `switching`, `error`).
 - `GET /wifi/scan` — one poll of the async scan: `{scanning:true}` or `{scanning:false, networks:[…]}`.
 - `POST /wifi` — `{ssid, password}`; answers immediately, the switch runs in `loop()`.
+- `GET /ota/status` — `{firmwareVersion, fsVersion, sketchSize, freeSpace, error}`.
+- `POST /ota/upload` — `multipart/form-data` with one file part; answers, then reboots.
 
 Changing the API means touching three places: the firmware handler, `server.js`, and `web/src/lib/api.js`.
 
@@ -74,13 +77,13 @@ Changing the API means touching three places: the firmware handler, `server.js`,
 
 ### Web UI architecture
 
-[web/src/App.svelte](web/src/App.svelte) loads `/currentState` once on mount into a single `$state` object and passes it to one of three sections — [Display](web/src/sections/Display.svelte), [Color](web/src/sections/Color.svelte), [Timezone](web/src/sections/Timezone.svelte). Sections mutate that object through `bind:` and POST the affected endpoint on change; there is no save button, matching the old UI. `Timezone` always posts all fourteen fields at once because the firmware rebuilds both `TimeChangeRule`s from a single request.
+[web/src/App.svelte](web/src/App.svelte) loads `/currentState` once on mount into a single `$state` object and passes it to the section of the selected tab — [Display](web/src/sections/Display.svelte), [Color](web/src/sections/Color.svelte), [Timezone](web/src/sections/Timezone.svelte); [Wifi](web/src/sections/Wifi.svelte) and [Ota](web/src/sections/Ota.svelte) fetch their own state instead, since neither is part of `/currentState`. Sections mutate that object through `bind:` and POST the affected endpoint on change; there is no save button, matching the old UI. `Timezone` always posts all fourteen fields at once because the firmware rebuilds both `TimeChangeRule`s from a single request.
 
 Points worth knowing:
 - The mode/language/corner values in the UI are the firmware's own numbers (`STD_MODE_*`/`EXT_MODE_*` in `main .cpp`, `LANGUAGE_*` in `Renderer.h`). Bindings keep them as numbers rather than the strings jQuery's `.val()` used to send.
 - Colour changes are throttled ([web/src/lib/throttle.js](web/src/lib/throttle.js)); dragging the wheel would otherwise fire one POST per pointer move at the ESP32's single-threaded web server.
 - With "Sommerzeit" off, the changeover fields of both rules are disabled but the standard rule's abbreviation and offset stay editable — the same rule the old `setDst()` implemented.
-- Everything is bundled locally. The old page pulled Bootstrap, FontAwesome, jQuery and iro.js from CDNs, so it rendered broken on a LAN without internet access. The colour wheel is still iro.js, now bundled.
+- Everything is bundled locally. The old page pulled Bootstrap, FontAwesome, jQuery and iro.js from CDNs, so it rendered broken on a LAN without internet access. The colour wheel is still iro.js, now bundled. The built page requests exactly three files, all from the clock: the JS bundle, the CSS and the favicon — no webfonts, no `url()` in the CSS, no `@import`. Keep it that way; the clock has to work on a network with no internet at all.
 - Failed writes surface as a banner via [web/src/lib/status.svelte.js](web/src/lib/status.svelte.js), instead of being dropped as they were by the old `.done()`-only handlers.
 
 ### WiFi configuration (two separate paths)
@@ -93,6 +96,28 @@ Which one applies depends on whether the clock is on the network at all:
 Switching networks is deliberately not a plain `WiFi.begin()`: a wrong password would leave the clock unreachable until someone power-cycles it and uses the AP portal. `POST /wifi` therefore only records the request and answers straight away (the response would never leave the old network otherwise), and `handleWifiSwitch()` runs a small state machine in `loop()`: try the new credentials, and on timeout fall back to the previous SSID/PSK — captured via `WiFi.psk()` before the attempt — leaving an explanatory message in `wifiLastError` for the UI. The normal reconnect block in `loop()` is skipped while a switch is in flight so the two don't fight over the connection.
 
 The mock server implements the same endpoints, including a simulated scan delay and fallback: connect with the password `wrong` to exercise the failure path.
+
+### Firmware update
+
+There are **two images**, and they are updated independently: `firmware.bin` (the app, ~1.3 MB, into the inactive OTA slot) and `littlefs.bin` (this web UI, a full-partition 3.5 MB image). Changing the SPA and only flashing the firmware leaves the old UI in place.
+
+Three ways in, in order of how they arrived:
+
+- **`espota`** — ArduinoOTA is started in `setup()` and still runs on port 3232; `pio run -t upload --upload-port <ip>` uses it. Needs PlatformIO on the same LAN.
+- **Browser upload** (the "Update" tab, [web/src/sections/Ota.svelte](web/src/sections/Ota.svelte)) — `POST /ota/upload`. The synchronous `WebServer` streams the body through the second handler registered on the route, so the image goes to flash as it arrives rather than through RAM. **The target partition is not chosen by the user**: ESP32 app images start with the magic byte `0xE9`, anything else is treated as the filesystem image (`U_FLASH` vs `U_SPIFFS`). The mock and the UI repeat that same test, the UI only to label the file before uploading.
+- **GitHub manifest** — planned, not built. The clock is to poll a `manifest.json` published by a release workflow (version, notes, asset URLs, SHA-256) and offer or auto-apply the update. The download will have to run in a FreeRTOS task, because the synchronous web server is dead for the ~40 s an HTTPS download takes.
+
+Details that are easy to get wrong:
+
+- `Update.end(true)` verifies the image before switching the boot partition, so a truncated upload is harmless — the clock keeps booting the old one. There is **no** rollback for an image that flashes fine but then crashes: the Arduino bootloader is built without `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, so that case needs USB.
+- Before writing a filesystem image the firmware calls `LittleFS.end()`, otherwise cached writes would be flushed over the freshly written image.
+- The reboot happens in `loop()` via `otaRebootAt`, not in the handler, so the HTTP response makes it onto the wire. While that is pending `loop()` returns early — the deferred settings write must not run against an unmounted or just-overwritten filesystem.
+- **A filesystem update wipes `qlockconf.json`**, since the image covers the whole partition. `Settings::backupToNvs()` therefore parks the settings in NVS (its own partition, untouched by the update) just before the image is written, and `Settings::restoreFromNvs()` writes them back in `setup()` — but only when the file is absent, so the filesystem always wins, and the NVS copy is dropped once used. This only covers updates that go through `/ota/upload`; `pio run -t uploadfs` over USB bypasses it and does reset the settings.
+- The OTA endpoints have **no authentication**, deliberately (as does ArduinoOTA). Anyone on the LAN can flash the clock. A `server.authenticate()` at the top of both handlers is the whole fix if that changes.
+
+### Versioning
+
+`FIRMWARE_VERSION` lives in [src/Version.h](src/Version.h) behind an `#ifndef`, and [scripts/version.py](scripts/version.py) (a PlatformIO pre-build script) overrides it from `git describe --tags` when the checkout has a usable tag — the fallback in the header applies otherwise. The web UI's version comes from `package.json`; a small Vite plugin emits it as `data/version.json`, which the firmware reads at boot into `otaFsVersion`. Keep the two version numbers in step; the update manifest will compare them.
 
 ### Rendering pipeline (hardware-independent core)
 

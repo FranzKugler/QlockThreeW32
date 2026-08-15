@@ -3,7 +3,7 @@
  * This class renders the words onto the matrix.
  *
  * @mc       ESP32S3
- * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
+ * @author   Christian Aschoff / caschoff _AT_ mac _DOT_ com
  * @version  2.0
  * @created  21.1.2013
  * @updated  15.8.2026

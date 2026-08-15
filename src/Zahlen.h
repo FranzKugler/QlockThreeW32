@@ -4,7 +4,7 @@
  * Like the words, the digits are bit masks for the matrix.
  *
  * @mc       ESP32S3
- * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
+ * @author   Christian Aschoff / caschoff _AT_ mac _DOT_ com
  * @version  2.0
  * @created  18.2.2011
  * @updated  15.8.2026

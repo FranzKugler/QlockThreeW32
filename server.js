@@ -10,7 +10,7 @@
  * It also serves data/ statically, so a production build can be checked
  * against the mock by opening http://localhost:8080 directly.
  *
- * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
  * @version  2.0
  * @created  15.8.2026
  * @updated  15.8.2026
@@ -161,6 +161,73 @@ app.post('/wifi', (req, res) => {
     wifi.switching = false;
     console.log('/wifi switch finished:', wifi.error || `now on ${wifi.ssid}`);
   }, 4000);
+});
+
+// ----------------------------------------------------------------- OTA ----
+// Simulates a firmware update from the browser: the upload is throttled to a
+// plausible WiFi rate so the progress bar can be judged, and afterwards the
+// mock plays dead for a moment like a rebooting clock. Name a file *bad*.bin
+// to exercise the failure path.
+
+const UPLOAD_RATE = 400 * 1024; // bytes/s, roughly what the ESP32 manages
+const REBOOT_MS = 6000;
+
+const ota = {
+  firmwareVersion: '2.1.0',
+  fsVersion: '2.1.0',
+  sketchSize: 1348192,
+  freeSpace: 6553600,
+  error: ''
+};
+
+let rebootUntil = 0;
+
+app.get('/ota/status', (req, res) => {
+  if (Date.now() < rebootUntil) return res.status(503).json({ error: 'rebooting' });
+  res.json(ota);
+});
+
+/** Next patch level, so an update visibly changes something. */
+function bumped(version) {
+  const parts = version.split('.');
+  parts[2] = String(Number(parts[2] || 0) + 1);
+  return parts.join('.');
+}
+
+app.post('/ota/upload', (req, res) => {
+  let bytes = 0;
+  let kind = null;
+  let filename = '';
+
+  req.on('data', (chunk) => {
+    if (kind === null) {
+      // Shortcut a real parser: the multipart header always fits in the first
+      // chunk, so the image starts right after the first blank line. The
+      // firmware makes the same 0xE9 test, just on a clean stream.
+      const head = chunk.indexOf('\r\n\r\n');
+      kind = head >= 0 && chunk[head + 4] === 0xe9 ? 'firmware' : 'filesystem';
+      filename = (chunk.toString('latin1', 0, Math.max(head, 0)).match(/filename="([^"]*)"/) || [])[1] || '';
+    }
+    bytes += chunk.length;
+
+    // Throttle, otherwise a 3.5 MB image is through before it can be watched.
+    req.pause();
+    setTimeout(() => req.resume(), (chunk.length / UPLOAD_RATE) * 1000);
+  });
+
+  req.on('end', () => {
+    console.log(`/ota/upload ${filename} (${kind}, ${bytes} bytes)`);
+
+    if (/bad/i.test(filename)) {
+      return res.status(500).json({ error: 'Image unvollstaendig: Bad Magic Byte' });
+    }
+
+    if (kind === 'firmware') ota.firmwareVersion = bumped(ota.firmwareVersion);
+    else ota.fsVersion = bumped(ota.fsVersion);
+
+    rebootUntil = Date.now() + REBOOT_MS;
+    res.json({ msg: '', reboot: true });
+  });
 });
 
 app.listen(8080, () => console.log('QlockThreeW32 mock API on http://localhost:8080'));

@@ -3,11 +3,12 @@
  * Build and dev-server configuration of the configuration SPA. Builds
  * web/ into data/, the LittleFS image flashed to the clock.
  *
- * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
  * @version  2.0
  * @created  15.8.2026
  * @updated  15.8.2026
  */
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
@@ -20,11 +21,33 @@ const API_ROUTES = [
   '/autoluminance',
   '/configuration',
   '/timezone',
-  '/wifi'
+  '/wifi',
+  '/ota'
 ];
 
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
+
+/**
+ * Puts version.json into the filesystem image. The firmware reads it at boot
+ * and reports it through /ota/status, so the update tab can show which build
+ * of the web UI is actually in flash - firmware and UI are separate images and
+ * are not necessarily updated together.
+ */
+function versionFile() {
+  return {
+    name: 'qlock-version',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version: pkg.version, built: new Date().toISOString() })
+      });
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [svelte(), versionFile()],
   root: 'web',
   // Built output is the LittleFS image uploaded via `pio run -t uploadfs`.
   build: {

@@ -4,7 +4,7 @@
  * over NTP and serves the configuration web UI from LittleFS.
  *
  * @mc       ESP32S3
- * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
  * @version  2.0
  * @created  15.8.2026
  * @updated  15.8.2026
@@ -28,7 +28,8 @@
 #include <uri/UriBraces.h>
 
 // over the air updates
-#include <ArduinoOTA.h>
+#include <ArduinoOTA.h>           // flashing from PlatformIO over the network
+#include <Update.h>               // writing an image uploaded through the web UI
 
 // debug library
 #include <RemoteDebug.h>          //https://github.com/JoaoLopesF/RemoteDebug
@@ -46,10 +47,10 @@
 #include "Renderer.h"
 #include "Staben.h"
 #include "Settings.h"
+#include "Version.h"
 #include "Zahlen.h"
 #include "Woerter_DE.h"
 
-#define FIRMWARE_VERSION "V 2.1.0"
 #define WAIT_BEFORE_SETTINGS_WRITE 20
 
 // Remote Debug server
@@ -91,6 +92,20 @@ String wifiPreviousSsid, wifiPreviousPass;
 unsigned long wifiSwitchDeadline = 0;
 // Empty unless the last switch failed; shown by the web UI.
 String wifiLastError;
+
+// --- over the air update through the web UI -------------------------------
+// Milliseconds to wait between answering a finished upload and restarting, so
+// the HTTP response is on the wire before the socket dies with the reboot.
+#define OTA_REBOOT_DELAY 1000
+
+// Empty unless the last upload failed; shown by the web UI.
+String otaError;
+// Version of the filesystem image, read from /version.json at boot.
+String otaFsVersion;
+// millis() at which to restart, 0 when no restart is pending.
+unsigned long otaRebootAt = 0;
+// U_FLASH or U_SPIFFS, decided from the first byte of the uploaded image.
+int otaCommand = -1;
 
 // Set web server port number to 80
 WebServer server(80);
@@ -266,6 +281,7 @@ String getContentType(String filename)
     if (filename.endsWith(".html"))     return "text/html";
     else if (filename.endsWith(".css")) return "text/css";
     else if (filename.endsWith(".js"))  return "application/javascript";
+    else if (filename.endsWith(".json")) return "application/json";
     else if (filename.endsWith(".ico")) return "image/vnd.microsoft.icon";
     return "text/plain";
 }
@@ -558,6 +574,151 @@ void handleWifiSwitch()
     }
 }
 
+// Version of the web UI currently in flash. The Vite build writes version.json
+// into the filesystem image (see vite.config.js), so the two halves of an
+// update can be told apart: firmware and web UI are flashed separately and can
+// legitimately differ.
+String readFsVersion()
+{
+    File file = LittleFS.open("/version.json", "r");
+    if (!file) return String("");
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, file);
+    file.close();
+    if (error) return String("");
+
+    return String(doc["version"] | "");
+}
+
+void sendOtaStatus()
+{
+    JsonDocument doc;
+    doc["firmwareVersion"] = FIRMWARE_VERSION;
+    doc["fsVersion"] = otaFsVersion;
+    doc["sketchSize"] = ESP.getSketchSize();
+    // Size of the inactive OTA slot, i.e. the largest image that would fit.
+    doc["freeSpace"] = ESP.getFreeSketchSpace();
+    doc["error"] = otaError;
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+// Streaming half of POST /ota/upload: the web server calls this for every chunk
+// of the multipart body, so the image goes straight to flash as it arrives and
+// never has to be held in RAM (it is several times larger than the heap).
+void handleOtaUploadData()
+{
+    HTTPUpload &upload = server.upload();
+
+    switch (upload.status)
+    {
+        case UPLOAD_FILE_START:
+        {
+            otaError = "";
+            otaCommand = -1;    // decided below, from the first byte
+            debugA("OTA upload started: %s", upload.filename.c_str());
+            break;
+        }
+        case UPLOAD_FILE_WRITE:
+        {
+            if (otaError.length()) break;
+
+            if (otaCommand < 0)
+            {
+                // ESP32 application images start with the magic byte 0xE9;
+                // anything else is taken to be the filesystem image holding
+                // the web UI. That saves the user from picking the target.
+                otaCommand = (upload.currentSize > 0 && upload.buf[0] == 0xE9) ? U_FLASH : U_SPIFFS;
+                debugA("OTA target: %s", otaCommand == U_FLASH ? "firmware" : "filesystem");
+
+                if (otaCommand == U_SPIFFS)
+                {
+                    // The image covers the whole partition, so qlockconf.json
+                    // goes with it. Park a copy in NVS; setup() puts it back on
+                    // the next boot.
+                    if (!settings.backupToNvs())
+                    {
+                        debugW("Settings backup failed, the update will reset them");
+                    }
+                    // Unmount only after the backup, and before writing:
+                    // LittleFS caches writes, and flushing them after the image
+                    // has been written would corrupt it.
+                    LittleFS.end();
+                }
+
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN, otaCommand))
+                {
+                    otaError = String("Update abgelehnt: ") + Update.errorString();
+                    debugE("OTA begin failed: %s", Update.errorString());
+                    break;
+                }
+            }
+
+            if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
+            {
+                otaError = String("Schreibfehler: ") + Update.errorString();
+                debugE("OTA write failed: %s", Update.errorString());
+            }
+            break;
+        }
+        case UPLOAD_FILE_END:
+        {
+            if (otaError.length()) break;
+
+            // end(true) verifies the image and only then switches the boot
+            // partition, so a truncated upload leaves the old one in charge.
+            if (Update.end(true))
+            {
+                debugA("OTA upload finished: %u bytes", upload.totalSize);
+            }
+            else
+            {
+                otaError = String("Image unvollstaendig: ") + Update.errorString();
+                debugE("OTA end failed: %s", Update.errorString());
+            }
+            break;
+        }
+        case UPLOAD_FILE_ABORTED:
+        {
+            Update.abort();
+            otaError = "Upload abgebrochen";
+            debugW("OTA upload aborted");
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+// Answers POST /ota/upload once the whole body has been through
+// handleOtaUploadData(), and schedules the restart on success.
+void handleOtaUploadDone()
+{
+    if (otaError.length())
+    {
+        JsonDocument doc;
+        doc["error"] = otaError;
+        String out;
+        serializeJson(doc, out);
+        server.send(500, "application/json", out);
+        return;
+    }
+
+    // Nothing was written at all: the request carried no file part.
+    if (otaCommand < 0)
+    {
+        server.send(400, "application/json", "{\"error\":\"Kein Image empfangen\"}");
+        return;
+    }
+
+    server.sendHeader("Connection", "close");
+    server.send(200, "application/json", "{\"msg\":\"\",\"reboot\":true}");
+    otaRebootAt = millis() + OTA_REBOOT_DELAY;
+}
+
 void setup()
 {
     // setup serial
@@ -575,6 +736,14 @@ void setup()
     else 
     {
         debugA("LittleFS Mount succesfull");
+        // version of the web UI in flash, for the update tab
+        otaFsVersion = readFsVersion();
+        // a filesystem update wipes qlockconf.json; put back the copy that
+        // was parked in NVS before the image was written
+        if (settings.restoreFromNvs())
+        {
+            debugA("Settings restored from NVS after a filesystem update");
+        }
         // load settings from FLASH
         settings.loadSettings();
         // set NTPServerName and timezones right away
@@ -684,6 +853,12 @@ void setup()
     server.on("/wifi", HTTP_GET, sendWifiStatus);
     server.on("/wifi", HTTP_POST, updateWifi);
     server.on("/wifi/scan", HTTP_GET, sendWifiScan);
+    // Firmware update from the browser. The second handler receives the body in
+    // chunks, the first one answers once it is through. Deliberately without
+    // authentication - if that ever changes, a server.authenticate() at the top
+    // of both handlers is all it takes.
+    server.on("/ota/status", HTTP_GET, sendOtaStatus);
+    server.on("/ota/upload", HTTP_POST, handleOtaUploadDone, handleOtaUploadData);
     server.begin();
 /*
     // over the air update
@@ -787,8 +962,22 @@ ArduinoOTA.begin();
 	ledDriver.wakeUp();
 }
 
-void loop() 
+void loop()
 {
+    // An OTA update is through and the clock is about to restart. Nothing else
+    // may run in the meantime: on a filesystem update LittleFS is unmounted, so
+    // the deferred settings write would land in the image just flashed.
+    if (otaRebootAt)
+    {
+        if ((long)(millis() - otaRebootAt) >= 0)
+        {
+            debugA("Restarting after OTA update");
+            server.stop();
+            ESP.restart();
+        }
+        return;
+    }
+
     // drive a network switch requested through the web UI
     handleWifiSwitch();
 

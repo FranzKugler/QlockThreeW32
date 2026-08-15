@@ -4,7 +4,7 @@
    * Shell of the configuration SPA: loads the clock's settings once, then
    * hands them to the section shown by the selected tab.
    *
-   * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+   * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
    * @version  2.0
    * @created  15.8.2026
    * @updated  15.8.2026
@@ -16,12 +16,14 @@
   import Color from './sections/Color.svelte';
   import Timezone from './sections/Timezone.svelte';
   import Wifi from './sections/Wifi.svelte';
+  import Ota from './sections/Ota.svelte';
 
   const TABS = [
     { id: 'display', label: 'Anzeige' },
     { id: 'color', label: 'Farbe' },
     { id: 'timezone', label: 'Timezone' },
-    { id: 'wifi', label: 'WLAN' }
+    { id: 'wifi', label: 'WLAN' },
+    { id: 'ota', label: 'Update' }
   ];
 
   let active = $state('display');
@@ -68,8 +70,10 @@
       <Color state={clock} />
     {:else if active === 'timezone'}
       <Timezone state={clock} />
-    {:else}
+    {:else if active === 'wifi'}
       <Wifi />
+    {:else}
+      <Ota />
     {/if}
   {:else if loadError}
     <p class="centered">

@@ -4,7 +4,7 @@
  * The words are bit masks for the matrix.
  *
  * @mc       ESP32S3
- * @autor    Rudolf Klimesch (Vorlage: Christian Aschoff)
+ * @author   Rudolf Klimesch (base: Christian Aschoff)
  * @version  2.0
  * @created  17.1.2013
  * @updated  15.8.2026

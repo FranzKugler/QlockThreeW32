@@ -3,7 +3,7 @@
  * REST client for the clock's endpoints. The firmware (src/main .cpp) and the
  * mock server (server.js) implement the same contract; keep all three in sync.
  *
- * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
  * @version  2.0
  * @created  15.8.2026
  * @updated  15.8.2026
@@ -66,3 +66,59 @@ export async function fetchWifiScan() {
 }
 
 export const connectWifi = ({ ssid, password }) => post('/wifi', { ssid, password });
+
+/**
+ * Installed firmware and web UI versions. Throws, because the caller polls this
+ * while the clock reboots after an update and must tolerate it being briefly
+ * unreachable without flagging that as an error.
+ */
+export async function fetchOtaStatus() {
+  const res = await fetch('/ota/status');
+  if (!res.ok) throw new Error(`/ota/status: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Uploads a firmware or filesystem image; the clock decides from the image
+ * itself where it belongs and reboots into it.
+ *
+ * Uses XMLHttpRequest rather than fetch(), because only XHR reports upload
+ * progress. That number is honest here: the clock writes every chunk to flash
+ * as it arrives, so bytes sent really are bytes flashed.
+ */
+export function uploadImage(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const body = new FormData();
+    body.append('image', file, file.name);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/ota/upload');
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total);
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      // The clock answers failures as {"error": "..."}; fall back to the
+      // status code if the body is something else entirely.
+      let message = `HTTP ${xhr.status}`;
+      try {
+        message = JSON.parse(xhr.responseText).error || message;
+      } catch {
+        /* not JSON */
+      }
+      reject(new Error(message));
+    };
+
+    // Fires when the connection dies mid-upload, which on a clock that is
+    // being reflashed is not necessarily a failure - the caller checks back.
+    xhr.onerror = () => reject(new Error('Verbindung zur Uhr unterbrochen'));
+    xhr.onabort = () => reject(new Error('Upload abgebrochen'));
+
+    xhr.send(body);
+  });
+}

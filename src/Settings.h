@@ -4,7 +4,7 @@
  * the web UI.
  *
  * @mc       ESP32S3
- * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
  * @version  2.0
  * @created  15.8.2026
  * @updated  15.8.2026
@@ -25,6 +25,12 @@ public:
     void loadSettings();
     void storeSettings();
     String getJSONSettings();
+
+    // A filesystem update overwrites the whole partition, qlockconf.json
+    // included. These carry the settings across it through NVS, which lives in
+    // its own partition and is not touched by an update.
+    bool backupToNvs();
+    bool restoreFromNvs();
 
     // setters and getters
     void    setFS(fs::FS* fileSystem) {this->fileSystem = fileSystem;}
@@ -75,6 +81,10 @@ public:
     int     getTzDsOffset() {return this->TzDsOffset;}
 
 private:
+    // Fills a document with the stored representation, shared by storeSettings()
+    // and backupToNvs() so the field list exists only once.
+    void fillDocument(JsonDocument &doc);
+
     fs::FS  *fileSystem;
     byte    Language;
     boolean RenderCornersCw;

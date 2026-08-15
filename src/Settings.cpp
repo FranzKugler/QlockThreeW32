@@ -4,7 +4,7 @@
  * the web UI.
  *
  * @mc       ESP32S3
- * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
  * @version  2.0
  * @created  15.8.2026
  * @updated  15.8.2026
@@ -13,11 +13,17 @@
  * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  */
 #include "LittleFS.h"
+#include <Preferences.h>
 #include "Settings.h"
 #include "Renderer.h"
 
 #include <RemoteDebug.h>
 extern RemoteDebug Debug;
+
+// Where the settings are parked while a filesystem image is written. NVS has
+// its own partition, so an update to the filesystem leaves it alone.
+#define NVS_NAMESPACE "qlock"
+#define NVS_KEY_CONF  "conf"
 
 
 /**
@@ -95,11 +101,8 @@ void Settings::loadSettings()
     }
 }
 
-void Settings::storeSettings()
+void Settings::fillDocument(JsonDocument &doc)
 {
-    // generate JSON doc
-    StaticJsonDocument<512> doc;
-
     doc["Language"]         = Language;
     doc["RenderCornersCw"]  = RenderCornersCw;
     doc["RenderColorCorner"]= RenderColorCorner;
@@ -122,6 +125,13 @@ void Settings::storeSettings()
     doc["TzDsMonth"]        = TzDsMonth;   
     doc["TzDsHour"]         = TzDsHour;
     doc["TzDsOffset"]       = TzDsOffset;
+}
+
+void Settings::storeSettings()
+{
+    // generate JSON doc
+    JsonDocument doc;
+    fillDocument(doc);
 
     // open for write
     File file = LittleFS.open("/qlockconf.json", "w+");
@@ -138,6 +148,84 @@ void Settings::storeSettings()
     
     file.flush();
     file.close();
+}
+
+/**
+ * Parks the current settings in NVS, to be picked up by restoreFromNvs() after
+ * the next boot. Called before a filesystem image is written, because that
+ * image covers the whole partition and takes qlockconf.json with it.
+ */
+bool Settings::backupToNvs()
+{
+    JsonDocument doc;
+    fillDocument(doc);
+
+    String json;
+    serializeJson(doc, json);
+
+    Preferences preferences;
+    if (!preferences.begin(NVS_NAMESPACE, false))
+    {
+        debugE("Cannot open NVS to back up the settings.\n");
+        return false;
+    }
+
+    size_t written = preferences.putString(NVS_KEY_CONF, json);
+    preferences.end();
+
+    if (written == 0)
+    {
+        debugE("Failed to write the settings backup to NVS.\n");
+        return false;
+    }
+
+    debugI("Settings backed up to NVS (%u bytes).\n", written);
+    return true;
+}
+
+/**
+ * Writes a backup left by backupToNvs() back to the filesystem, so the settings
+ * survive a filesystem update. Does nothing when qlockconf.json is present -
+ * the file always wins, the backup is only for the case where it is gone.
+ */
+bool Settings::restoreFromNvs()
+{
+    if (LittleFS.exists("/qlockconf.json")) return false;
+
+    Preferences preferences;
+    if (!preferences.begin(NVS_NAMESPACE, false)) return false;
+
+    String json = preferences.getString(NVS_KEY_CONF, "");
+    if (json.length() == 0)
+    {
+        preferences.end();
+        return false;
+    }
+
+    File file = LittleFS.open("/qlockconf.json", "w+");
+    if (!file)
+    {
+        preferences.end();
+        debugE("Cannot write qlockconf.json while restoring from NVS.\n");
+        return false;
+    }
+
+    size_t written = file.print(json);
+    file.flush();
+    file.close();
+
+    // One shot: a later, deliberate wipe of the filesystem should start from
+    // the defaults rather than resurrect settings from an old update.
+    if (written == json.length()) preferences.remove(NVS_KEY_CONF);
+    preferences.end();
+
+    if (written != json.length())
+    {
+        debugE("Settings restore from NVS incomplete.\n");
+        return false;
+    }
+
+    return true;
 }
 
 

@@ -16,7 +16,7 @@
  * 9 ETSDEMIEPAM
  *
  * @mc       ESP32S3
- * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
+ * @author   Christian Aschoff / caschoff _AT_ mac _DOT_ com
  * @version  2.0
  * @created  12.12.2012
  * @updated  15.8.2026
