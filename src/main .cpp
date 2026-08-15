@@ -47,6 +47,11 @@
 #include "Renderer.h"
 #include "Staben.h"
 #include "Settings.h"
+// Credentials of this particular clock, not in version control. Without it the
+// build still works; see Secrets.example.h.
+#if __has_include("Secrets.h")
+#include "Secrets.h"
+#endif
 #include "Version.h"
 #include "Zahlen.h"
 #include "Woerter_DE.h"
@@ -907,7 +912,12 @@ void setup()
 
 ArduinoOTA.setPort(8266);
 ArduinoOTA.setHostname("QlockThreeW32");
-ArduinoOTA.setPassword("admin");
+#ifdef OTA_PASSWORD
+ArduinoOTA.setPassword(OTA_PASSWORD);
+#else
+// No Secrets.h: espota accepts anyone who can reach the clock.
+#warning "No OTA_PASSWORD set - copy src/Secrets.example.h to src/Secrets.h"
+#endif
 
 ArduinoOTA
     .onStart([]() {

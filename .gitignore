@@ -15,3 +15,6 @@ data/
 
 # old full-project backup archive, superseded by git
 QlockThreeW32.zip
+
+# credentials of one particular clock; Secrets.example.h is the template
+src/Secrets.h

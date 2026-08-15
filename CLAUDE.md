@@ -104,7 +104,7 @@ There are **two images**, and they are updated independently: `firmware.bin` (th
 
 Three ways in, in order of how they arrived:
 
-- **`espota`** — ArduinoOTA is started in `setup()` and still runs on port 3232; `pio run -t upload --upload-port <ip>` uses it. Needs PlatformIO on the same LAN.
+- **`espota`** — ArduinoOTA is started in `setup()` and listens on **port 8266**, not the ESP32 default 3232, so `pio run -t upload --upload-port <ip>` needs `--upload-port` *and* a matching port setting. Needs PlatformIO on the same LAN. Its password comes from `OTA_PASSWORD` in `src/Secrets.h` (see "Credentials" below).
 - **Browser upload** (the "Update" tab, [web/src/sections/Ota.svelte](web/src/sections/Ota.svelte)) — `POST /ota/upload`. The synchronous `WebServer` streams the body through the second handler registered on the route, so the image goes to flash as it arrives rather than through RAM. **The target partition is not chosen by the user**: ESP32 app images start with the magic byte `0xE9`, anything else is treated as the filesystem image (`U_FLASH` vs `U_SPIFFS`). The mock and the UI repeat that same test, the UI only to label the file before uploading.
 - **GitHub manifest** — planned, not built. The clock is to poll a `manifest.json` published by a release workflow (version, notes, asset URLs, SHA-256) and offer or auto-apply the update. The download will have to run in a FreeRTOS task, because the synchronous web server is dead for the ~40 s an HTTPS download takes.
 
@@ -114,7 +114,11 @@ Details that are easy to get wrong:
 - Before writing a filesystem image the firmware calls `LittleFS.end()`, otherwise cached writes would be flushed over the freshly written image.
 - The reboot happens in `loop()` via `otaRebootAt`, not in the handler, so the HTTP response makes it onto the wire. While that is pending `loop()` returns early — the deferred settings write must not run against an unmounted or just-overwritten filesystem.
 - A filesystem update overwrites the whole partition. That used to take `qlockconf.json` with it, which is why the settings now live in NVS instead — see "Settings persistence". Nothing has to be backed up or restored around an update.
-- The OTA endpoints have **no authentication**, deliberately (as does ArduinoOTA). Anyone on the LAN can flash the clock. A `server.authenticate()` at the top of both handlers is the whole fix if that changes.
+- The `/ota/*` endpoints have **no authentication**, deliberately: anyone on the LAN can flash the clock through the browser. A `server.authenticate()` at the top of both handlers is the whole fix if that changes. Note that espota *is* password-protected, so the two paths do not offer the same protection.
+
+### Credentials
+
+`src/Secrets.h` holds the values belonging to one particular clock and is gitignored; [src/Secrets.example.h](src/Secrets.example.h) is the committed template. `main .cpp` pulls it in behind `#if __has_include(...)`, so a fresh clone builds without it — with a `#warning` and no espota password rather than a compile error. Anything device-specific and secret belongs there, not in the source.
 
 ### Versioning
 
