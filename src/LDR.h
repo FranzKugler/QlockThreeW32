@@ -1,22 +1,23 @@
 /**
  * LDR
- * Klasse fuer den Zugriff auf einen lichtabhaengigen Widerstand.
+ * Class for reading a light dependent resistor.
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.8
+ * @version  2.0
  * @created  18.3.2012
- * @updated  16.2.2015
+ * @updated  15.8.2026
  *
- * Versionshistorie:
- * V 1.1:  - Optimierung hinsichtlich Speicherbedarf.
- * V 1.2:  - Verbessertes Debugging.
- * V 1.3:  - Beschraenkund der LDR-Werte bei autoscale == false.
- * V 1.4:  - Der LDR mapped die Werte jetzt selbst, dadurch wird flackern bei unguenstigen Lichtverhaeltnissen vermindert.
- * V 1.5:  - Der LDR gibt Werte zwischen 0 und 100% zurueck, das ist besser verstaendlich.
- * V 1.6:  - Hysterese eingefuert, damit bei kippeligen Lichtverhaeltnissen kein Flackern auftritt.
- * V 1.7:  - isInverted eingefuehrt.
- * V 1.8:  - Unterstuetzung fuer die alte Arduino-IDE (bis 1.0.6) entfernt.
+ * Version history:
+ * V 1.1:  - Optimised for memory usage.
+ * V 1.2:  - Improved debugging.
+ * V 1.3:  - Clamping of the LDR values when autoscale == false.
+ * V 1.4:  - The LDR now maps the values itself, which reduces flicker in awkward lighting.
+ * V 1.5:  - The LDR returns values between 0 and 100%, which is easier to understand.
+ * V 1.6:  - Added hysteresis so that borderline lighting does not cause flicker.
+ * V 1.7:  - Introduced isInverted.
+ * V 1.8:  - Removed support for the old Arduino IDE (up to 1.0.6).
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  */
 #ifndef LDR_H
 #define LDR_H

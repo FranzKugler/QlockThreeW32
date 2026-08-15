@@ -1,4 +1,14 @@
 <script>
+  /**
+   * App
+   * Shell of the configuration SPA: loads the clock's settings once, then
+   * hands them to the section shown by the selected tab.
+   *
+   * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+   * @version  2.0
+   * @created  15.8.2026
+   * @updated  15.8.2026
+   */
   import { onMount } from 'svelte';
   import { fetchState } from './lib/api.js';
   import { status } from './lib/status.svelte.js';

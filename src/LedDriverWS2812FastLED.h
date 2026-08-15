@@ -1,23 +1,24 @@
 /**
  * LedDriverWS2812FastLED
- * Implementierung auf der Basis von WS2812B-Streifen wie sie die Adafruit-Neo-Pixel verwenden.
+ * Implementation based on WS2812B strips, as used by the Adafruit NeoPixels.
  *
- * Es lohnt sich in jedem Fall, den UeberGuide von Adafruit zu lesen:
+ * Adafruit's UeberGuide is well worth reading:
  * https://learn.adafruit.com/adafruit-neopixel-uberguide/overview
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.2
+ * @version  2.0
  * @created  5.1.2015
- * @updated  16.2.2015
+ * @updated  15.8.2026
  *
- * Versionshistorie:
- * V 1.0:  - Erstellt.
- * V 1.1:  - Getter fuer Helligkeit nachgezogen.
- * V 1.2:  - Unterstuetzung fuer die alte Arduino-IDE (bis 1.0.6) entfernt.
+ * Version history:
+ * V 1.0:  - Created.
+ * V 1.1:  - Brightness getter brought in line.
+ * V 1.2:  - Removed support for the old Arduino IDE (up to 1.0.6).
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  *
- * Verkabelung: Einspeisung oben links, dann schlangenfoermig runter,
- * dann Ecke unten links, oben links, oben rechts, unten rechts.
+ * Wiring: fed in at the top left, then serpentine downwards,
+ * then the corners: bottom left, top left, top right, bottom right.
  *
  */
 #ifndef LED_DRIVER_WS2812_FASTLED_H

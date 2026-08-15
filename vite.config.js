@@ -1,3 +1,13 @@
+/**
+ * vite.config
+ * Build and dev-server configuration of the configuration SPA. Builds
+ * web/ into data/, the LittleFS image flashed to the clock.
+ *
+ * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @version  2.0
+ * @created  15.8.2026
+ * @updated  15.8.2026
+ */
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 

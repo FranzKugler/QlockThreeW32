@@ -1,3 +1,17 @@
+/**
+ * Settings
+ * The user settings of the clock, persisted to LittleFS as JSON and served to
+ * the web UI.
+ *
+ * @mc       ESP32S3
+ * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @version  2.0
+ * @created  15.8.2026
+ * @updated  15.8.2026
+ *
+ * Version history:
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
+ */
 #include "LittleFS.h"
 #include "Settings.h"
 #include "Renderer.h"

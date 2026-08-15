@@ -1,7 +1,7 @@
 /**
  * Woerter_DE
- * Definition der deutschen Woerter fuer die Zeitansage.
- * Die Woerter sind Bitmasken fuer die Matrix.
+ * Definition of the German words for the spoken time.
+ * The words are bit masks for the matrix.
  *
  *   01234567890
  * 0 ESKISTLFUNF
@@ -15,16 +15,17 @@
  * 8 WACHTZEHNRS
  * 9 BSECHSFMUHR
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.0
+ * @version  2.0
  * @created  18.3.2012
+ * @updated  15.8.2026
  */
 #ifndef WOERTER_DE_H
 #define WOERTER_DE_H
 
 /**
- * Definition der Woerter
+ * Definition of the words
  */
 #define DE_VOR          matrix[3] |= 0b1110000000000000
 #define DE_NACH         matrix[3] |= 0b0000000111100000

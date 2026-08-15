@@ -1,4 +1,13 @@
 <script>
+  /**
+   * Timezone
+   * Timezone tab: NTP server and both changeover rules of the clock.
+   *
+   * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+   * @version  2.0
+   * @created  15.8.2026
+   * @updated  15.8.2026
+   */
   import * as api from '../lib/api.js';
   import TzRule from './TzRule.svelte';
 

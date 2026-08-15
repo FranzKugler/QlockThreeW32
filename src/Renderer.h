@@ -1,22 +1,23 @@
 /**
  * Renderer
- * Diese Klasse rendert die Woerter auf die Matrix.
+ * This class renders the words onto the matrix.
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.6
+ * @version  2.0
  * @created  21.1.2013
- * @updated  4.1.2016
+ * @updated  15.8.2026
  *
- * Versionshistorie:
- * V 1.0:  - Erstellt.
- * V 1.1:  - Spanisch hinzugefuegt.
- * V 1.2:  - setMinutes - hours auf char umgestellt, damit Zeitverschiebung geht...
- * V 1.3:  - Alle Deutsch-Varianten zusammengefasst, um Platz zu sparen.
- *         - Fehler im Italienischen behoben.
- * V 1.4:  - Stundenbegrenzung (die ja wegen der Zeitverschiebungsmoeglichkeit existiert) auf den Bereich 0 <= h <= 24 ausgeweitet, dank Tipp aus dem Forum.
- * V 1.5:  - Unterstuetzung fuer die alte Arduino-IDE (bis 1.0.6) entfernt.
- * V 1.6:  - Stundenbegrenzung (die ja wegen der Zeitverschiebungsmoeglichkeit existiert) auf den Bereich 0 <= h <= 24 auch in setHours eingefuehrt, siehe http://diskussion.christians-bastel-laden.de/viewtopic.php?f=17&t=2028
+ * Version history:
+ * V 1.0:  - Created.
+ * V 1.1:  - Added Spanish.
+ * V 1.2:  - setMinutes: hours changed to char so time zone offsets work.
+ * V 1.3:  - Merged all German variants to save space.
+ *         - Fixed a bug in the Italian rendering.
+ * V 1.4:  - Hour clamping (which exists because of the time zone offset) widened to 0 <= h <= 24, thanks to a hint from the forum.
+ * V 1.5:  - Removed support for the old Arduino IDE (up to 1.0.6).
+ * V 1.6:  - Hour clamping to 0 <= h <= 24 also applied in setHours, see http://diskussion.christians-bastel-laden.de/viewtopic.php?f=17&t=2028
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  */
 #ifndef RENDERER_H
 #define RENDERER_H

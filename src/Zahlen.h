@@ -1,18 +1,19 @@
 /**
  * Zahlen
- * Definition der Zahlen fuer die Sekundenanzeige der QLOCKTWO.
- * Die Zahlen sind wie die Woerter Bitmasken fuer die Matrix.
+ * Definition of the digits for the QLOCKTWO seconds display.
+ * Like the words, the digits are bit masks for the matrix.
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.3
+ * @version  2.0
  * @created  18.2.2011
- * @updated  18.1.2013
+ * @updated  15.8.2026
  *
- * Versionshistorie:
- * V 1.1:  - A/M fuer die Umschaltung zwischen LDR auto/manuell hinzugefuegt (Danke an Alexander).
- * V 1.2:  - Bitmaps in den PROGMEM ausgelagert.
- * V 1.3:  - Staben von V 1.1 in eigene Datei ausgelagert und das Alphabet komplettiert.
+ * Version history:
+ * V 1.1:  - Added A/M for switching the LDR between auto and manual (thanks to Alexander).
+ * V 1.2:  - Moved the bitmaps into PROGMEM.
+ * V 1.3:  - Moved the letters from V 1.1 into their own file and completed the alphabet.
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  */
 #ifndef ZAHLEN_H
 #define ZAHLEN_H

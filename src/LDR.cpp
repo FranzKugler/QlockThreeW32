@@ -1,12 +1,12 @@
 /**
  * LDR
- * Klasse fuer den Zugriff auf einen lichtabhaengigen Widerstand.
+ * Class for reading a light dependent resistor.
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.8
+ * @version  2.0
  * @created  18.3.2012
- * @updated  16.2.2015
+ * @updated  15.8.2026
  *
  */
 
@@ -26,7 +26,7 @@ LDR::LDR()
 }
 
 /**
- * Welchen Wert hat der Lichtsensor (in LUX)
+ * What value does the light sensor report (in lux)?
  */
 float LDR::lightLevel() 
 {

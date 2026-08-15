@@ -1,22 +1,23 @@
 /**
  * Renderer
- * Diese Klasse rendert die Woerter auf die Matrix.
+ * This class renders the words onto the matrix.
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.6
+ * @version  2.0
  * @created  21.1.2013
- * @updated  4.1.2016
+ * @updated  15.8.2026
  *
- * Versionshistorie:
- * V 1.0:  - Erstellt.
- * V 1.1:  - Spanisch hinzugefuegt.
- * V 1.2:  - setMinutes - hours auf char umgestellt, damit Zeitverschiebung geht...
- * V 1.3:  - Alle Deutsch-Varianten zusammengefasst, um Platz zu sparen.
- *         - Fehler im Italienischen behoben.
- * V 1.4:  - Stundenbegrenzung (die ja wegen der Zeitverschiebungsmoeglichkeit existiert) auf den Bereich 0 <= h <= 24 ausgeweitet, dank Tipp aus dem Forum.
- * V 1.5:  - Unterstuetzung fuer die alte Arduino-IDE (bis 1.0.6) entfernt.
- * V 1.6:  - Stundenbegrenzung (die ja wegen der Zeitverschiebungsmoeglichkeit existiert) auf den Bereich 0 <= h <= 24 auch in setHours eingefuehrt, siehe http://diskussion.christians-bastel-laden.de/viewtopic.php?f=17&t=2028
+ * Version history:
+ * V 1.0:  - Created.
+ * V 1.1:  - Added Spanish.
+ * V 1.2:  - setMinutes: hours changed to char so time zone offsets work.
+ * V 1.3:  - Merged all German variants to save space.
+ *         - Fixed a bug in the Italian rendering.
+ * V 1.4:  - Hour clamping (which exists because of the time zone offset) widened to 0 <= h <= 24, thanks to a hint from the forum.
+ * V 1.5:  - Removed support for the old Arduino IDE (up to 1.0.6).
+ * V 1.6:  - Hour clamping to 0 <= h <= 24 also applied in setHours, see http://diskussion.christians-bastel-laden.de/viewtopic.php?f=17&t=2028
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  */
 #include "Renderer.h"
 
@@ -36,7 +37,7 @@ Renderer::Renderer() {
 }
 
 /**
- * Ein Zufallsmuster erzeugen (zum Testen der LEDs)
+ * Produce a random pattern (for testing the LEDs)
  */
 void Renderer::scrambleScreenBuffer(word matrix[16]) {
     for (byte i = 0; i < 16; i++) {
@@ -45,8 +46,8 @@ void Renderer::scrambleScreenBuffer(word matrix[16]) {
 }
 
 /**
- * Die Matrix loeschen (zum Stromsparen, DCF77-Empfang
- * verbessern etc.)
+ * Clear the matrix (to save power, improve DCF77
+ * reception etc.)
  */
 void Renderer::clearScreenBuffer(word matrix[16]) {
     for (byte i = 0; i < 16; i++) {
@@ -55,7 +56,7 @@ void Renderer::clearScreenBuffer(word matrix[16]) {
 }
 
 /**
- * Die Matrix komplett einschalten (zum Testen der LEDs)
+ * Switch the whole matrix on (for testing the LEDs)
  */
 void Renderer::setAllScreenBuffer(word matrix[16]) {
     for (byte i = 0; i < 16; i++) {
@@ -64,7 +65,7 @@ void Renderer::setAllScreenBuffer(word matrix[16]) {
 }
 
 /**
- * Setzt die Wortminuten, je nach hours/minutes.
+ * Sets the word minutes, depending on hours/minutes.
  */
 void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[16]) {
     while (hours < 0) {
@@ -76,7 +77,7 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
 
     switch (language) {
             //
-            // Deutsch: Hochdeutsch
+            // German: standard German
             //
         case LANGUAGE_DE_DE:
         case LANGUAGE_DE_SW:
@@ -86,25 +87,25 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
 			DEBUG_PRINT("Es ist ");
             switch (minutes / 5) {
                 case 0:
-                    // glatte Stunde
+                    // full hour
                     setHours(hours, true, language, matrix);
                     break;
                 case 1:
-                    // 5 nach
+                    // 5 past
                     DE_FUENF;
                     DE_NACH;
 					DEBUG_PRINT("fuenf nach ");
                     setHours(hours, false, language, matrix);
                     break;
                 case 2:
-                    // 10 nach
+                    // 10 past
                     DE_ZEHN;
                     DE_NACH;
 					DEBUG_PRINT("zehn nach ");
                     setHours(hours, false, language, matrix);
                     break;
                 case 3:
-                    // viertel nach
+                    // quarter past
                     if ((language == LANGUAGE_DE_SW) || (language == LANGUAGE_DE_SA)) {
                         DE_VIERTEL;
 						DEBUG_PRINT("viertel ");
@@ -117,7 +118,7 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     }
                     break;
                 case 4:
-                    // 20 nach
+                    // 20 past
                     if (language == LANGUAGE_DE_SA) {
                         DE_ZEHN;
                         DE_VOR;
@@ -132,7 +133,7 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     }
                     break;
                 case 5:
-                    // 5 vor halb
+                    // 5 to half
                     DE_FUENF;
                     DE_VOR;
                     DE_HALB;
@@ -140,13 +141,13 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 6:
-                    // halb
+                    // half
                     DE_HALB;
 					DEBUG_PRINT("halb ");
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 7:
-                    // 5 nach halb
+                    // 5 past half
                     DE_FUENF;
                     DE_NACH;
                     DE_HALB;
@@ -154,7 +155,7 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 8:
-                    // 20 vor
+                    // 20 to
                     if (language == LANGUAGE_DE_SA) {
                         DE_ZEHN;
                         DE_NACH;
@@ -169,7 +170,7 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     }
                     break;
                 case 9:
-                    // viertel vor
+                    // quarter to
                     if ((language == LANGUAGE_DE_SW) || (language == LANGUAGE_DE_BA) || (language == LANGUAGE_DE_SA)) {
                         DE_DREIVIERTEL;
 						DEBUG_PRINT("dreiviertel ");
@@ -182,14 +183,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     }
                     break;
                 case 10:
-                    // 10 vor
+                    // 10 to
                     DE_ZEHN;
                     DE_VOR;
 					DEBUG_PRINT("zehn vor ");
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 11:
-                    // 5 vor
+                    // 5 to
                     DE_FUENF;
                     DE_VOR;
 					DEBUG_PRINT("fuenf vor ");
@@ -198,79 +199,79 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
             }
             break;
             //
-            // Schweiz: Berner-Deutsch
+            // Switzerland: Bernese German
             //
         case LANGUAGE_CH:
             CH_ESISCH;
 
             switch (minutes / 5) {
                 case 0:
-                    // glatte Stunde
+                    // full hour
                     setHours(hours, true, language, matrix);
                     break;
                 case 1:
-                    // 5 ab
+                    // 5 past
                     CH_FUEF;
                     CH_AB;
                     setHours(hours, false, language, matrix);
                     break;
                 case 2:
-                    // 10 ab
+                    // 10 past
                     CH_ZAEAE;
                     CH_AB;
                     setHours(hours, false, language, matrix);
                     break;
                 case 3:
-                    // viertel ab
+                    // quarter past
                     CH_VIERTU;
                     CH_AB;
                     setHours(hours, false, language, matrix);
                     break;
                 case 4:
-                    // 20 ab
+                    // 20 past
                     CH_ZWAENZG;
                     CH_AB;
                     setHours(hours, false, language, matrix);
                     break;
                 case 5:
-                    // 5 vor halb
+                    // 5 to half
                     CH_FUEF;
                     CH_VOR;
                     CH_HAUBI;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 6:
-                    // halb
+                    // half
                     CH_HAUBI;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 7:
-                    // 5 ab halb
+                    // 5 past half
                     CH_FUEF;
                     CH_AB;
                     CH_HAUBI;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 8:
-                    // 20 vor
+                    // 20 to
                     CH_ZWAENZG;
                     CH_VOR;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 9:
-                    // viertel vor
+                    // quarter to
                     CH_VIERTU;
                     CH_VOR;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 10:
-                    // 10 vor
+                    // 10 to
                     CH_ZAEAE;
                     CH_VOR;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 11:
-                    // 5 vor
+                    // 5 to
                     CH_FUEF;
                     CH_VOR;
                     setHours(hours + 1, false, language, matrix);
@@ -278,82 +279,82 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
             }
             break;
             //
-            // Englisch
+            // English
             //
         case LANGUAGE_EN:
             EN_ITIS;
 
             switch (minutes / 5) {
                 case 0:
-                    // glatte Stunde
+                    // full hour
                     setHours(hours, true, language, matrix);
                     break;
                 case 1:
-                    // 5 nach
+                    // 5 past
                     EN_FIVE;
                     EN_PAST;
                     setHours(hours, false, language, matrix);
                     break;
                 case 2:
-                    // 10 nach
+                    // 10 past
                     EN_TEN;
                     EN_PAST;
                     setHours(hours, false, language, matrix);
                     break;
                 case 3:
-                    // viertel nach
+                    // quarter past
                     EN_A;
                     EN_QUATER;
                     EN_PAST;
                     setHours(hours, false, language, matrix);
                     break;
                 case 4:
-                    // 20 nach
+                    // 20 past
                     EN_TWENTY;
                     EN_PAST;
                     setHours(hours, false, language, matrix);
                     break;
                 case 5:
-                    // 5 vor halb
+                    // 5 to half
                     EN_TWENTY;
                     EN_FIVE;
                     EN_PAST;
                     setHours(hours, false, language, matrix);
                     break;
                 case 6:
-                    // halb
+                    // half
                     EN_HALF;
                     EN_PAST;
                     setHours(hours, false, language, matrix);
                     break;
                 case 7:
-                    // 5 nach halb
+                    // 5 past half
                     EN_TWENTY;
                     EN_FIVE;
                     EN_TO;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 8:
-                    // 20 vor
+                    // 20 to
                     EN_TWENTY;
                     EN_TO;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 9:
-                    // viertel vor
+                    // quarter to
                     EN_A;
                     EN_QUATER;
                     EN_TO;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 10:
-                    // 10 vor
+                    // 10 to
                     EN_TEN;
                     EN_TO;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 11:
-                    // 5 vor
+                    // 5 to
                     EN_FIVE;
                     EN_TO;
                     setHours(hours + 1, false, language, matrix);
@@ -361,44 +362,44 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
             }
             break;
             //
-            // Franzoesisch
+            // French
             //
         case LANGUAGE_FR:
             FR_ILEST;
 
             switch (minutes / 5) {
                 case 0:
-                    // glatte Stunde
+                    // full hour
                     setHours(hours, true, language, matrix);
                     FR_hours(hours, matrix);
                     break;
                 case 1:
-                    // 5 nach
+                    // 5 past
                     setHours(hours, false, language, matrix);
                     FR_hours(hours, matrix);
                     FR_CINQ;
                     break;
                 case 2:
-                    // 10 nach
+                    // 10 past
                     setHours(hours, false, language, matrix);
                     FR_hours(hours, matrix);
                     FR_DIX;
                     break;
                 case 3:
-                    // viertel nach
+                    // quarter past
                     setHours(hours, false, language, matrix);
                     FR_hours(hours, matrix);
                     FR_ET;
                     FR_QUART;
                     break;
                 case 4:
-                    // 20 nach
+                    // 20 past
                     setHours(hours, false, language, matrix);
                     FR_hours(hours, matrix);
                     FR_VINGT;
                     break;
                 case 5:
-                    // 5 vor halb
+                    // 5 to half
                     setHours(hours, false, language, matrix);
                     FR_hours(hours, matrix);
                     FR_VINGT;
@@ -406,14 +407,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     FR_CINQ;
                     break;
                 case 6:
-                    // halb
+                    // half
                     setHours(hours, false, language, matrix);
                     FR_hours(hours, matrix);
                     FR_ET;
                     FR_DEMI;
                     break;
                 case 7:
-                    // 5 nach halb
+                    // 5 past half
                     setHours(hours + 1, false, language, matrix);
                     FR_hours(hours + 1, matrix);
                     FR_MOINS;
@@ -422,14 +423,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     FR_CINQ;
                     break;
                 case 8:
-                    // 20 vor
+                    // 20 to
                     setHours(hours + 1, false, language, matrix);
                     FR_hours(hours + 1, matrix);
                     FR_MOINS;
                     FR_VINGT;
                     break;
                 case 9:
-                    // viertel vor
+                    // quarter to
                     setHours(hours + 1, false, language, matrix);
                     FR_hours(hours + 1, matrix);
                     FR_MOINS;
@@ -437,14 +438,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     FR_QUART;
                     break;
                 case 10:
-                    // 10 vor
+                    // 10 to
                     setHours(hours + 1, false, language, matrix);
                     FR_hours(hours + 1, matrix);
                     FR_MOINS;
                     FR_DIX;
                     break;
                 case 11:
-                    // 5 vor
+                    // 5 to
                     setHours(hours + 1, false, language, matrix);
                     FR_hours(hours + 1, matrix);
                     FR_MOINS;
@@ -453,31 +454,31 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
             }
             break;
             //
-            // Italienisch
+            // Italian
             //
         case LANGUAGE_IT:
             switch (minutes / 5) {
                 case 0:
-                    // glatte Stunde
+                    // full hour
                     setHours(hours, true, language, matrix);
                     IT_hours(hours, matrix);
                     break;
                 case 1:
-                    // 5 nach
+                    // 5 past
                     IT_E2;
                     IT_CINQUE;
                     setHours(hours, false, language, matrix);
                     IT_hours(hours, matrix);
                     break;
                 case 2:
-                    // 10 nach
+                    // 10 past
                     IT_E2;
                     IT_DIECI;
                     setHours(hours, false, language, matrix);
                     IT_hours(hours, matrix);
                     break;
                 case 3:
-                    // viertel nach
+                    // quarter past
                     IT_E2;
                     IT_UN;
                     IT_QUARTO;
@@ -485,14 +486,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     IT_hours(hours, matrix);
                     break;
                 case 4:
-                    // 20 nach
+                    // 20 past
                     IT_E2;
                     IT_VENTI;
                     setHours(hours, false, language, matrix);
                     IT_hours(hours, matrix);
                     break;
                 case 5:
-                    // 5 vor halb
+                    // 5 to half
                     IT_E2;
                     IT_VENTI;
                     IT_CINQUE;
@@ -500,14 +501,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     IT_hours(hours, matrix);
                     break;
                 case 6:
-                    // halb
+                    // half
                     IT_E2;
                     IT_MEZZA;
                     setHours(hours, false, language, matrix);
                     IT_hours(hours, matrix);
                     break;
                 case 7:
-                    // 5 nach halb
+                    // 5 past half
                     IT_MENO;
                     IT_VENTI;
                     IT_CINQUE;
@@ -515,14 +516,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     IT_hours(hours + 1, matrix);
                     break;
                 case 8:
-                    // 20 vor
+                    // 20 to
                     IT_MENO;
                     IT_VENTI;
                     setHours(hours + 1, false, language, matrix);
                     IT_hours(hours + 1, matrix);
                     break;
                 case 9:
-                    // viertel vor
+                    // quarter to
                     IT_MENO;
                     IT_UN;
                     IT_QUARTO;
@@ -530,14 +531,14 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
                     IT_hours(hours + 1, matrix);
                     break;
                 case 10:
-                    // 10 vor
+                    // 10 to
                     IT_MENO;
                     IT_DIECI;
                     setHours(hours + 1, false, language, matrix);
                     IT_hours(hours + 1, matrix);
                     break;
                 case 11:
-                    // 5 vor
+                    // 5 to
                     IT_MENO;
                     IT_CINQUE;
                     setHours(hours + 1, false, language, matrix);
@@ -546,81 +547,81 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
             }
             break;
             //
-            // Niederlaendisch
+            // Dutch
             //
         case LANGUAGE_NL:
             NL_HETIS;
 
             switch (minutes / 5) {
                 case 0:
-                    // glatte Stunde
+                    // full hour
                     setHours(hours, true, language, matrix);
                     break;
                 case 1:
-                    // 5 nach
+                    // 5 past
                     NL_VIJF;
                     NL_OVER;
                     setHours(hours, false, language, matrix);
                     break;
                 case 2:
-                    // 10 nach
+                    // 10 past
                     NL_TIEN;
                     NL_OVER;
                     setHours(hours, false, language, matrix);
                     break;
                 case 3:
-                    // viertel nach
+                    // quarter past
                     NL_KWART;
                     NL_OVER2;
                     setHours(hours, false, language, matrix);
                     break;
                 case 4:
-                    // 10 vor halb
+                    // 10 to half
                     NL_TIEN;
                     NL_VOOR;
                     NL_HALF;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 5:
-                    // 5 vor halb
+                    // 5 to half
                     NL_VIJF;
                     NL_VOOR;
                     NL_HALF;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 6:
-                    // halb
+                    // half
                     NL_HALF;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 7:
-                    // 5 nach halb
+                    // 5 past half
                     NL_VIJF;
                     NL_OVER;
                     NL_HALF;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 8:
-                    // 20 vor
+                    // 20 to
                     NL_TIEN;
                     NL_OVER;
                     NL_HALF;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 9:
-                    // viertel vor
+                    // quarter to
                     NL_KWART;
                     NL_VOOR2;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 10:
-                    // 10 vor
+                    // 10 to
                     NL_TIEN;
                     NL_VOOR;
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 11:
-                    // 5 vor
+                    // 5 to
                     NL_VIJF;
                     NL_VOOR;
                     setHours(hours + 1, false, language, matrix);
@@ -628,87 +629,87 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
             }
             break;
             //
-            // Spanisch
+            // Spanish
             //
         case LANGUAGE_ES:
             switch (minutes / 5) {
                 case 0:
-                    // glatte Stunde
+                    // full hour
                     ES_hours(hours, matrix);
                     setHours(hours, false, language, matrix);
                     break;
                 case 1:
-                    // 5 nach
+                    // 5 past
                     ES_Y;
                     ES_CINCO;
                     ES_hours(hours, matrix);
                     setHours(hours, false, language, matrix);
                     break;
                 case 2:
-                    // 10 nach
+                    // 10 past
                     ES_Y;
                     ES_DIEZ;
                     ES_hours(hours, matrix);
                     setHours(hours, false, language, matrix);
                     break;
                 case 3:
-                    // viertel nach
+                    // quarter past
                     ES_Y;
                     ES_CUARTO;
                     ES_hours(hours, matrix);
                     setHours(hours, false, language, matrix);
                     break;
                 case 4:
-                    // 20 nach
+                    // 20 past
                     ES_Y;
                     ES_VEINTE;
                     ES_hours(hours, matrix);
                     setHours(hours, false, language, matrix);
                     break;
                 case 5:
-                    // 5 vor halb
+                    // 5 to half
                     ES_Y;
                     ES_VEINTICINCO;
                     ES_hours(hours, matrix);
                     setHours(hours, false, language, matrix);
                     break;
                 case 6:
-                    // halb
+                    // half
                     ES_Y;
                     ES_MEDIA;
                     ES_hours(hours, matrix);
                     setHours(hours, false, language, matrix);
                     break;
                 case 7:
-                    // 5 nach halb
+                    // 5 past half
                     ES_MENOS;
                     ES_VEINTICINCO;
                     ES_hours(hours + 1, matrix);
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 8:
-                    // 20 vor
+                    // 20 to
                     ES_MENOS;
                     ES_VEINTE;
                     ES_hours(hours + 1, matrix);
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 9:
-                    // viertel vor
+                    // quarter to
                     ES_MENOS;
                     ES_CUARTO;
                     ES_hours(hours + 1, matrix);
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 10:
-                    // 10 vor
+                    // 10 to
                     ES_MENOS;
                     ES_DIEZ;
                     ES_hours(hours + 1, matrix);
                     setHours(hours + 1, false, language, matrix);
                     break;
                 case 11:
-                    // 5 vor
+                    // 5 to
                     ES_MENOS;
                     ES_CINCO;
                     ES_hours(hours + 1, matrix);
@@ -720,20 +721,20 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
 }
 
 /**
- * Setzt die Stunden, je nach hours. 'glatt' bedeutet,
- * es ist genau diese Stunde und wir muessen 'UHR'
- * dazuschreiben und EIN statt EINS, falls es 1 ist.
- * (Zumindest im Deutschen).
- * Andere sprechliche Spezialfaelle kommen weiter unten
- * im Code...
+ * Sets the hours, depending on hours. 'glatt' (flat) means
+ * it is exactly that hour, so we have to add 'UHR'
+ * and use EIN instead of EINS when it is 1.
+ * (In German, at least.)
+ * Other linguistic special cases follow further down
+ * in the code...
  */
 void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16]) {
-    // oben in setMinutes wird das zwar
-    // schon behandelt, aber durch Spezialfaelle
-    // in der Zeitzonen-Behandlung und einer
-    // Stundenaddition oben kann hier 
-    // die Stunde wieder nicht im richtigen
-    // Bereich sein...
+    // setMinutes above already handles this, but because of
+    // special cases in the time zone handling and an hour
+    // addition above, the hour can end up out of range
+    // again here 
+    // 
+    // 
     while (hours < 0) {
         hours += 12;
     }
@@ -743,7 +744,7 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
 
     switch (language) {
             //
-            // Deutsch (Hochdeutsch, Schwaebisch, Bayrisch)
+            // German (standard, Swabian, Bavarian)
             //
         case LANGUAGE_DE_DE:
         case LANGUAGE_DE_SW:
@@ -830,7 +831,7 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
 
             break;
             //
-            // Schweiz: Berner-Deutsch
+            // Switzerland: Bernese German
             //
         case LANGUAGE_CH:
             switch (hours) {
@@ -886,7 +887,7 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
             }
             break;
             //
-            // Englisch
+            // English
             //
         case LANGUAGE_EN:
             if (glatt) {
@@ -946,7 +947,7 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
             }
             break;
             //
-            // Franzoesisch
+            // French
         case LANGUAGE_FR:
             switch (hours) {
                 case 0:
@@ -1003,7 +1004,7 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
             }
             break;
             //
-            // Italienisch
+            // Italian
             //
         case LANGUAGE_IT:
             switch (hours) {
@@ -1059,7 +1060,7 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
             }
             break;
             //
-            // Niederlaendisch
+            // Dutch
             //
         case LANGUAGE_NL:
             if (glatt) {
@@ -1119,7 +1120,7 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
             }
             break;
             //
-            // Spanisch
+            // Spanish
             //
         case LANGUAGE_ES:
             switch (hours) {
@@ -1178,14 +1179,14 @@ void Renderer::setHours(char hours, boolean glatt, byte language, word matrix[16
 }
 
 /**
- * Setzt die vier Punkte in den Ecken, je nach minutes % 5 (Rest).
+ * Sets the four corner dots, depending on minutes % 5 (the remainder).
  *
- * @param ccw: TRUE -> clock wise -> im Uhrzeigersinn.
- *             FALSE -> counter clock wise -> gegen den Uhrzeigersinn.
+ * @param cw TRUE -> clockwise.
+ *             FALSE -> counter-clockwise.
  */
 void Renderer::setCorners(byte minutes, boolean cw, word matrix[16]) {
     if (cw) {
-        // im Uhrzeigersinn
+        // clockwise
         switch (minutes % 5) {
             case 0:
                 break;
@@ -1209,7 +1210,7 @@ void Renderer::setCorners(byte minutes, boolean cw, word matrix[16]) {
                 break;
         }
     } else {
-        // gegen den Uhrzeigersinn
+        // counter-clockwise
         switch (minutes % 5) {
             case 0:
                 break;
@@ -1236,7 +1237,7 @@ void Renderer::setCorners(byte minutes, boolean cw, word matrix[16]) {
 }
 
 /**
- * Im Alarm-Einstell-Modus muessen bestimmte Woerter weg, wie z.B. "ES IST" im Deutschen.
+ * In alarm setting mode certain words have to go, e.g. "ES IST" in German.
  */
 void Renderer::cleanWordsForAlarmSettingMode(byte language, word matrix[16]) {
     switch (language) {
@@ -1244,46 +1245,46 @@ void Renderer::cleanWordsForAlarmSettingMode(byte language, word matrix[16]) {
         case LANGUAGE_DE_SW:
         case LANGUAGE_DE_BA:
         case LANGUAGE_DE_SA:
-            matrix[0] &= 0b0010001111111111; // ES IST weg
+            matrix[0] &= 0b0010001111111111; // remove ES IST
             break;
         case LANGUAGE_CH:
-            matrix[0] &= 0b0010000111111111; // ES ISCH weg
+            matrix[0] &= 0b0010000111111111; // remove ES ISCH
             break;
         case LANGUAGE_EN:
-            matrix[0] &= 0b0010011111111111; // IT IS weg
+            matrix[0] &= 0b0010011111111111; // remove IT IS
             break;
         case LANGUAGE_FR:
-            matrix[0] &= 0b0010001111111111; // IL EST weg
+            matrix[0] &= 0b0010001111111111; // remove IL EST
             break;
         case LANGUAGE_IT:
-            matrix[0] &= 0b0000100111111111; // SONO LE weg
-            matrix[1] &= 0b0111111111111111; // E (L'UNA) weg
+            matrix[0] &= 0b0000100111111111; // remove SONO LE
+            matrix[1] &= 0b0111111111111111; // remove E (L'UNA)
             break;
         case LANGUAGE_NL:
-            matrix[0] &= 0b0001001111111111; // HET IS weg
+            matrix[0] &= 0b0001001111111111; // remove HET IS
             break;
         case LANGUAGE_ES:
-            matrix[0] &= 0b1000100011111111; // SON LAS weg
-            matrix[0] &= 0b0011100111111111; // ES LA weg
+            matrix[0] &= 0b1000100011111111; // remove SON LAS
+            matrix[0] &= 0b0011100111111111; // remove ES LA
             break;
     }
 }
 
 /**
- * Sprachlicher Spezialfall fuer Franzoesisch.
+ * Linguistic special case for French.
  */
 void Renderer::FR_hours(byte hours, word matrix[16]) {
     if ((hours == 1) || (hours == 13)) {
         FR_HEURE;
     } else if ((hours == 0) || (hours == 12) || (hours == 24)) {
-        // MIDI / MINUIT ohne HEURES
+        // MIDI / MINUIT without HEURES
     } else {
         FR_HEURES;
     }
 }
 
 /**
- * Sprachlicher Spezialfall fuer Italienisch.
+ * Linguistic special case for Italian.
  */
 void Renderer::IT_hours(byte hours, word matrix[16]) {
     if ((hours != 1) && (hours != 13)) {
@@ -1294,7 +1295,7 @@ void Renderer::IT_hours(byte hours, word matrix[16]) {
 }
 
 /**
- * Sprachlicher Spezialfall fuer Spanisch.
+ * Linguistic special case for Spanish.
  */
 void Renderer::ES_hours(byte hours, word matrix[16]) {
     if ((hours == 1) || (hours == 13)) {

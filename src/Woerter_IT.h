@@ -1,7 +1,7 @@
 /**
  * Woerter_IT
- * Definition der italienischen Woerter fuer die Zeitansage.
- * Die Woerter sind Bitmasken fuer die Matrix.
+ * Definition of the Italian words for the spoken time.
+ * The words are bit masks for the matrix.
  *
  *   01234567890
  * 0 SONORLEBORE
@@ -15,16 +15,17 @@
  * 8 VENTICINQUE
  * 9 DIECIEMEZZA
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.0
+ * @version  2.0
  * @created  17.12.2012
+ * @updated  15.8.2026
  */
 #ifndef WOERTER_IT_H
 #define WOERTER_IT_H
 
 /**
- * Definition der Woerter.
+ * Definition of the words.
  */
 #define IT_SONOLE    matrix[0] |= 0b1111011000000000
 #define IT_LE        matrix[0] |= 0b0000011000000000

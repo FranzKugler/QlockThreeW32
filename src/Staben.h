@@ -1,17 +1,19 @@
 /**
  * Staben
- * Definition der (Buch-)Staben fuer die QLOCKTWO.
- * Die Staben sind wie die Woerter Bitmasken fuer die Matrix.
- * Die Staben sind so ausgelegt, dass zwei nebeneinander passen.
- * Das ist wichtig fuer die Konfiguration der Uhr.
+ * Definition of the letters for the QLOCKTWO.
+ * Like the words, the letters are bit masks for the matrix.
+ * The letters are laid out so that two fit side by side.
+ * That matters for configuring the clock.
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.1
+ * @version  2.0
  * @created  23.1.2013
+ * @updated  15.8.2026
  *
- * Versionshiostorie:
- * V 1.1:  - auf 5 Pixel Hoehe geandert, damit zwei Reihen auf das Display passen.
+ * Version history:
+ * V 1.1:  - changed to 5 pixels high so two rows fit on the display.
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  */
 #ifndef STABEN_H
 #define STABEN_H

@@ -1,9 +1,14 @@
-import { status } from './status.svelte.js';
-
 /**
+ * api
  * REST client for the clock's endpoints. The firmware (src/main .cpp) and the
  * mock server (server.js) implement the same contract; keep all three in sync.
+ *
+ * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @version  2.0
+ * @created  15.8.2026
+ * @updated  15.8.2026
  */
+import { status } from './status.svelte.js';
 
 async function post(path, body) {
   try {

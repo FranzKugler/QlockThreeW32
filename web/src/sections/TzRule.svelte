@@ -1,7 +1,13 @@
 <script>
   /**
-   * One Timezone changeover rule, mirroring a TimeChangeRule in the firmware:
+   * TzRule
+   * One timezone changeover rule, mirroring a TimeChangeRule in the firmware:
    * "on the <week> <day> of <month> at <hour>, switch to <offset> minutes".
+   *
+   * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+   * @version  2.0
+   * @created  15.8.2026
+   * @updated  15.8.2026
    */
   let {
     title,

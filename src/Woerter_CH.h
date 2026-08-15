@@ -1,7 +1,7 @@
 /**
  * Woerter_CH
- * Definition der schweizerischen Woerter fuer die Zeitansage.
- * Die Woerter sind Bitmasken fuer die Matrix.
+ * Definition of the Swiss German words for the spoken time.
+ * The words are bit masks for the matrix.
  *
  *   01234567890
  * 0 ESKISCHAFÜF
@@ -15,20 +15,22 @@
  * 8 ZÄNIERBEUFI
  * 9 ZWÖUFINAUHR
  *
- * @mc       Arduino/RBBB
- * @autor    Thomas Schuler / thomas.schuler _AT_ vtg _DOT_ admin _DOT_ ch (Basis)
- * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com (Anpassung)
- * @version  1.1
+ * @mc       ESP32S3
+ * @autor    Thomas Schuler / thomas.schuler _AT_ vtg _DOT_ admin _DOT_ ch (base)
+ * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com (adaptation)
+ * @version  2.0
  * @created  18.3.2012
- * @updated  4.4.2013
+ * @updated  15.8.2026
  *
- * Version 1.1: - Layoutanpassung
+ * Version history:
+ * V 1.1:  - Layout adjusted.
+ * V 2.0:  - Comments translated to English.
  */
 #ifndef WOERTER_CH_H
 #define WOERTER_CH_H
 
 /**
- * Definition der Woerter
+ * Definition of the words
  */
 #define CH_VOR          matrix[2] |= 0b0000000011100000
 #define CH_AB           matrix[3] |= 0b1100000000000000

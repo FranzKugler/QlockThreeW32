@@ -1,12 +1,13 @@
 /**
  * Woerter_NL
- * Definition der niederlaendischen Woerter fuer die Zeitansage.
- * Die Woerter sind Bitmasken fuer die Matrix.
+ * Definition of the Dutch words for the spoken time.
+ * The words are bit masks for the matrix.
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Rudolf Klimesch (Vorlage: Christian Aschoff)
- * @version  1.01
+ * @version  2.0
  * @created  17.1.2013
+ * @updated  15.8.2026
  * @update   29.9.2014
  *
  * Historie:
@@ -17,22 +18,22 @@
 #define WOERTER_NL_H
 
 /*
- * VORLAGE FUER DIE MATRIX
+ * TEMPLATE FOR THE MATRIX
  *
- *  H E T K I S A V I J F     HET=ES, IS=IST, VIJF=FUNF
- *  T I E N B T Z V O O R     TIEN=ZEHN, VOOR=VOR
- *  O V E R M E K W A R T     OVER=NACH, KWART=VIERTEL
- *  H A L F S P W O V E R     HALF=HALB, OVER=NACH
- *  V O O R T H G E E N S     VOOR=VOR, EENS=EINS
- *  T W E E P V C D R I E     TWEE=ZWEI, DRIE=DREI
- *  V I E R V I J F Z E S     VIER=VIER, VIJF=FUNF, ZES=SECHS
- *  Z E V E N O N E G E N     ZEVEN=SIEBEN, NEGEN=NEUN
- *  A C H T T I E N E L F     ACHT=ACHT, TIEN=ZEHN, ELF=ELF
- *  T W A A L F B F U U R     TWAALF=ZWOLF, UUR=STUNDE
+ *  H E T K I S A V I J F     HET=IT, IS=IS, VIJF=FIVE
+ *  T I E N B T Z V O O R     TIEN=TEN, VOOR=TO
+ *  O V E R M E K W A R T     OVER=PAST, KWART=QUARTER
+ *  H A L F S P W O V E R     HALF=HALF, OVER=PAST
+ *  V O O R T H G E E N S     VOOR=TO, EENS=ONE
+ *  T W E E P V C D R I E     TWEE=TWO, DRIE=THREE
+ *  V I E R V I J F Z E S     VIER=FOUR, VIJF=FIVE, ZES=SIX
+ *  Z E V E N O N E G E N     ZEVEN=SEVEN, NEGEN=NINE
+ *  A C H T T I E N E L F     ACHT=EIGHT, TIEN=TEN, ELF=ELEVEN
+ *  T W A A L F B F U U R     TWAALF=TWELVE, UUR=OCLOCK
  */
 
 /**
- * Definition der Woerter
+ * Definition of the words
  */
 #define NL_VOOR         matrix[1] |= 0b0000000111100000 // VOR
 #define NL_OVER         matrix[2] |= 0b1111000000000000 // NACH

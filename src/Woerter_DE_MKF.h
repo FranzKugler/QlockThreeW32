@@ -1,9 +1,9 @@
 /**
  * Woerter_DE_MKF
- * Definition der deutschen Woerter fuer die Zeitansage.
- * Hier in einer anderen Variante nach der Matix von Gerog M.
- * Sie entspricht dem Layout aus dem Mikrocontroller.net
- * Die Woerter sind Bitmasken fuer die Matrix.
+ * Definition of the German words for the spoken time.
+ * A different variant here, following the matrix by Georg M.
+ * It matches the layout from Mikrocontroller.net
+ * The words are bit masks for the matrix.
  *
  *   01234567890
  * 0 ESKISTLFUNF
@@ -17,16 +17,17 @@
  * 8 WACHTZEHNRS
  * 9 BSECHSFMUHR
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.0
+ * @version  2.0
  * @created  28.10.2012
+ * @updated  15.8.2026
  */
 #ifndef WOERTER_DE_H
 #define WOERTER_DE_H
 
 /**
- * Definition der Woerter
+ * Definition of the words
  */
 #define DE_VOR          matrix[3] |= 0b0000001110000000
 #define DE_NACH         matrix[3] |= 0b0011110000000000

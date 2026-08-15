@@ -1,3 +1,17 @@
+/**
+ * QlockThreeW32
+ * Main program of the word clock: drives the LED matrix, keeps the time in sync
+ * over NTP and serves the configuration web UI from LittleFS.
+ *
+ * @mc       ESP32S3
+ * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @version  2.0
+ * @created  15.8.2026
+ * @updated  15.8.2026
+ *
+ * Version history:
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
+ */
 #include <Arduino.h>
 #include <LittleFS.h>
 
@@ -84,16 +98,16 @@ WebServer server(80);
 // Variable to store the HTTP request
 String header;
 
-// Die persistenten (im EEPROM gespeicherten) Einstellungen.
+// The persistent settings, stored in flash.
 Settings settings;
 
-// Der Renderer, der die Woerter auf die Matrix ausgibt.
+// The renderer that puts the words onto the matrix.
 Renderer renderer;
 
-// Leuchtdioden Treiber. 10 macht hier nichts - muss als Konstante in LedDriverWS2812FastLED definiert sein
+// LED driver. A value here has no effect - it has to be a constant in LedDriverWS2812FastLED.
 LedDriverWS2812FastLED ledDriver; 
 
-// Der Helligkeitssensor
+// The light sensor
 //LDR ldr;
 unsigned long lastBrightnessCheck;
 bool brightnessChanged = false;
@@ -103,7 +117,7 @@ int   lastControllerBrightness;
 // mark for initial update
 bool needsUpdateFromRtc = true;
 
-// Die Standard-Modi.
+// The standard modes.
 #define STD_MODE_BLANK      0
 #define STD_MODE_NIGHT      0
 #define STD_MODE_NORMAL     1
@@ -121,10 +135,10 @@ bool needsUpdateFromRtc = true;
 // Startmode...
 byte mode = STD_MODE_NORMAL;
 
-// Die Matrix, eine Art Bildschirmspeicher
+// The matrix, a kind of frame buffer
 word matrix[16];
 
-// Aktuelle Spalte beim Bildschirmtest
+// Current column during the display test
 byte x=0;
 
 // some time markers
@@ -583,16 +597,16 @@ void setup()
         }        
     }
 
-    // Handler für WiFi Events registrieren
+    // register the WiFi event handler
     WiFi.onEvent(WiFiEvent);
 
-    // LED-Treiber initialisieren
+    // initialise the LED driver
 	ledDriver.init();
-	// Inhalt des Led-Treibers loeschen...
+	// clear the LED driver's contents...
 	ledDriver.clearData();
-	// und Inhalt des Bildspeichers loeschen
+	// and clear the frame buffer
 	renderer.clearScreenBuffer(matrix);
-	// wir brauchen nur 10 Zeilen...
+	// we only need 10 rows...
 	ledDriver.setLinesToWrite(10);
 
     //WiFiManager
@@ -755,13 +769,13 @@ ArduinoOTA
 ArduinoOTA.begin();
 
 /*
-    // Werte vom LDR einlesen und vermuellen, da die ersten nichts taugen...
+    // read and discard LDR values, as the first ones are useless...
 	for (int i = 0; i < 1000; i++)
 	{
 		analogRead(PIN_LDR);
 	}
 */
-	// ein paar Infos ausgeben
+	// print some info
 	debugA("Initialisation done and ready to rock!");
 
 	Serial.flush();
@@ -769,7 +783,7 @@ ArduinoOTA.begin();
     // no need to save something yet
     timeToSaveToFLASH = std::numeric_limits<time_t>::max();
 
-	// switch on display...
+	// switch the display on...
 	ledDriver.wakeUp();
 }
 
@@ -847,17 +861,17 @@ void loop()
     }
     
     //
-	// Dimmung.
+	// Dimming.
 	//
 	if (settings.getUseLdr())
 	{
         if (millis() < lastBrightnessCheck)
 		{
-			// wir hatten einen Ueberlauf...
+			// we had an overflow...
 			lastBrightnessCheck = millis();
 		}
 		if (((lastBrightnessCheck + LDR_CHECK_RATE) < millis()) && !brightnessChanged)
-		{ // langsam nachsehen...
+		{ // check slowly...
 			//byte lv = ldr.value();
 			//byte lv = ldr.calculateDisplayBrightness();
             /*
@@ -889,7 +903,7 @@ void loop()
             ledDriver.setBrightness(settings.getBrightness());
 
         //
-        // Bildschirmpuffer beschreiben...
+        // fill the frame buffer...
         //
         switch (mode)
         {
@@ -963,8 +977,8 @@ void loop()
             }
         }
     	
-        // Update mit onChange = true, weil sich hier (aufgrund needsUpdateFromRtc) immer was geaendert hat.
-		// Entweder weil wir eine Sekunde weiter sind, oder weil eine Taste gedrueckt wurde.
+        // Update with onChange = true, because something always changed here (due to needsUpdateFromRtc).
+		// Either a second has passed, or a button was pressed.
 		if (mode == STD_MODE_NORMAL && settings.getRenderColorCorner())
 		{
 			ledDriver.setColorCorners(true, settings.getRenderCornersCw());

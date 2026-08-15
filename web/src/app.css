@@ -1,3 +1,14 @@
+/**
+ * app
+ * Styling of the configuration SPA. Self-contained, so the page also works
+ * on a network without internet access, and follows the system's
+ * light/dark preference.
+ *
+ * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @version  2.0
+ * @created  15.8.2026
+ * @updated  15.8.2026
+ */
 :root {
   --bg: #f4f5f7;
   --surface: #ffffff;

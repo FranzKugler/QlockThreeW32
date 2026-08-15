@@ -1,7 +1,7 @@
 /**
  * Woerter_FR
- * Definition der franzoesischen Woerter fuer die Zeitansage.
- * Die Woerter sind Bitmasken fuer die Matrix.
+ * Definition of the French words for the spoken time.
+ * The words are bit masks for the matrix.
  *
  *   01234567890
  * 0 ILNESTODEUX
@@ -15,16 +15,17 @@
  * 8 VINGT-CINQU
  * 9 ETSDEMIEPAM
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.0
+ * @version  2.0
  * @created  12.12.2012
+ * @updated  15.8.2026
  */
 #ifndef WOERTER_FR_H
 #define WOERTER_FR_H
 
 /**
- * Definition der Woerter
+ * Definition of the words
  */
 // Trait = Bindestrich (-)
 #define FR_TRAIT        matrix[8] |= 0b0000010000000000

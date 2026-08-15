@@ -1,7 +1,7 @@
 /**
  * Woerter_ES
- * Definition der spanischen Woerter fuer die Zeitansage.
- * Die Woerter sind Bitmasken fuer die Matrix.
+ * Definition of the Spanish words for the spoken time.
+ * The words are bit masks for the matrix.
  *
  *   01234567890
  * 0 ESONELASUNA
@@ -15,17 +15,17 @@
  * 8 VEINTICINCO
  * 9 MEDIACUARTO
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.0
+ * @version  2.0
  * @created  17.12.2012
- * @updated  13.5.2013
+ * @updated  15.8.2026
  */
 #ifndef WOERTER_ES_H
 #define WOERTER_ES_H
 
 /**
- * Definition der Woerter.
+ * Definition of the words.
  */
 //                            0       ESONELASUNA
 #define ES_SONLAS      matrix[0] |= 0b0111011100000000

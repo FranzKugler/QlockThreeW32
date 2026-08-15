@@ -1,4 +1,5 @@
 /**
+ * server
  * Mock of the clock's REST API, so the web UI can be developed without
  * hardware. Mirrors the endpoints in `src/main .cpp`; the initial values are
  * the defaults from the Settings constructor in `src/Settings.cpp`.
@@ -8,6 +9,11 @@
  *
  * It also serves data/ statically, so a production build can be checked
  * against the mock by opening http://localhost:8080 directly.
+ *
+ * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+ * @version  2.0
+ * @created  15.8.2026
+ * @updated  15.8.2026
  */
 import express from 'express';
 

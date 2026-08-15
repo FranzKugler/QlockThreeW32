@@ -1,23 +1,24 @@
 /**
  * LedDriverWS2812FastLED
- * Implementierung auf der Basis von WS2812B-Streifen wie sie die Adafruit-Neo-Pixel verwenden.
+ * Implementation based on WS2812B strips, as used by the Adafruit NeoPixels.
  *
- * Es lohnt sich in jedem Fall, den UeberGuide von Adafruit zu lesen:
+ * Adafruit's UeberGuide is well worth reading:
  * https://learn.adafruit.com/adafruit-neopixel-uberguide/overview
  *
- * @mc       Arduino/RBBB
+ * @mc       ESP32S3
  * @autor    Christian Aschoff / caschoff _AT_ mac _DOT_ com
- * @version  1.2
+ * @version  2.0
  * @created  5.1.2015
- * @updated  16.2.2015
+ * @updated  15.8.2026
  *
- * Versionshistorie:
- * V 1.0:  - Erstellt.
- * V 1.1:  - Getter fuer Helligkeit nachgezogen.
- * V 1.2:  - Unterstuetzung fuer die alte Arduino-IDE (bis 1.0.6) entfernt.
+ * Version history:
+ * V 1.0:  - Created.
+ * V 1.1:  - Brightness getter brought in line.
+ * V 1.2:  - Removed support for the old Arduino IDE (up to 1.0.6).
+ * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  *
- * Verkabelung: Einspeisung oben links, dann schlangenfoermig runter,
- * dann Ecke unten links, oben links, oben rechts, unten rechts.
+ * Wiring: fed in at the top left, then serpentine downwards,
+ * then the corners: bottom left, top left, top right, bottom right.
  *
  */
 #include "LedDriverWS2812FastLED.h"
@@ -34,9 +35,9 @@ extern RemoteDebug Debug;
 #endif
 
 /**
- * Initialisierung.
+ * Initialisation.
  *
- * @param data Pin, an dem die Data-Line haengt.
+ * @param data pin the data line is attached to.
  */
 LedDriverWS2812FastLED::LedDriverWS2812FastLED(void)
 {
@@ -52,9 +53,9 @@ LedDriverWS2812FastLED::LedDriverWS2812FastLED(void)
 }
 
 /**
- * init() wird im Hauptprogramm in init() aufgerufen.
- * Hier sollten die LED-Treiber in eine definierten
- * Ausgangszustand gebracht werden.
+ * init() is called from the main program's init().
+ * The LED driver should be brought into a defined
+ * initial state here.
  */
 void LedDriverWS2812FastLED::init()
 {
@@ -69,10 +70,10 @@ void LedDriverWS2812FastLED::printSignature()
 }
 
 /**
- * Den Bildschirm-Puffer auf die LED-Matrix schreiben.
+ * Write the frame buffer to the LED matrix.
  *
- * @param onChange: TRUE, wenn es Aenderungen in dem Bildschirm-Puffer gab,
- *                  FALSE, wenn es ein Refresh-Aufruf war.
+ * @param onChange TRUE if the frame buffer changed,
+ *                  FALSE if this was a refresh call.
  */
 void LedDriverWS2812FastLED::writeScreenBufferToMatrix(word matrix[16], boolean onChange)
 {
@@ -97,7 +98,7 @@ void LedDriverWS2812FastLED::writeScreenBufferToMatrix(word matrix[16], boolean 
 
 		if (!_colorCorners)
 		{
-			// wir muessen die Eck-LEDs umsetzten...
+			// we have to remap the corner LEDs...
 			if ((matrix[1] & 0b0000000000011111) == 0b0000000000011111)
 			{
 				//_setPixel(110, color); // 1
@@ -194,7 +195,7 @@ void LedDriverWS2812FastLED::updateFunkStatus(byte status)
 }
 
 /**
-* Die Farbe des Displays anpassen.
+* Adjust the display colour.
 *
 * @param hue Hue
 * @param sat Sat
@@ -207,9 +208,9 @@ void LedDriverWS2812FastLED::setColorHS(byte hue, byte sat)
 
 
 /**
- * Die Helligkeit des Displays anpassen.
+ * Adjust the display brightness.
  *
- * @param brightnessInPercent Die Helligkeit.
+ * @param brightnessInPercent the brightness.
  */
 void LedDriverWS2812FastLED::setBrightness(byte brightnessInPercent)
 {
@@ -221,7 +222,7 @@ void LedDriverWS2812FastLED::setBrightness(byte brightnessInPercent)
 }
 
 /**
- * Die aktuelle Helligkeit bekommen.
+ * Get the current brightness.
  */
 byte LedDriverWS2812FastLED::getBrightness()
 {
@@ -229,16 +230,16 @@ byte LedDriverWS2812FastLED::getBrightness()
 }
 
 /**
- * Anpassung der Groesse des Bildspeichers.
+ * Adjust the size of the frame buffer.
  *
- * @param linesToWrite Wieviel Zeilen aus dem Bildspeicher sollen
- *                     geschrieben werden?
+ * @param linesToWrite how many rows of the frame buffer
+ *                     should be written?
  */
 void LedDriverWS2812FastLED::setLinesToWrite(byte linesToWrite)
 {}
 
 /**
- * Das Display ausschalten.
+ * Switch the display off.
  */
 void LedDriverWS2812FastLED::shutDown()
 {
@@ -247,13 +248,13 @@ void LedDriverWS2812FastLED::shutDown()
 }
 
 /**
- * Das Display einschalten.
+ * Switch the display on.
  */
 void LedDriverWS2812FastLED::wakeUp()
 {}
 
 /**
- * Den Dateninhalt des LED-Treibers loeschen.
+ * Clear the LED driver's data.
  */
 void LedDriverWS2812FastLED::clearData()
 {
@@ -262,7 +263,7 @@ void LedDriverWS2812FastLED::clearData()
 }
 
 /**
- * Einen X/Y-koordinierten Pixel in der Matrix setzen.
+ * Set a pixel in the matrix by x/y coordinate.
  */
 void LedDriverWS2812FastLED::_setPixel(byte x, byte y, CRGB c)
 {
@@ -270,7 +271,7 @@ void LedDriverWS2812FastLED::_setPixel(byte x, byte y, CRGB c)
 }
 
 /**
- * Einen Pixel im Streifen setzten (die Eck-LEDs sind am Ende).
+ * Set a pixel in the strip (the corner LEDs come last).
  */
 void LedDriverWS2812FastLED::_setPixel(byte num, CRGB c)
 {
@@ -306,8 +307,8 @@ void LedDriverWS2812FastLED::_setPixel(byte num, CRGB c)
 }
 
 /**
- * Funktion fuer saubere 'Regenbogen'-Farben.
- * Kopiert aus den Adafruit-Beispielen (strand).
+ * Function for clean 'rainbow' colours.
+ * Copied from the Adafruit examples (strand).
  */
 uint32_t LedDriverWS2812FastLED::_wheel(byte wheelPos)
 {
@@ -315,7 +316,7 @@ uint32_t LedDriverWS2812FastLED::_wheel(byte wheelPos)
 }
 
 /**
- * Hilfsfunktion fuer das Skalieren der Farben.
+ * Helper for scaling the colours.
  */
 byte LedDriverWS2812FastLED::_brightnessScaleColor(byte colorPart)
 {

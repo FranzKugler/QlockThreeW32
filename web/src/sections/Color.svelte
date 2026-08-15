@@ -1,4 +1,14 @@
 <script>
+  /**
+   * Color
+   * Colour tab: wheel for hue and saturation, sliders for hue, saturation and
+   * brightness, and a preview of the lit clock face.
+   *
+   * @autor    Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
+   * @version  2.0
+   * @created  15.8.2026
+   * @updated  15.8.2026
+   */
   import iro from '@jaames/iro';
   import * as api from '../lib/api.js';
   import { throttle } from '../lib/throttle.js';
