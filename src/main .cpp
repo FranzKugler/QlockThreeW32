@@ -853,62 +853,6 @@ void setup()
     server.on("/ota/status", HTTP_GET, sendOtaStatus);
     server.on("/ota/upload", HTTP_POST, handleOtaUploadDone, handleOtaUploadData);
     server.begin();
-/*
-    // over the air update
-    ArduinoOTA.setHostname("QlockThreeW32");
-
-    // No authentication by default
-    // ArduinoOTA.setPassword("admin");
-
-    // Password can be set with it's md5 value as well
-    // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-    // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
-
-    ArduinoOTA.onStart([]() 
-    {
-        String type;
-        if (ArduinoOTA.getCommand() == U_FLASH) 
-        {
-            type = "sketch";
-        } 
-        else 
-        { // U_FS
-            type = "filesystem";
-        }
-
-        // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-        LittleFS.end();
-        debugA("Start updating %s", type.c_str());
-    });
-
-    ArduinoOTA.onEnd([]() 
-    {
-        debugA("\nEnd\n");
-    });
-
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) 
-    {
-        debugA("Progress: %u%%\r", (progress / (total / 100)));
-    });
-
-    ArduinoOTA.onError([](ota_error_t error) 
-    {
-        Serial.printf("Error[%u]: ", error);
-        if (error == OTA_AUTH_ERROR) {
-            debugE("Auth Failed");
-        } else if (error == OTA_BEGIN_ERROR) {
-            debugE("Begin Failed");
-        } else if (error == OTA_CONNECT_ERROR) {
-            debugE("Connect Failed");
-        } else if (error == OTA_RECEIVE_ERROR) {
-            debugE("Receive Failed");
-        } else if (error == OTA_END_ERROR) {
-            debugE("End Failed");
-        }
-    });
-    
-    ArduinoOTA.begin();
-*/
 
 ArduinoOTA.setPort(8266);
 ArduinoOTA.setHostname("QlockThreeW32");
