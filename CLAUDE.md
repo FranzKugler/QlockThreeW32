@@ -106,7 +106,7 @@ Three ways in, in order of how they arrived:
 
 - **`espota`** — ArduinoOTA is started in `setup()` and listens on **port 8266**, not the ESP32 default 3232, so `pio run -t upload --upload-port <ip>` needs `--upload-port` *and* a matching port setting. Needs PlatformIO on the same LAN. Its password comes from `OTA_PASSWORD` in `src/Secrets.h` (see "Credentials" below).
 - **Browser upload** (the "Update" tab, [web/src/sections/Ota.svelte](web/src/sections/Ota.svelte)) — `POST /ota/upload`. The synchronous `WebServer` streams the body through the second handler registered on the route, so the image goes to flash as it arrives rather than through RAM. **The target partition is not chosen by the user**: ESP32 app images start with the magic byte `0xE9`, anything else is treated as the filesystem image (`U_FLASH` vs `U_SPIFFS`). The mock and the UI repeat that same test, the UI only to label the file before uploading.
-- **GitHub manifest** — planned, not built. The clock is to poll a `manifest.json` published by a release workflow (version, notes, asset URLs, SHA-256) and offer or auto-apply the update. The download will have to run in a FreeRTOS task, because the synchronous web server is dead for the ~40 s an HTTPS download takes.
+- **GitHub manifest** — the publishing half exists (see "Release workflow"), the client in the firmware does not. The clock is to poll the `manifest.json` of its channel and offer or auto-apply the update. That download will have to run in a FreeRTOS task, because the synchronous web server is dead for the ~40 s an HTTPS transfer takes. Still missing: `otaChannel`/`otaAutoUpdate`/`otaCheckInterval` in `Settings`, the `/ota/check`, `/ota/install` and `/ota/config` endpoints, and a second card in the update tab.
 
 Details that are easy to get wrong:
 
@@ -119,6 +119,26 @@ Details that are easy to get wrong:
 ### Credentials
 
 `src/Secrets.h` holds the values belonging to one particular clock and is gitignored; [src/Secrets.example.h](src/Secrets.example.h) is the committed template. `main .cpp` pulls it in behind `#if __has_include(...)`, so a fresh clone builds without it — with a `#warning` and no espota password rather than a compile error. Anything device-specific and secret belongs there, not in the source.
+
+### Release workflow
+
+[.github/workflows/release.yml](.github/workflows/release.yml) builds both images and publishes them as GitHub releases. Two channels, decided by the trigger:
+
+| Channel | Trigger | Release | Manifest URL |
+|---|---|---|---|
+| `edge` | push to `main` | rolling pre-release under the fixed tag `edge` | `…/releases/download/edge/manifest.json` |
+| `stable` | push of a tag `v*` | normal release under that tag | `…/releases/latest/download/manifest.json` |
+
+Things that are load-bearing here:
+
+- **The edge release must stay a pre-release.** Otherwise it takes over `/releases/latest`, and clocks on the stable channel would start following every commit.
+- **`fetch-depth: 0`** on the checkout. A shallow clone has no tags, `scripts/version.py` would fall back to `Version.h` on every build, and every release would claim the same version.
+- **The version is computed once, not twice.** `version.py` writes what it settled on to `.pio/version.txt`; the workflow reads that file for the manifest, the release title and `QLOCK_VERSION`. Working it out a second time in shell would eventually disagree with the value compiled into the image.
+- **Step order**: firmware first (produces `version.txt`), then the web build with `QLOCK_VERSION` set, then `buildfs`. Reversing the first two makes `version.json` report whatever is in `package.json`.
+- `src/Secrets.h` does not exist in CI, so published images have no espota password — which is what you want for a public image.
+- [scripts/manifest.py](scripts/manifest.py) writes the manifest and can be run by hand to see what a release would look like.
+
+Version comparison differs per channel, and the firmware client will have to respect that: `stable` gives clean semver (`2.1.0`) where "newer" is meaningful, `edge` gives `git describe` output (`2.0.0-4-gabc123`) where the only sensible test is "differs from what is installed".
 
 ### Versioning
 

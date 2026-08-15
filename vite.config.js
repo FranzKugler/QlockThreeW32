@@ -27,6 +27,13 @@ const API_ROUTES = [
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url)));
 
+/*
+ * The release workflow passes the version the firmware was stamped with, so
+ * both halves of a build report the same thing. package.json is the fallback
+ * for a plain local build.
+ */
+const VERSION = process.env.QLOCK_VERSION || pkg.version;
+
 /**
  * Puts version.json into the filesystem image. The firmware reads it at boot
  * and reports it through /ota/status, so the update tab can show which build
@@ -40,7 +47,7 @@ function versionFile() {
       this.emitFile({
         type: 'asset',
         fileName: 'version.json',
-        source: JSON.stringify({ version: pkg.version, built: new Date().toISOString() })
+        source: JSON.stringify({ version: VERSION, built: new Date().toISOString() })
       });
     }
   };

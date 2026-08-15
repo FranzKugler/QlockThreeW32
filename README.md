@@ -107,10 +107,20 @@ There are two images, and they are independent: `firmware.bin` (the program)
 and `littlefs.bin` (the web interface). Changing the interface and only
 flashing the firmware leaves the old interface in place.
 
-Both are produced by `pio run` and `pio run -t buildfs` in
-`.pio/build/seeed_xiao_esp32s3/`. Upload either one in the **Update** tab — the
-clock recognises which is which from the image itself (ESP32 program images
-start with the magic byte `0xE9`) and picks the right partition.
+Ready-built images come from
+[the releases page](https://github.com/FranzKugler/QlockThreeW32/releases), in
+two channels:
+
+- **stable** — tagged versions, built from a `v*` tag.
+- **edge** — a rolling build of the latest commit on `main`, replaced on every
+  push. Untested by definition.
+
+Locally they are produced by `pio run` and `pio run -t buildfs` in
+`.pio/build/seeed_xiao_esp32s3/`.
+
+Upload either image in the **Update** tab — the clock recognises which is which
+from the image itself (ESP32 program images start with the magic byte `0xE9`)
+and picks the right partition.
 
 The checksum is verified before the boot partition is switched, so an
 interrupted upload does no harm: the clock simply keeps running the version it
