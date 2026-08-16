@@ -1331,6 +1331,17 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
     mbedtls_sha256_free(&sha);
     http.end();
 
+    // Let go of the TLS session before the image is verified.
+    //
+    // http.end() closes the connection but leaves the mbedTLS context on the
+    // client, which is tens of kilobytes, and the client only goes out of
+    // scope when this function returns - after Update.end(). Activation runs
+    // esp_image_verify(), which has to map and hash the whole partition, and
+    // that has been seen to fail on one clock while succeeding on the next
+    // attempt with the same images: the signature of not enough room rather
+    // than a bad image.
+    client.stop();
+
     if (otaError.length())
     {
         Update.abort();
@@ -1355,9 +1366,17 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
         return false;
     }
 
+    // Logged either way: when activation fails there is nothing else to go on,
+    // and the number is the whole question.
+    debugA("Verifying image, %u bytes free (largest block %u)",
+           (unsigned)ESP.getFreeHeap(), (unsigned)ESP.getMaxAllocHeap());
+
     if (!Update.end(true))
     {
-        otaError = String("Image unvollstaendig: ") + Update.errorString();
+        otaError = "otaIncomplete";
+        otaErrorDetail = Update.errorString();
+        debugE("Activation failed: %s, %u bytes free", Update.errorString(),
+               (unsigned)ESP.getFreeHeap());
         return false;
     }
 
