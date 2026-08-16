@@ -64,6 +64,17 @@ export default {
   // --- timezone tab ---
   timeServer: 'Serveur de temps',
   ntpServer: 'Serveur NTP',
+  tzPickerTitle: 'Emplacement',
+  tzRegion: 'Région',
+  tzPlace: 'Lieu',
+  tzChoose: 'à choisir',
+  tzCustom: 'réglage manuel',
+  tzPickerHint:
+    'Le choix remplit les règles ci-dessous ; elles restent modifiables.',
+  tzDataVersion: (version) => `Données de fuseaux ${version}.`,
+  tzListUnavailable:
+    'La liste des fuseaux n’a pas pu être chargée. Les règles ci-dessous ' +
+    'restent réglables à la main.',
   timezoneTitle: 'Fuseau horaire',
   dst: "Heure d'été",
   standardTime: 'Heure normale',
@@ -92,6 +103,15 @@ export default {
   mac: 'MAC',
   quality: ['faible', 'moyen', 'bon', 'très bon'],
   statusUnavailable: 'État indisponible',
+  clockName: 'Nom de l’horloge',
+  name: 'Nom',
+  save: 'Enregistrer',
+  saving: 'Enregistrement …',
+  hostnameSaved: (host) => `Enregistré. L’horloge répond désormais à ${host}.local.`,
+  hostnameHint: (host) =>
+    'Lettres, chiffres et traits d’union uniquement. L’horloge s’annonce sous ' +
+    `ce nom : ${host}.local. Le nom affiché par le routeur et celui employé ` +
+    'par espota ne suivent qu’après un redémarrage.',
   availableNetworks: 'Réseaux disponibles',
   scanning: 'Recherche en cours …',
   noNetworks: 'Aucun réseau trouvé.',
@@ -184,6 +204,7 @@ export default {
   err_otaConnectionLost: 'Connexion perdue pendant le téléchargement',
   err_otaSize: 'Téléchargement incomplet',
   err_otaChecksum: 'Somme de contrôle incorrecte — image rejetée',
+  err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,
 

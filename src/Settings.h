@@ -49,6 +49,14 @@ public:
     byte     getColorSat() {return this->ColorSat;}
     void    setMode (byte Mode) {this->Mode = Mode;}
     byte    getMode() {return this->Mode;}
+
+    // The name the clock answers to: `<hostname>.local` over mDNS, the DHCP
+    // name, the name of the setup access point, and the heading of the web UI.
+    // A second clock on the same network needs a second name, or the two fight
+    // over one mDNS record. Store only a valid DNS label here - the firmware
+    // reduces what the UI sends before it gets this far.
+    void    setHostname (const char* Hostname) {strlcpy(this->Hostname, Hostname, sizeof(this->Hostname));}
+    char*   getHostname() {return this->Hostname;}
     char*   getNTPServer() {return this->NTPServer;}
     void    setNTPServer (const char* NTPServer) {strcpy(this->NTPServer, NTPServer);}
     void    setUseDs(boolean UseDs) {this->UseDs = UseDs;}
@@ -79,6 +87,15 @@ public:
     void    setTzDsOffset(int TzDsOffset) {this->TzDsOffset = TzDsOffset;}
     int     getTzDsOffset() {return this->TzDsOffset;}
 
+    // The entry of the zone list the two rules above were filled from, e.g.
+    // "Europe/Berlin". A label only: the clock runs on the rules, never on
+    // this. It exists because the rules cannot be mapped back - fewer than a
+    // hundred distinct rule pairs cover every zone, so Berlin, Paris and Rome
+    // are indistinguishable once stored, and the picker could not show what
+    // was chosen. Empty when the rules were set by hand.
+    void    setTzZone (const char* TzZone) {strlcpy(this->TzZone, TzZone, sizeof(this->TzZone));}
+    char*   getTzZone() {return this->TzZone;}
+
     // Update channel: 0 = stable (tagged releases), 1 = edge (every commit).
     void    setOtaChannel(byte OtaChannel) {this->OtaChannel = OtaChannel;}
     byte    getOtaChannel() {return this->OtaChannel;}
@@ -106,7 +123,10 @@ private:
     uint16_t ColorHue;     // 0..359
     byte     ColorSat;     // 0..100
     byte    Mode;
-    
+    // A DNS label: up to 63 characters in theory, kept to 32 here because it
+    // is also typed into a phone's address bar.
+    char    Hostname[33];
+
     // Entries for automatic Timezone
     char    NTPServer[80];
     bool    UseDs;      // Flag if Daylight Saving Time is used
@@ -124,6 +144,9 @@ private:
     uint8_t TzDsMonth;    // 1=Jan, 2=Feb, ... 12=Dec
     uint8_t TzDsHour;     // 0-23
     int     TzDsOffset;   // offset from UTC in minutes
+    // IANA name the rules came from, "" when they were set by hand. The
+    // longest name in the database is 30 characters.
+    char    TzZone[40];
 
     // Over the air updates from the release channel
     byte    OtaChannel;       // 0 = stable, 1 = edge

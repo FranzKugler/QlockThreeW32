@@ -64,6 +64,17 @@ export default {
   // --- timezone tab ---
   timeServer: 'Tijdserver',
   ntpServer: 'NTP-server',
+  tzPickerTitle: 'Locatie',
+  tzRegion: 'Regio',
+  tzPlace: 'Plaats',
+  tzChoose: 'kies een plaats',
+  tzCustom: 'handmatig ingesteld',
+  tzPickerHint:
+    'De keuze vult de regels hieronder in; ze blijven aanpasbaar.',
+  tzDataVersion: (version) => `Zonegegevens ${version}.`,
+  tzListUnavailable:
+    'De zonelijst kon niet worden geladen. De regels hieronder zijn nog ' +
+    'steeds handmatig in te stellen.',
   timezoneTitle: 'Tijdzone',
   dst: 'Zomertijd',
   standardTime: 'Standaardtijd',
@@ -92,6 +103,15 @@ export default {
   mac: 'MAC',
   quality: ['zwak', 'matig', 'goed', 'zeer goed'],
   statusUnavailable: 'Status niet op te vragen',
+  clockName: 'Naam van de klok',
+  name: 'Naam',
+  save: 'Opslaan',
+  saving: 'Opslaan …',
+  hostnameSaved: (host) => `Opgeslagen. De klok is nu bereikbaar op ${host}.local.`,
+  hostnameHint: (host) =>
+    'Alleen letters, cijfers en koppeltekens. Onder deze naam meldt de klok ' +
+    `zich in het netwerk: ${host}.local. De naam in de router en die voor ` +
+    'espota volgen pas na een herstart.',
   availableNetworks: 'Beschikbare netwerken',
   scanning: 'Bezig met zoeken …',
   noNetworks: 'Geen netwerken gevonden.',
@@ -183,6 +203,7 @@ export default {
   err_otaConnectionLost: 'Verbinding verbroken tijdens de download',
   err_otaSize: 'Download onvolledig',
   err_otaChecksum: 'Controlesom klopt niet — image verworpen',
+  err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,
 

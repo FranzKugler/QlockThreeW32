@@ -64,6 +64,17 @@ export default {
   // --- timezone tab ---
   timeServer: 'Server orario',
   ntpServer: 'Server NTP',
+  tzPickerTitle: 'Località',
+  tzRegion: 'Regione',
+  tzPlace: 'Luogo',
+  tzChoose: 'da scegliere',
+  tzCustom: 'impostazione manuale',
+  tzPickerHint:
+    'La scelta compila le regole qui sotto; restano modificabili.',
+  tzDataVersion: (version) => `Dati dei fusi ${version}.`,
+  tzListUnavailable:
+    'Non è stato possibile caricare l’elenco dei fusi. Le regole qui sotto ' +
+    'restano impostabili a mano.',
   timezoneTitle: 'Fuso orario',
   dst: 'Ora legale',
   standardTime: 'Ora solare',
@@ -92,6 +103,15 @@ export default {
   mac: 'MAC',
   quality: ['debole', 'medio', 'buono', 'ottimo'],
   statusUnavailable: 'Stato non disponibile',
+  clockName: 'Nome dell’orologio',
+  name: 'Nome',
+  save: 'Salva',
+  saving: 'Salvataggio …',
+  hostnameSaved: (host) => `Salvato. L’orologio ora risponde a ${host}.local.`,
+  hostnameHint: (host) =>
+    'Solo lettere, cifre e trattini. Con questo nome l’orologio si annuncia ' +
+    `in rete: ${host}.local. Il nome mostrato dal router e quello usato da ` +
+    'espota cambiano solo dopo un riavvio.',
   availableNetworks: 'Reti disponibili',
   scanning: 'Ricerca in corso …',
   noNetworks: 'Nessuna rete trovata.',
@@ -184,6 +204,7 @@ export default {
   err_otaConnectionLost: 'Connessione persa durante il download',
   err_otaSize: 'Download incompleto',
   err_otaChecksum: 'Somma di controllo errata — immagine scartata',
+  err_hostnameInvalid: 'Questo nome non contiene caratteri utilizzabili',
   err_wifiConnect: (ssid) => `Impossibile connettersi a «${ssid}»`,
   err_wifiFallback: (ssid) => `Anche il ritorno a «${ssid}» non è riuscito`,
 

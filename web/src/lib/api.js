@@ -69,6 +69,29 @@ export async function fetchWifiScan() {
 export const connectWifi = ({ ssid, password }) => post('/wifi', { ssid, password });
 
 /**
+ * Renames the clock. Answers with the name that was actually stored, which the
+ * firmware may have reduced to a valid DNS label - so the caller should show
+ * what comes back rather than what it sent.
+ */
+export async function setHostname(hostname) {
+  const res = await fetch('/hostname', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hostname })
+  });
+  if (!res.ok) {
+    let code = `HTTP ${res.status}`;
+    try {
+      code = (await res.json()).error || code;
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(code);
+  }
+  return res.json();
+}
+
+/**
  * Installed firmware and web UI versions. Throws, because the caller polls this
  * while the clock reboots after an update and must tolerate it being briefly
  * unreachable without flagging that as an error.

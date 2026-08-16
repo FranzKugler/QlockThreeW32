@@ -453,9 +453,57 @@ void updateConfiguration()
     server.send(200, "application/json", "{msg: ''}");
 }
 
+/**
+ * One changeover rule, built from the stored fields.
+ *
+ * TimeChangeRule is {abbrev, week, dow, month, hour, offset}. Filling it
+ * positionally is what the six call sites used to do, with month and dow the
+ * wrong way round - a month number landed in the day-of-week field, where 10
+ * is not a weekday at all, and the resulting changeover date was meaningless.
+ * Naming the fields here means the order is stated once.
+ */
+TimeChangeRule tzRuleFrom(const char* abbrev, uint8_t week, uint8_t dow,
+                          uint8_t month, uint8_t hour, int offset)
+{
+    TimeChangeRule rule;
+    // abbrev holds five characters plus the terminator, while the settings
+    // field is wider - so copy defensively rather than assume it fits.
+    strncpy(rule.abbrev, abbrev, sizeof(rule.abbrev) - 1);
+    rule.abbrev[sizeof(rule.abbrev) - 1] = '\0';
+    rule.week = week;
+    rule.dow = dow;
+    rule.month = month;
+    rule.hour = hour;
+    rule.offset = offset;
+    return rule;
+}
+
+/**
+ * Rebuilds ActiveTimezone from the settings. Without daylight saving the
+ * library takes the standard rule on its own.
+ */
+void applyTimezoneFromSettings()
+{
+    TimeChangeRule standardTime = tzRuleFrom(settings.getTzName(), settings.getTzWeek(),
+                                             settings.getTzDoW(), settings.getTzMonth(),
+                                             settings.getTzHour(), settings.getTzOffset());
+
+    if (settings.getUseDs())
+    {
+        TimeChangeRule summerTime = tzRuleFrom(settings.getTzDsName(), settings.getTzDsWeek(),
+                                               settings.getTzDsDoW(), settings.getTzDsMonth(),
+                                               settings.getTzDsHour(), settings.getTzDsOffset());
+        ActiveTimezone = Timezone(summerTime, standardTime);
+    }
+    else
+    {
+        ActiveTimezone = Timezone(standardTime);
+    }
+}
+
 void updateTimezone()
 {
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     deserializeJson(doc, server.arg(0));
     settings.setNTPServer(doc["ntpServer"].as<const char*>());
     settings.setUseDs(doc["useDs"].as<bool>());
@@ -470,26 +518,16 @@ void updateTimezone()
     settings.setTzDsMonth(doc["tzDsMonth"].as<unsigned char>());
     settings.setTzDsDoW(doc["tzDsDoW"].as<unsigned char>());
     settings.setTzDsHour(doc["tzDsHour"].as<unsigned char>());
-    settings.setTzDsOffset(doc["tzDsOffset"].as<int>());   
-    
-    if (settings.getUseDs())
-    {
-        // set new Daylight saving timezone
-        TimeChangeRule SummerTime = {"     ", settings.getTzDsWeek(), settings.getTzDsMonth(), settings.getTzDsDoW(), settings.getTzDsHour(), settings.getTzDsOffset()};
-        strncpy(SummerTime.abbrev, settings.getTzDsName(), 6);
-        TimeChangeRule StandardTime  = {"     ", settings.getTzWeek(), settings.getTzMonth(), settings.getTzDoW(), settings.getTzHour(), settings.getTzOffset()};
-        strncpy(StandardTime.abbrev, settings.getTzName(), 6);
-        ActiveTimezone = Timezone(SummerTime, StandardTime);
+    settings.setTzDsOffset(doc["tzDsOffset"].as<int>());
 
-    }
-    else
-    {
-        // use only Standard time
-        TimeChangeRule StandardTime  = {"     ", settings.getTzWeek(), settings.getTzMonth(), settings.getTzDoW(), settings.getTzHour(), settings.getTzOffset()};
-        strncpy(StandardTime.abbrev, settings.getTzName(), 6); 
-        ActiveTimezone = Timezone(StandardTime);      
-    }
-    
+    // Which entry of the zone list the rules came from, so the web UI can show
+    // it again after a reload. Purely a label - the rules above are what the
+    // clock runs on. Absent in a request from an older web UI, which must not
+    // clear a name that is already stored.
+    if (doc["tzZone"].is<const char*>()) settings.setTzZone(doc["tzZone"].as<const char*>());
+
+    applyTimezoneFromSettings();
+
     // if timeserver address changed
     if (NTPServerName != String(settings.getNTPServer()))
     {
@@ -523,6 +561,119 @@ a,a:hover{color:var(--accent)}
 
 // ------ WiFi endpoints for the web UI ------
 
+/**
+ * Reduces a requested name to something usable as a DNS label: letters, digits
+ * and hyphens, no hyphen at either end, at most 32 characters. Returns an empty
+ * string when nothing is left, which the caller rejects.
+ *
+ * Done here rather than trusted from the browser - the endpoint is reachable
+ * without going through the UI, and a name with a dot or a space in it would
+ * produce an mDNS record nobody can reach.
+ */
+String sanitizeHostname(const String& wanted)
+{
+    String clean;
+    for (unsigned int i = 0; i < wanted.length() && clean.length() < 32; i++)
+    {
+        char c = wanted.charAt(i);
+        if (isalnum((unsigned char)c) || c == '-') clean += c;
+    }
+    while (clean.length() && clean.charAt(0) == '-') clean.remove(0, 1);
+    while (clean.length() && clean.charAt(clean.length() - 1) == '-') clean.remove(clean.length() - 1);
+    return clean;
+}
+
+/**
+ * Renames the clock. mDNS can be restarted while the clock runs, so
+ * `<name>.local` follows immediately; the DHCP name, the OTA name and the
+ * setup access point are only read as the interface comes up and follow on the
+ * next restart. The answer carries the name that was actually stored, which is
+ * not necessarily the one that was asked for.
+ */
+void updateHostname()
+{
+    JsonDocument doc;
+    deserializeJson(doc, server.arg(0));
+
+    String wanted = sanitizeHostname(doc["hostname"] | "");
+    if (wanted.length() == 0)
+    {
+        server.send(400, "application/json", "{\"error\":\"hostnameInvalid\"}");
+        return;
+    }
+
+    if (wanted != String(settings.getHostname()))
+    {
+        settings.setHostname(wanted.c_str());
+        debugA("Hostname changed to %s", settings.getHostname());
+
+        MDNS.end();
+        if (MDNS.begin(settings.getHostname()))
+        {
+            MDNS.addService("http", "tcp", 80);
+        }
+        else
+        {
+            debugE("Could not restart the mDNS responder under the new name");
+        }
+
+        timeToSaveToFLASH = now() + WAIT_BEFORE_SETTINGS_WRITE;
+    }
+
+    JsonDocument answer;
+    answer["hostname"] = settings.getHostname();
+    String out;
+    serializeJson(answer, out);
+    server.send(200, "application/json", out);
+}
+
+/**
+ * The web app manifest, which is how Android decides what to put on a home
+ * screen - it ignores the apple-touch-icon iOS uses.
+ *
+ * Served from here rather than shipped as a file in the filesystem image,
+ * because the manifest carries the app name and that is per clock. The
+ * alternative, building it in the browser and handing Chrome a blob: URL,
+ * works but depends on behaviour that has changed between versions; a real
+ * response from the clock does not.
+ *
+ * The icons themselves are static files and do come from the image.
+ */
+void sendManifest()
+{
+    JsonDocument doc;
+    doc["name"] = settings.getHostname();
+    doc["short_name"] = settings.getHostname();
+    doc["start_url"] = "/";
+    doc["display"] = "standalone";
+    doc["background_color"] = "#0d0d0d";
+    doc["theme_color"] = "#0d0d0d";
+
+    JsonArray icons = doc["icons"].to<JsonArray>();
+
+    JsonObject small = icons.add<JsonObject>();
+    small["src"] = "/icon-192.png";
+    small["sizes"] = "192x192";
+    small["type"] = "image/png";
+
+    JsonObject large = icons.add<JsonObject>();
+    large["src"] = "/icon-512.png";
+    large["sizes"] = "512x512";
+    large["type"] = "image/png";
+
+    // Declared separately because it is drawn with a wider margin: a launcher
+    // may crop a maskable icon to any shape inside the middle 80 %.
+    JsonObject maskable = icons.add<JsonObject>();
+    maskable["src"] = "/icon-512-maskable.png";
+    maskable["sizes"] = "512x512";
+    maskable["type"] = "image/png";
+    maskable["purpose"] = "maskable";
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/manifest+json", out);
+}
+
 // Current connection, plus the outcome of a switch requested via POST /wifi.
 void sendWifiStatus()
 {
@@ -532,7 +683,7 @@ void sendWifiStatus()
     doc["ip"]        = WiFi.localIP().toString();
     doc["rssi"]      = WiFi.RSSI();
     doc["mac"]       = WiFi.macAddress();
-    doc["hostname"]  = "QlockThreeW32";
+    doc["hostname"]  = settings.getHostname();
     doc["switching"] = (wifiSwitchState != WIFI_SWITCH_IDLE);
     doc["error"]       = wifiLastError;
     doc["errorDetail"] = wifiErrorDetail;
@@ -1209,22 +1360,7 @@ void setup()
         settings.loadSettings();
         // set NTPServerName and timezones right away
         NTPServerName = String(settings.getNTPServer());
-        if (settings.getUseDs())
-        {
-            // set new Daylight saving timezone
-            TimeChangeRule SummerTime = {"     ", settings.getTzDsWeek(), settings.getTzDsMonth(), settings.getTzDsDoW(), settings.getTzDsHour(), settings.getTzDsOffset()};
-            strncpy(SummerTime.abbrev, settings.getTzDsName(), 6);
-            TimeChangeRule StandardTime  = {"     ", settings.getTzWeek(), settings.getTzMonth(), settings.getTzDoW(), settings.getTzHour(), settings.getTzOffset()};
-            strncpy(StandardTime.abbrev, settings.getTzName(), 6);
-            ActiveTimezone = Timezone(SummerTime, StandardTime);
-        }
-        else
-        {
-            // use only Standard time
-            TimeChangeRule StandardTime  = {"     ", settings.getTzWeek(), settings.getTzMonth(), settings.getTzDoW(), settings.getTzHour(), settings.getTzOffset()};
-            strncpy(StandardTime.abbrev, settings.getTzName(), 6); 
-            ActiveTimezone = Timezone(StandardTime);      
-        }        
+        applyTimezoneFromSettings();
     }
 
     // register the WiFi event handler
@@ -1251,14 +1387,18 @@ void setup()
     sntp_set_time_sync_notification_cb(onNtpSync);
 
     // give the config portal the same look as the SPA
-    wifiManager.setTitle("QlockThreeW32");
+    wifiManager.setTitle(settings.getHostname());
     wifiManager.setCustomHeadElement(PORTAL_STYLE);
+
+    // The name the router lists the clock under. Only read while the interface
+    // comes up, so it has to be set before the connection is made.
+    WiFi.setHostname(settings.getHostname());
 
     //tries to connect to last known settings
     //if it does not connect it starts an access point with the specified name
     //and goes into a blocking loop awaiting configuration
     wifiManager.setConfigPortalTimeout(5*60);
-    if (!wifiManager.autoConnect("QlockThreeW32")) 
+    if (!wifiManager.autoConnect(settings.getHostname()))
     {
         debugE("failed to connect, we should reset and see if it connects");
         delay(3000);
@@ -1271,7 +1411,7 @@ void setup()
     }
     
     // start debug server since we now have IP connection
-    Debug.begin("QlockThreeW32", RemoteDebug::INFO);   
+    Debug.begin(settings.getHostname(), RemoteDebug::INFO);
     Debug.setSerialEnabled(true);
     //Debug.initDebugger(debugGetDebuggerEnabled, debugHandleDebugger, debugGetHelpDebugger, debugProcessCmdDebugger);
     //debugInitDebugger(&Debug);
@@ -1284,8 +1424,8 @@ void setup()
     debugA("Version: %s", FIRMWARE_VERSION);
 	ledDriver.printSignature();
 
-    // Start the mDNS responder for qlockthreew.local
-    if (MDNS.begin("QlockThreeW32")) 
+    // Start the mDNS responder for <hostname>.local
+    if (MDNS.begin(settings.getHostname()))
     {
         debugA("MDNS responder started");
         MDNS.addService("http", "tcp", 80);
@@ -1311,6 +1451,8 @@ void setup()
     server.on("/autoluminance", updateAutoLuminance);
     server.on("/configuration", updateConfiguration);
     server.on("/timezone", updateTimezone);
+    server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
+    server.on("/hostname", HTTP_POST, updateHostname);
     server.on("/wifi", HTTP_GET, sendWifiStatus);
     server.on("/wifi", HTTP_POST, updateWifi);
     server.on("/wifi/scan", HTTP_GET, sendWifiScan);
@@ -1326,7 +1468,7 @@ void setup()
     server.begin();
 
 ArduinoOTA.setPort(8266);
-ArduinoOTA.setHostname("QlockThreeW32");
+ArduinoOTA.setHostname(settings.getHostname());
 #ifdef OTA_PASSWORD
 ArduinoOTA.setPassword(OTA_PASSWORD);
 #else

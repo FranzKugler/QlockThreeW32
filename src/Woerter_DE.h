@@ -3,17 +3,22 @@
  * Definition of the German words for the spoken time.
  * The words are bit masks for the matrix.
  *
+ * The panel, as the masks below address it. The bit written leftmost in each
+ * mask is column 0, so DE_ESIST = 0b1101110000000000 lights columns 0, 1 and
+ * 3, 4, 5 of row 0 - "ES" and "IST".
+ *
  *   01234567890
- * 0 ESKISTLFUNF
+ * 0 ESKISTAFÜNF
  * 1 ZEHNZWANZIG
  * 2 DREIVIERTEL
- * 3 TGNACHVORJM
- * 4 HALBQZWOLFP
- * 5 ZWEINSIEBEN
- * 6 KDREIRHFUNF
- * 7 ELFNEUNVIER
- * 8 WACHTZEHNRS
- * 9 BSECHSFMUHR
+ * 3 VORFUNKNACH
+ * 4 HALBAELFÜNF
+ * 5 EINSXAMZWEI
+ * 6 DREIAUJVIER
+ * 7 SECHSNLACHT
+ * 8 SIEBENZWÖLF
+ * 9 ZEHNEUNKUHR
+ *
  *
  * @mc       ESP32S3
  * @author   Christian Aschoff / caschoff _AT_ mac _DOT_ com

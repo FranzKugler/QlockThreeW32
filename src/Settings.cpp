@@ -53,6 +53,7 @@ Settings::Settings()
     ColorHue = 0;
     ColorSat = 0;
     Mode = 1;
+    strcpy (Hostname, "QlockThreeW32");
     strcpy (NTPServer, "pool.ntp.org");
     UseDs = true;
     strcpy (TzName, "CET");
@@ -67,6 +68,7 @@ Settings::Settings()
     TzDsMonth = 3;
     TzDsHour = 2;
     TzDsOffset = 120;
+    strcpy (TzZone, "Europe/Berlin");
 
     OtaChannel = 0;        // stable
     OtaAutoUpdate = false; // opt-in, see Settings.h
@@ -155,6 +157,10 @@ void Settings::loadSettings()
     if (ColorHue > 359) ColorHue = 0;
     if (ColorSat > 100) ColorSat = 100;
 
+    // Absent in a record from a firmware that had the name hardcoded, which is
+    // exactly the name to fall back to.
+    strlcpy(Hostname, doc["Hostname"] | "QlockThreeW32", sizeof(Hostname));
+
     strcpy(NTPServer, doc["NTPServer"] | "pool.ntp.org");
     UseDs =             doc["UseDs"] | true;
     strcpy(TzName, doc["TzName"] | "CET");
@@ -169,6 +175,12 @@ void Settings::loadSettings()
     TzDsMonth =           doc["TzDsMonth"] | 3;
     TzDsHour =            doc["TzDsHour"] | 2;
     TzDsOffset =          doc["TzDsOffset"] | 120;
+
+    // Absent in a record written before the zone picker existed. Left empty
+    // rather than guessed: the rules in such a record may well have been
+    // edited by hand, and naming a city that does not match them would be a
+    // worse answer than naming none.
+    strlcpy(TzZone, doc["TzZone"] | "", sizeof(TzZone));
 
     OtaChannel =          doc["OtaChannel"] | 0;
     OtaAutoUpdate =       doc["OtaAutoUpdate"] | false;
@@ -185,7 +197,8 @@ void Settings::fillDocument(JsonDocument &doc)
     doc["Brightness"]       = Brightness;
     doc["ColorHue"]         = ColorHue;
     doc["ColorSat"]         = ColorSat;
-    
+    doc["Hostname"]         = String(Hostname);
+
     doc["NTPServer"]        = String(NTPServer);
     doc["UseDs"]            = UseDs;
     doc["TzName"]           = String(TzName);
@@ -200,6 +213,7 @@ void Settings::fillDocument(JsonDocument &doc)
     doc["TzDsMonth"]        = TzDsMonth;   
     doc["TzDsHour"]         = TzDsHour;
     doc["TzDsOffset"]       = TzDsOffset;
+    doc["TzZone"]           = String(TzZone);
 
     doc["OtaChannel"]       = OtaChannel;
     doc["OtaAutoUpdate"]    = OtaAutoUpdate;
@@ -256,6 +270,9 @@ String Settings::getJSONSettings()
 	doc["language"] = Language;
 	doc["cornerColor"] = RenderColorCorner?1:0;
 	doc["cornerDirection"] = RenderCornersCw?1:0;
+    // Also in /wifi, which is where it is edited; here so the shell can put it
+    // in the heading and the page title without waiting for the WLAN tab.
+    doc["hostname"]        = String(Hostname);
 
     doc["ntpServer"]        = String(NTPServer);
     doc["useDs"]            = UseDs?1:0;
@@ -271,6 +288,7 @@ String Settings::getJSONSettings()
     doc["tzDsMonth"]        = TzDsMonth;   
     doc["tzDsHour"]         = TzDsHour;
     doc["tzDsOffset"]       = TzDsOffset;
+    doc["tzZone"]           = String(TzZone);
 
 	String res;
 	serializeJsonPretty(doc, res);

@@ -64,7 +64,8 @@ Both [src/main .cpp](src/main%20.cpp) and [server.js](server.js) implement the s
 - `POST /color` — hue/saturation/luminance.
 - `POST /autoluminance` — toggle LDR-based auto brightness.
 - `POST /configuration` — language, corner LED direction/color.
-- `POST /timezone` — NTP server + manual DST/timezone rule fields.
+- `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
+- `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
 - `GET /wifi` — connection status (`ssid`, `ip`, `rssi`, `mac`, `hostname`, `switching`, `error`).
 - `GET /wifi/scan` — one poll of the async scan: `{scanning:true}` or `{scanning:false, networks:[…]}`.
 - `POST /wifi` — `{ssid, password}`; answers immediately, the switch runs in `loop()`.
@@ -84,13 +85,51 @@ Changing the API means touching three places: the firmware handler, `server.js`,
 
 [web/src/App.svelte](web/src/App.svelte) loads `/currentState` once on mount into a single `$state` object and passes it to the section of the selected tab — [Display](web/src/sections/Display.svelte), [Color](web/src/sections/Color.svelte), [Timezone](web/src/sections/Timezone.svelte); [Wifi](web/src/sections/Wifi.svelte) and [Ota](web/src/sections/Ota.svelte) fetch their own state instead, since neither is part of `/currentState`. Sections mutate that object through `bind:` and POST the affected endpoint on change; there is no save button, matching the old UI. `Timezone` always posts all fourteen fields at once because the firmware rebuilds both `TimeChangeRule`s from a single request.
 
+### Timezone picker
+
+The timezone tab offers a region/place picker above the two rule editors. It is a shortcut, not a layer: it writes the same fourteen fields, which stay editable underneath, and editing one by hand clears the stored zone name — otherwise the label and the rules would disagree and the label would be the one lying.
+
+The data is the last line of every compiled IANA zone file, the **POSIX TZ string** (`Europe/Berlin` → `CET-1CEST,M3.5.0,M10.5.0/3`), which happens to be exactly this project's storage model: two changeover rules of month, week, weekday, hour and offset. [scripts/zones.py](scripts/zones.py) extracts it into [web/public/zones.json](web/public/zones.json) and [web/src/lib/posixtz.js](web/src/lib/posixtz.js) turns it back into fields. Load-bearing details:
+
+- **The list is generated, committed and shipped in the filesystem image — never fetched at runtime.** At 16 KB in a 3.5 MB partition there is no case where it is absent, which removes the "fetch if missing" branch and its failure modes; the clock must work on a network with no internet at all; and the FS half of the OTA update already keeps it current, tzdata releasing 2–4 times a year against a faster release cadence. The `tzdata` version travels in the file and is shown in the tab.
+- Regenerate with `pip install tzdata` then `python scripts/zones.py`. The source is the PyPI `tzdata` package rather than the system database, so Windows and CI produce the same file, and rather than a third-party list such as `nayarsystems/posix_tz_db`, which was eleven months stale when this was written. The output carries no build timestamp, so regenerating without a tzdata change leaves the file byte-identical and a diff only ever shows a rule that moved.
+- **The list is deliberately wider than `zone1970.tab`**, the usual choice: recent tzdata releases turned Amsterdam, Oslo, Stockholm, Copenhagen and Luxembourg into links to `Europe/Berlin` and dropped them from that table. Filtering by continent prefix instead keeps them — 490 entries rather than 312. A clock that speaks Dutch without offering Amsterdam looks broken.
+- **The picked name has to be stored**, hence `TzZone` in `Settings`: 490 zones share fewer than a hundred distinct rule pairs, so Berlin, Paris and Rome are indistinguishable once stored and the selection cannot be recovered from the fields. It is a label with no effect on timekeeping; empty means the rules were set by hand.
+- Ten zones cannot be expressed exactly. Cairo and Santiago change at hour "24", Jerusalem at "26", Gaza at "50", Nuuk at "-1" — all meaning midnight rolled into a neighbouring day — and Chatham changes at quarter past the hour. The parser clamps the hour to 0..23, which moves those changeovers by a few hours once a year. `scripts/zones.py` prints the list on every run; a new entry means a zone has moved outside what two rules can hold.
+- The first rule in a POSIX string *starts* daylight saving and the second *ends* it, so they map onto `tzDs*` and `tz*` respectively — not in reading order. `Europe/Berlin` parses to exactly the defaults written by hand in `Settings.cpp`, which is the cheapest available check that the mapping is right.
+
 Points worth knowing:
 - The mode/language/corner values in the UI are the firmware's own numbers (`STD_MODE_*`/`EXT_MODE_*` in `main .cpp`, `LANGUAGE_*` in `Renderer.h`). Bindings keep them as numbers rather than the strings jQuery's `.val()` used to send.
 - Colour changes are throttled ([web/src/lib/throttle.js](web/src/lib/throttle.js)); dragging the wheel would otherwise fire one POST per pointer move at the ESP32's single-threaded web server.
 - With "Sommerzeit" off, the changeover fields of both rules are disabled but the standard rule's abbreviation and offset stay editable — the same rule the old `setDst()` implemented.
-- Everything is bundled locally. The old page pulled Bootstrap, FontAwesome, jQuery and iro.js from CDNs, so it rendered broken on a LAN without internet access. The colour wheel is still iro.js, now bundled. The built page requests exactly three files, all from the clock: the JS bundle, the CSS and the favicon — no webfonts, no `url()` in the CSS, no `@import`. Keep it that way; the clock has to work on a network with no internet at all.
+- Everything is bundled locally. The old page pulled Bootstrap, FontAwesome, jQuery and iro.js from CDNs, so it rendered broken on a LAN without internet access. The colour wheel is still iro.js, now bundled. The built page requests exactly three files on load, all from the clock: the JS bundle, the CSS and the favicon — no webfonts, no `url()` in the CSS, no `@import`. Opening the timezone tab adds a fourth, `/zones.json`, also from the clock. Keep it that way; the clock has to work on a network with no internet at all.
+- **Never name a local `$state` in a component that takes the `state` prop.** `let { state } = $props()` makes `$state(...)` parse as a store subscription on that local binding rather than as the rune (`store_rune_conflict`). It is a warning, not an error, so the build succeeds and the variable silently never triggers a re-render. [Timezone.svelte](web/src/sections/Timezone.svelte) therefore destructures as `let { state: clock } = $props()`.
 - Failed writes surface as a banner via [web/src/lib/status.svelte.js](web/src/lib/status.svelte.js), instead of being dropped as they were by the old `.done()`-only handlers.
 - **The UI language is not a setting of its own**: it follows the clock's language. [web/src/lib/i18n.svelte.js](web/src/lib/i18n.svelte.js) maps the `LANGUAGE_*` number onto one of six locales in [web/src/lib/locales/](web/src/lib/locales/) — the four German dialects and Swiss German all share `de.js`. `App.svelte` drives it from a single `$effect` on `clock.language`, so no section has to know about it. Components read texts with `const t = $derived(dict())`; that `$derived` is what makes the page re-render on a change. `de.js` is the reference: same keys, same order, same array lengths in every locale — nothing falls back per key, a missing key renders as `undefined`.
+
+### The clock's name
+
+`Hostname` in `Settings` (default `QlockThreeW32`) is the one name the clock answers to, and it exists because a second clock on the same network would otherwise fight the first over the same mDNS record. It feeds six places: `<name>.local` over mDNS, the DHCP name the router lists, the setup access point, the RemoteDebug host, the espota target, and the heading of the web UI. All six used to be the same string literal.
+
+- **Only mDNS can be renamed while the clock runs.** `POST /hostname` restarts the responder, so `<name>.local` follows immediately; the DHCP name, the OTA name and the AP name are read as the interface comes up and need a restart. The hint under the field says so.
+- **The name is reduced to a DNS label in the firmware**, not just in the browser — `sanitizeHostname()` keeps `[A-Za-z0-9-]`, trims hyphens off both ends and caps it at 32 characters. The endpoint is reachable without the UI, and a name with a dot or a space in it would produce a record nobody can reach. The handler answers with what it stored, so the field shows the trimmed name rather than what was typed.
+- It rides in **both** `/currentState` and `/wifi`: the WLAN tab is where it is edited, but the shell needs it for the heading before that tab is ever opened.
+- [web/src/lib/appname.svelte.js](web/src/lib/appname.svelte.js) keeps the heading, `document.title` and the `apple-mobile-web-app-title` meta in step. That last one is what iOS puts under the home screen icon, and Safari reads it from the live DOM when someone adds the page — so setting it from JavaScript is enough, and each clock gets its own label.
+
+### Home screen icon
+
+[scripts/icon.py](scripts/icon.py) draws four PNGs into `web/public/`: the clock's own face reading ES IST HALB ACHT, with the lit cells taken from the firmware's bit masks so the icon shows a state the clock can actually be in. Committed, so neither the web build nor CI needs Python or the font. Everything is rendered ten times oversize and reduced — asking the rasteriser for 14 px type directly gives mush. The squares are deliberately **not** rounded: both platforms apply their own mask, and rounding twice looks wrong.
+
+| File | For |
+|---|---|
+| `apple-touch-icon.png` 180 | iOS home screen, the only size current iPhones use |
+| `icon-192.png` | Android home screen |
+| `icon-512.png` | Android splash screen and listings |
+| `icon-512-maskable.png` | declared `purpose: maskable`, drawn with a 20 % margin |
+
+Two platform rules drive that table. iOS masks with a squircle that bites ~22 % out of each corner, which the 10.5 % margin clears. Android may crop a **maskable** icon to any shape inside the middle 80 %, which is stricter — hence the separate render. Declaring the ordinary icon as maskable would crop the letters; shipping no maskable icon at all makes some launchers put the black square on a white plate.
+
+**Android ignores `apple-touch-icon` entirely** and reads a web app manifest instead. `/manifest.webmanifest` is **built by the firmware** (`sendManifest()`), not shipped as a file, because it carries the app name and that is per clock — see "The clock's name". Building it in the browser and handing Chrome a `blob:` URL also works, but rests on behaviour that has changed between versions; a real response from the clock does not. The icons it points at are static files from the image. `server.js` and the Vite proxy route both mirror this, so the manifest is right in development too.
 
 ### WiFi configuration (two separate paths)
 
@@ -164,6 +203,8 @@ This replaced **NtpClientLib**, which had to go: it declares a dependency on Tim
 
 Fixed along the way: `loop()` used to call `NTP.begin("pool.ntp.org", …)` with the server hardcoded, ignoring the one in `Settings`.
 
+`TimeChangeRule` is `{abbrev, week, dow, month, hour, offset}`, and **it must not be filled positionally**. Six call sites used to build it from the settings as `{…, week, month, dow, …}`, putting the month number into the day-of-week field: with the defaults, "last Sunday in October" was evaluated as weekday 10 of January, and the changeover date was meaningless. Both the boot path and `/timezone` were affected; only the `CET`/`CEST` constants at the top of `main .cpp` were right, because they use the library's named enums. `tzRuleFrom()` and `applyTimezoneFromSettings()` now state the order once and are the only way the rules get built.
+
 ### Rendering pipeline (hardware-independent core)
 
 `Renderer` ([src/Renderer.cpp](src/Renderer.cpp)) is pure logic with no hardware dependency: given hour/minute/language it sets word bits in the `word matrix[16]` framebuffer. Per-language word-to-bitmask macros live in `Woerter_<LANG>.h` (`Woerter_DE.h`, `Woerter_CH.h`, `Woerter_EN.h`, `Woerter_FR.h`, `Woerter_IT.h`, `Woerter_NL.h`, `Woerter_ES.h`; `Woerter_DE_MKF.h` exists but is currently unused/commented out) — each language has its own irregular grammar handled as a switch on `minutes / 5` plus special-casing (e.g. French/Italian/Spanish hour agreement, Swabian/Bavarian/Swiss `viertel`/`dreiviertel` variants). `Renderer::setCorners` sets the four corner-LED bits for the sub-5-minute remainder, in clockwise or counter-clockwise order. `Zahlen.h`/`Staben.h` hold digit/letter bit patterns used by the debug display modes (seconds, uptime, DCF-sync-age) rather than by the word renderer.
@@ -178,7 +219,7 @@ Fixed along the way: `loop()` used to call `NTP.begin("pool.ntp.org", …)` with
 
 Hue and saturation are held in the **units the web UI uses** (0..359 and 0..100), not scaled to a byte. They used to be squeezed into 0..255 on the way in and expanded again on the way out, both with truncating integer division, so 195/90 came back as 194/89 — 358 of 360 hues and 95 of 101 saturations failed to survive a round trip. The conversion to the 8 bits FastLED wants now happens once, where the colour is handed to the driver, and is rounded. The LEDs are unchanged: they only ever had 256 hue steps.
 
-`SETTINGS_SCHEMA` in `Settings.cpp` guards that. A stored record without a `Schema` field is schema 1 and gets converted on load; bump the constant and add a branch whenever a stored field changes meaning, rather than silently misreading old records.
+`SETTINGS_SCHEMA` in `Settings.cpp` guards that. A stored record without a `Schema` field is schema 1 and gets converted on load; bump the constant and add a branch whenever a stored field changes meaning, rather than silently misreading old records. Note the "changes meaning" — *adding* a field does not qualify. `TzZone` arrived without a bump, because an older record simply lacks it and reads as empty, which is the honest answer: the rules in such a record may have been set by hand, and guessing a city that does not match them would be worse than naming none.
 
 It is stored in **NVS**, not in the filesystem, because the filesystem partition is overwritten wholesale by a web UI update. Details:
 

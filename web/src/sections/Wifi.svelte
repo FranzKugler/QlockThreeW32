@@ -14,8 +14,16 @@
   import * as api from '../lib/api.js';
   import { dict } from '../lib/i18n.svelte.js';
   import { errorText } from '../lib/errors.js';
+  import { setAppName } from '../lib/appname.svelte.js';
 
   const t = $derived(dict());
+
+  // Renaming the clock. Held apart from `status` so the field keeps what is
+  // being typed while the status block refreshes underneath it.
+  let hostname = $state('');
+  let renaming = $state(false);
+  let renameError = $state(null);
+  let renameNote = $state(null);
 
   let status = $state(null);
   let statusError = $state(null);
@@ -115,9 +123,42 @@
     return 1;
   }
 
+  /**
+   * Only what can be a DNS label, so the field cannot offer something the
+   * firmware would silently reduce. It applies the same rule server-side, since
+   * the endpoint is reachable without this page.
+   */
+  const cleanHostname = (value) => value.replace(/[^A-Za-z0-9-]/g, '').slice(0, 32);
+
+  const renameable = $derived(
+    hostname.replace(/^-+|-+$/g, '').length > 0 && hostname !== status?.hostname
+  );
+
+  async function rename(event) {
+    event.preventDefault();
+    if (!renameable || renaming) return;
+
+    renaming = true;
+    renameError = null;
+    renameNote = null;
+    try {
+      // The firmware answers with what it stored, which is what should end up
+      // on screen - it may have trimmed a trailing hyphen.
+      const { hostname: stored } = await api.setHostname(hostname);
+      hostname = stored;
+      if (status) status.hostname = stored;
+      setAppName(stored);
+      renameNote = t.hostnameSaved(stored);
+    } catch (err) {
+      renameError = err.message;
+    }
+    renaming = false;
+  }
+
   onMount(async () => {
     await loadStatus();
     selected = status?.ssid ?? '';
+    hostname = status?.hostname ?? '';
     scan();
   });
 </script>
@@ -143,6 +184,38 @@
   {:else}
     <p class="hint">{t.loadingShort}</p>
   {/if}
+</section>
+
+<section class="card">
+  <h2>{t.clockName}</h2>
+
+  <form onsubmit={rename}>
+    <div class="field">
+      <label for="hostname">{t.name}</label>
+      <input
+        id="hostname"
+        type="text"
+        maxlength="32"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="QlockThreeW32"
+        bind:value={hostname}
+        oninput={() => (hostname = cleanHostname(hostname))}
+      />
+    </div>
+
+    <button type="submit" disabled={!renameable || renaming}>
+      {renaming ? t.saving : t.save}
+    </button>
+  </form>
+
+  {#if renameError}
+    <p class="banner">{errorText(t, renameError, null)}</p>
+  {:else if renameNote}
+    <p class="hint">{renameNote}</p>
+  {/if}
+
+  <p class="hint">{t.hostnameHint(hostname || 'QlockThreeW32')}</p>
 </section>
 
 <section class="card">

@@ -66,6 +66,16 @@ export default {
   // --- timezone tab ---
   timeServer: 'Zeitserver',
   ntpServer: 'NTP-Server',
+  tzPickerTitle: 'Standort',
+  tzRegion: 'Region',
+  tzPlace: 'Ort',
+  tzChoose: 'bitte wählen',
+  tzCustom: 'eigene Einstellung',
+  tzPickerHint: 'Die Auswahl füllt die Regeln unten aus; änderbar bleiben sie.',
+  tzDataVersion: (version) => `Zonendaten ${version}.`,
+  tzListUnavailable:
+    'Die Zonenliste ließ sich nicht laden. Die Regeln unten lassen sich ' +
+    'unverändert von Hand einstellen.',
   timezoneTitle: 'Zeitzone',
   dst: 'Sommerzeit',
   standardTime: 'Normalzeit',
@@ -94,6 +104,15 @@ export default {
   mac: 'MAC',
   quality: ['schwach', 'mittel', 'gut', 'sehr gut'],
   statusUnavailable: 'Status nicht abrufbar',
+  clockName: 'Name der Uhr',
+  name: 'Name',
+  save: 'Speichern',
+  saving: 'Speichere …',
+  hostnameSaved: (host) => `Gespeichert. Die Uhr ist jetzt als ${host}.local erreichbar.`,
+  hostnameHint: (host) =>
+    'Nur Buchstaben, Ziffern und Bindestriche. Unter diesem Namen meldet sich ' +
+    `die Uhr im Netz: ${host}.local. Der Name im Router und für espota folgt ` +
+    'erst nach einem Neustart.',
   availableNetworks: 'Verfügbare Netze',
   scanning: 'Suche läuft …',
   noNetworks: 'Keine Netze gefunden.',
@@ -186,6 +205,7 @@ export default {
   err_otaConnectionLost: 'Verbindung während des Downloads abgerissen',
   err_otaSize: 'Download unvollständig',
   err_otaChecksum: 'Prüfsumme stimmt nicht — Image verworfen',
+  err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,
 

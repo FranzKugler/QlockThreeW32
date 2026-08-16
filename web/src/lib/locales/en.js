@@ -64,6 +64,16 @@ export default {
   // --- timezone tab ---
   timeServer: 'Time server',
   ntpServer: 'NTP server',
+  tzPickerTitle: 'Location',
+  tzRegion: 'Region',
+  tzPlace: 'Place',
+  tzChoose: 'please choose',
+  tzCustom: 'set by hand',
+  tzPickerHint: 'Choosing a place fills in the rules below; they stay editable.',
+  tzDataVersion: (version) => `Zone data ${version}.`,
+  tzListUnavailable:
+    'The zone list could not be loaded. The rules below can still be set ' +
+    'by hand.',
   timezoneTitle: 'Time zone',
   dst: 'Daylight saving',
   standardTime: 'Standard time',
@@ -92,6 +102,15 @@ export default {
   mac: 'MAC',
   quality: ['weak', 'fair', 'good', 'very good'],
   statusUnavailable: 'Status not available',
+  clockName: 'Clock name',
+  name: 'Name',
+  save: 'Save',
+  saving: 'Saving …',
+  hostnameSaved: (host) => `Saved. The clock now answers at ${host}.local.`,
+  hostnameHint: (host) =>
+    'Letters, digits and hyphens only. The clock announces itself under this ' +
+    `name: ${host}.local. The name the router shows, and the one espota uses, ` +
+    'follow after a restart.',
   availableNetworks: 'Available networks',
   scanning: 'Scanning …',
   noNetworks: 'No networks found.',
@@ -183,6 +202,7 @@ export default {
   err_otaConnectionLost: 'Connection lost during the download',
   err_otaSize: 'Download incomplete',
   err_otaChecksum: 'Checksum does not match — image discarded',
+  err_hostnameInvalid: 'That name contains no usable characters',
   err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
   err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,
 

@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/favicon.ico" />
+    <!-- Only fetched when the page is added to a home screen, so the load
+         still costs the three files it always did. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- Replaced at runtime with the clock's own name, see lib/appname.svelte.js.
+         This is only the fallback for the moment before the settings arrive. -->
+    <meta name="apple-mobile-web-app-title" content="QlockThreeW32" />
+    <!-- Android goes by this instead of the icon above. The clock serves it
+         itself, so the name in it is the name that clock answers to. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#0d0d0d" />
     <title>QlockThreeW32</title>
   </head>
   <body>

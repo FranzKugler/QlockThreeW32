@@ -13,6 +13,7 @@
   import { fetchState } from './lib/api.js';
   import { status } from './lib/status.svelte.js';
   import { dict, setLanguage } from './lib/i18n.svelte.js';
+  import { appName, setAppName } from './lib/appname.svelte.js';
   import Display from './sections/Display.svelte';
   import Color from './sections/Color.svelte';
   import Timezone from './sections/Timezone.svelte';
@@ -53,6 +54,13 @@
     if (clock) setLanguage(clock.language);
   });
 
+  // Heading, browser tab and home screen label all follow the clock's own name,
+  // which is the only thing distinguishing two of them on one network. The
+  // WLAN tab updates it in place after a rename.
+  $effect(() => {
+    if (clock?.hostname) setAppName(clock.hostname);
+  });
+
   async function load() {
     loadError = null;
     try {
@@ -73,7 +81,7 @@
     as one bar - title left, menu button right - instead of stacking them.
   -->
   <header>
-    <h1>QlockThreeW32</h1>
+    <h1>{appName()}</h1>
 
     {#if clock}
       <nav bind:this={navEl} class:open={menuOpen}>

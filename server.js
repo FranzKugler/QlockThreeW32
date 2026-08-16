@@ -33,8 +33,14 @@ const state = {
   cornerColor: 0,
   cornerDirection: 1,
 
+  // Name the clock answers to; also reported by /wifi, where it is edited.
+  hostname: 'QlockThreeW32',
+
   ntpServer: 'pool.ntp.org',
   useDs: true,
+  // Which entry of zones.json the rules below were filled from; empty once
+  // they are edited by hand. The clock stores this as a label only.
+  tzZone: 'Europe/Berlin',
   tzName: 'CET',
   tzWeek: 0,
   tzDoW: 1,
@@ -83,6 +89,7 @@ app.post(
   accept([
     'ntpServer',
     'useDs',
+    'tzZone',
     'tzName',
     'tzWeek',
     'tzDoW',
@@ -109,7 +116,6 @@ const wifi = {
   ip: '192.168.1.42',
   rssi: -54,
   mac: '84:F7:03:AA:BB:CC',
-  hostname: 'QlockThreeW32',
   switching: false,
   error: '',
   errorDetail: ''
@@ -129,7 +135,50 @@ const FAKE_NETWORKS = [
 
 let scanFinishedAt = 0;
 
-app.get('/wifi', (req, res) => res.json(wifi));
+/**
+ * The web app manifest, built rather than served as a file for the same reason
+ * the firmware builds it: it carries the clock's name, which is per clock.
+ */
+app.get('/manifest.webmanifest', (req, res) => {
+  res.type('application/manifest+json').json({
+    name: state.hostname,
+    short_name: state.hostname,
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#0d0d0d',
+    theme_color: '#0d0d0d',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { src: '/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+    ]
+  });
+});
+
+// The name lives in the settings, like it does on the clock, and is only
+// reported here as well - so there is one copy of it, not two that drift.
+app.get('/wifi', (req, res) => res.json({ ...wifi, hostname: state.hostname }));
+
+/**
+ * Renames the clock. Reduces the request to a DNS label exactly as the
+ * firmware does, and answers with what was stored rather than what was asked
+ * for, so the UI can be developed against the trimming behaviour.
+ */
+app.post('/hostname', (req, res) => {
+  const clean = String(req.body.hostname ?? '')
+    .replace(/[^A-Za-z0-9-]/g, '')
+    .slice(0, 32)
+    .replace(/^-+|-+$/g, '');
+
+  if (!clean) {
+    res.status(400).json({ error: 'hostnameInvalid' });
+    return;
+  }
+
+  state.hostname = clean;
+  console.log('/hostname ->', clean);
+  res.json({ hostname: clean });
+});
 
 app.get('/wifi/scan', (req, res) => {
   const now = Date.now();

@@ -64,6 +64,17 @@ export default {
   // --- timezone tab ---
   timeServer: 'Servidor de hora',
   ntpServer: 'Servidor NTP',
+  tzPickerTitle: 'Ubicación',
+  tzRegion: 'Región',
+  tzPlace: 'Lugar',
+  tzChoose: 'elija un lugar',
+  tzCustom: 'ajuste manual',
+  tzPickerHint:
+    'La selección rellena las reglas de abajo; siguen siendo editables.',
+  tzDataVersion: (version) => `Datos de zonas ${version}.`,
+  tzListUnavailable:
+    'No se pudo cargar la lista de zonas. Las reglas de abajo se pueden ' +
+    'ajustar a mano.',
   timezoneTitle: 'Zona horaria',
   dst: 'Horario de verano',
   standardTime: 'Horario estándar',
@@ -92,6 +103,15 @@ export default {
   mac: 'MAC',
   quality: ['débil', 'media', 'buena', 'muy buena'],
   statusUnavailable: 'Estado no disponible',
+  clockName: 'Nombre del reloj',
+  name: 'Nombre',
+  save: 'Guardar',
+  saving: 'Guardando …',
+  hostnameSaved: (host) => `Guardado. El reloj responde ahora en ${host}.local.`,
+  hostnameHint: (host) =>
+    'Solo letras, números y guiones. Con este nombre se anuncia el reloj en ' +
+    `la red: ${host}.local. El nombre que muestra el router y el que usa ` +
+    'espota cambian tras reiniciar.',
   availableNetworks: 'Redes disponibles',
   scanning: 'Buscando …',
   noNetworks: 'No se han encontrado redes.',
@@ -184,6 +204,7 @@ export default {
   err_otaConnectionLost: 'Conexión perdida durante la descarga',
   err_otaSize: 'Descarga incompleta',
   err_otaChecksum: 'La suma de verificación no coincide — imagen descartada',
+  err_hostnameInvalid: 'Ese nombre no contiene caracteres utilizables',
   err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
   err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,
 
