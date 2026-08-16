@@ -23,8 +23,7 @@ export default {
     'Heure avec état WiFi',
     'Éteint (sombre)',
     'Secondes',
-    'Test',
-    'État'
+    'Test'
   ],
   appearance: 'Présentation',
   language: 'Langue',

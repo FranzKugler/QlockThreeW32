@@ -23,8 +23,7 @@ export default {
     'Tijd met WiFi-status',
     'Uit (donker)',
     'Seconden',
-    'Test',
-    'Status'
+    'Test'
   ],
   appearance: 'Vormgeving',
   language: 'Taal',

@@ -23,8 +23,7 @@ export default {
     'Ora con stato WiFi',
     'Spento (buio)',
     'Secondi',
-    'Test',
-    'Stato'
+    'Test'
   ],
   appearance: 'Aspetto',
   language: 'Lingua',

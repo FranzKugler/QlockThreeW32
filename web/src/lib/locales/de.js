@@ -24,8 +24,7 @@ export default {
     'Uhrzeit mit WiFi-Status',
     'Aus (dunkel)',
     'Sekunden',
-    'Test',
-    'Status'
+    'Test'
   ],
   appearance: 'Darstellung',
   language: 'Sprache',

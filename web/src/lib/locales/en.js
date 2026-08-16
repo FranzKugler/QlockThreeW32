@@ -23,8 +23,7 @@ export default {
     'Time with WiFi status',
     'Off (dark)',
     'Seconds',
-    'Test',
-    'Status'
+    'Test'
   ],
   appearance: 'Appearance',
   language: 'Language',

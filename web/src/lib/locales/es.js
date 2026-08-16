@@ -23,8 +23,7 @@ export default {
     'Hora con estado WiFi',
     'Apagado (oscuro)',
     'Segundos',
-    'Prueba',
-    'Estado'
+    'Prueba'
   ],
   appearance: 'Aspecto',
   language: 'Idioma',

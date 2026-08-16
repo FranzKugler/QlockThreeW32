@@ -267,7 +267,7 @@ void Settings::storeSettings()
 
 String Settings::getJSONSettings()
 {
-	StaticJsonDocument<200> doc;
+	JsonDocument doc;
 	doc["display"] = Mode;
 	doc["hue"] = ColorHue;
 	doc["sat"] = ColorSat;

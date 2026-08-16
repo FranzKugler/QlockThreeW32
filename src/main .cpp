@@ -49,7 +49,6 @@
 #include "LDR.h"
 #include "LedDriverWS2812FastLED.h"
 #include "Renderer.h"
-#include "Staben.h"
 #include "Settings.h"
 // Credentials of this particular clock, not in version control. Without it the
 // build still works; see Secrets.example.h.
@@ -206,8 +205,11 @@ bool needsUpdateFromRtc = true;
 #define STD_MODE_NORMAL     1
 #define STD_MODE_SECONDS    2
 #define EXT_MODE_TEST       3
-#define EXT_MODE_UPTIME     4
-#define EXT_MODE_DCF_DEBUG  5
+// 4 and 5 were the uptime and DCF-sync-age displays, both left over from the
+// AVR days when a DCF77 receiver drove the clock and it crashed often enough
+// to want hours-since-boot on the face. Neither had anything to report any
+// more. The numbers are deliberately not reused: a clock updating from 2.0.1
+// may still have 4 stored as its mode.
 #define EXT_MODE_NORMAL_WIFISTATUS 6
 
 #define WIFISTATUS_OFF   0
@@ -227,7 +229,6 @@ byte x=0;
 // some time markers
 time_t lastTick;            // to trigger every second
 time_t timeToSaveToFLASH;   // time when we have to save settings to the eeprom
-time_t startTime = 0;
 
 // ------ WIFI connection functions ------
 void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
@@ -394,11 +395,35 @@ void sendCurrentState()
     server.send(200, "application/json", settings.getJSONSettings());
 }
 
+/**
+ * True for a mode the render switch still has a case for.
+ *
+ * Guards both the request and the stored value: a clock updating from a build
+ * that still offered the uptime display has 4 in NVS, and without this it
+ * would land in the switch, match nothing, and leave whatever was in the frame
+ * buffer on the face.
+ */
+bool isKnownMode(byte candidate)
+{
+    switch (candidate)
+    {
+        case STD_MODE_BLANK:   // and STD_MODE_NIGHT, which is the same number
+        case STD_MODE_NORMAL:
+        case STD_MODE_SECONDS:
+        case EXT_MODE_TEST:
+        case EXT_MODE_NORMAL_WIFISTATUS:
+            return true;
+        default:
+            return false;
+    }
+}
+
 void updateDisplay()
 {
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     deserializeJson(doc, server.arg(0));
-    mode = doc["display"];
+    byte wanted = doc["display"] | STD_MODE_NORMAL;
+    mode = isKnownMode(wanted) ? wanted : STD_MODE_NORMAL;
     settings.setMode(mode);
 
     needsUpdateFromRtc = true;
@@ -410,7 +435,7 @@ void updateDisplay()
 // switch on / off auto luminance functionality
 void updateAutoLuminance()
 {
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     deserializeJson(doc, server.arg(0));
     settings.setUseLdr(doc["automaticLum"].as<int>());
 
@@ -426,7 +451,7 @@ void updateAutoLuminance()
 
 void updateColor()
 {
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     deserializeJson(doc, server.arg(0));
     // Stored in the units they arrive in; the renderer scales them to 8 bit.
     settings.setColorHue((uint16_t)doc["hue"]);
@@ -441,7 +466,7 @@ void updateColor()
 
 void updateConfiguration()
 {
-    StaticJsonDocument<200> doc;
+    JsonDocument doc;
     deserializeJson(doc, server.arg(0));
     settings.setLanguage(doc["language"].as<int>());
     settings.setRenderCornersCw(doc["cornerDirection"].as<int>());
@@ -1476,6 +1501,13 @@ void setup()
         otaFsVersion = readFsVersion();
         // load settings from NVS (and take over an old qlockconf.json once)
         settings.loadSettings();
+
+        // Apply the stored display mode. Persisting it without this made the
+        // web UI show one thing and the face do another: getMode() was never
+        // read, so the clock always came up in normal display no matter what
+        // the settings said was selected.
+        mode = isKnownMode(settings.getMode()) ? settings.getMode() : STD_MODE_NORMAL;
+
         // set NTPServerName and timezones right away
         NTPServerName = String(settings.getNTPServer());
         applyTimezoneFromSettings();
@@ -1743,8 +1775,6 @@ void loop()
     {
         ntpSyncPending = false;
         debugI("Got NTP time, epoch %lu", (unsigned long)ntpLastSync);
-        // The uptime display counts from the first time we knew the time.
-        if (!startTime) startTime = now();
     }
 
     // things to do when we have WiFi
@@ -1884,28 +1914,6 @@ void loop()
                 if (x > 10)
                 {
                     x = 0;
-                }
-                break;
-            }
-            case EXT_MODE_DCF_DEBUG:
-            {
-                int hoursSinceLastSync = ntpLastSync ? (now() - ntpLastSync) / 3600 : 99;
-                renderer.clearScreenBuffer(matrix);
-                for (byte i = 0; i < 7; i++)
-                {
-                    matrix[1 + i] |= pgm_read_byte_near(&(ziffern[hoursSinceLastSync / 10][i])) << 11;
-                    matrix[1 + i] |= pgm_read_byte_near(&(ziffern[hoursSinceLastSync % 10][i])) << 5;
-                }
-                break;
-            }
-            case EXT_MODE_UPTIME:
-            {
-                int hoursSinceStart = (now() - startTime) / 3600;
-                renderer.clearScreenBuffer(matrix);
-                for (byte i = 0; i < 7; i++)
-                {
-                    matrix[1 + i] |= pgm_read_byte_near(&(ziffern[hoursSinceStart / 10][i])) << 11;
-                    matrix[1 + i] |= pgm_read_byte_near(&(ziffern[hoursSinceStart % 10][i])) << 5;
                 }
                 break;
             }

@@ -16,8 +16,10 @@
   const t = $derived(dict());
 
   // Values match the STD_MODE_* / EXT_MODE_* defines in src/main .cpp; the
-  // labels are t.modes in the same order.
-  const MODE_VALUES = [1, 6, 0, 2, 3, 4];
+  // labels are t.modes in the same order. 4 was an uptime counter left over
+  // from the AVR and DCF77 days and is gone; the firmware falls back to normal
+  // display if it still finds it stored.
+  const MODE_VALUES = [1, 6, 0, 2, 3];
 
   const pushConfiguration = () =>
     api.setConfiguration({
