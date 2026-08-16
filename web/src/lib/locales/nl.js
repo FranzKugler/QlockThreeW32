@@ -139,11 +139,9 @@ export default {
     'De klok heeft zich na de herstart niet gemeld. Bij een onjuist image ' +
     'start hij op met de vorige versie.',
   buildHint:
-    'firmware.bin en littlefs.bin ontstaan met "pio run" respectievelijk ' +
-    '"pio run -t buildfs" in de map .pio/build/seeed_xiao_esp32s3/. De klok ' +
-    'controleert de checksum voordat hij naar het nieuwe image overschakelt — ' +
-    'een afgebroken upload richt dus geen schade aan, hij start gewoon op met ' +
-    'de vorige versie.',
+    'De klok controleert de checksum voordat hij naar het nieuwe image ' +
+    'overschakelt — een afgebroken upload richt dus geen schade aan, hij start ' +
+    'gewoon op met de vorige versie.',
 
   // --- update channel ---
   updateSource: 'Updates',
@@ -158,7 +156,7 @@ export default {
   checkNever: 'nooit',
   hours: (count) => `${count} u`,
   checkNow: 'Nu controleren',
-  checking: 'Bezig met controleren ...',
+  checking: 'Bezig met controleren …',
   available: 'Beschikbaar',
   upToDate: 'De klok is up-to-date.',
   neverChecked: 'nog niet gecontroleerd',
@@ -167,7 +165,7 @@ export default {
   minutesAgo: (count) => `${count} min geleden`,
   hoursAgo: (count) => `${count} u geleden`,
   installNow: 'Nu bijwerken',
-  downloading: (percent) => `Wordt gedownload ... ${percent} %`,
+  downloading: (percent) => `Wordt gedownload … ${percent} %`,
   runningFrom: 'Actieve slot',
 
   // --- api errors ---

@@ -640,7 +640,7 @@ void handleWifiSwitch()
             {
                 // Both networks are gone; the normal reconnect logic takes over.
                 debugE("Fallback to %s failed too", wifiPreviousSsid.c_str());
-                wifiLastError += " - Rueckfall auf '" + wifiPreviousSsid + "' ebenfalls fehlgeschlagen";
+                wifiLastError += " - Rückfall auf '" + wifiPreviousSsid + "' ebenfalls fehlgeschlagen";
                 wifiSwitchState = WIFI_SWITCH_IDLE;
             }
             break;
@@ -720,12 +720,12 @@ void handleOtaInstall()
 {
     if (!otaUpdateAvailable())
     {
-        server.send(409, "application/json", "{\"error\":\"Kein Update verfuegbar\"}");
+        server.send(409, "application/json", "{\"error\":\"Kein Update verfügbar\"}");
         return;
     }
     if (!otaStartInstall())
     {
-        server.send(409, "application/json", "{\"error\":\"Update laeuft bereits\"}");
+        server.send(409, "application/json", "{\"error\":\"Update läuft bereits\"}");
         return;
     }
     sendOtaStatus();
@@ -823,7 +823,7 @@ void handleOtaUploadData()
             }
             else
             {
-                otaError = String("Image unvollstaendig: ") + Update.errorString();
+                otaError = String("Image unvollständig: ") + Update.errorString();
                 debugE("OTA end failed: %s", Update.errorString());
             }
             break;
@@ -1015,7 +1015,7 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
 
     if (!http.begin(client, url))
     {
-        otaError = "Download nicht moeglich";
+        otaError = "Download nicht möglich";
         return false;
     }
 
@@ -1072,7 +1072,7 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
         {
             if (!http.connected() || millis() - lastData > 20000)
             {
-                otaError = "Verbindung waehrend des Downloads abgerissen";
+                otaError = "Verbindung während des Downloads abgerissen";
                 break;
             }
             delay(5);
@@ -1092,14 +1092,14 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
 
     if (written != expectedSize)
     {
-        otaError = "Download unvollstaendig";
+        otaError = "Download unvollständig";
         Update.abort();
         return false;
     }
 
     if (otaHex(digest) != expectedSha)
     {
-        otaError = "Pruefsumme stimmt nicht";
+        otaError = "Prüfsumme stimmt nicht";
         debugE("SHA-256 mismatch: got %s, expected %s", otaHex(digest).c_str(), expectedSha.c_str());
         Update.abort();
         return false;

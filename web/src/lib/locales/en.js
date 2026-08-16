@@ -139,10 +139,9 @@ export default {
     'The clock did not report back after the restart. With a faulty image it ' +
     'starts up with the previous version.',
   buildHint:
-    'firmware.bin and littlefs.bin are produced by "pio run" and ' +
-    '"pio run -t buildfs" in .pio/build/seeed_xiao_esp32s3/. The clock ' +
-    'verifies the checksum before switching to the new image, so an aborted ' +
-    'upload does no harm — it simply keeps running the previous version.',
+    'The clock verifies the checksum before switching to the new image, so an ' +
+    'aborted upload does no harm — it simply keeps running the previous ' +
+    'version.',
 
   // --- update channel ---
   updateSource: 'Updates',
@@ -157,7 +156,7 @@ export default {
   checkNever: 'never',
   hours: (count) => `${count} h`,
   checkNow: 'Check now',
-  checking: 'Checking ...',
+  checking: 'Checking …',
   available: 'Available',
   upToDate: 'The clock is up to date.',
   neverChecked: 'not checked yet',
@@ -166,7 +165,7 @@ export default {
   minutesAgo: (count) => `${count} min ago`,
   hoursAgo: (count) => `${count} h ago`,
   installNow: 'Update now',
-  downloading: (percent) => `Downloading ... ${percent} %`,
+  downloading: (percent) => `Downloading … ${percent} %`,
   runningFrom: 'Active slot',
 
   // --- api errors ---

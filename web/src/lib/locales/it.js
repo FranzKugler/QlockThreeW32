@@ -139,8 +139,6 @@ export default {
     "L'orologio non si è più fatto sentire dopo il riavvio. Con un'immagine " +
     'difettosa riparte con la versione precedente.',
   buildHint:
-    'firmware.bin e littlefs.bin si ottengono con "pio run" e ' +
-    '"pio run -t buildfs" nella cartella .pio/build/seeed_xiao_esp32s3/. ' +
     "L'orologio verifica la somma di controllo prima di passare alla nuova " +
     'immagine: un caricamento interrotto non fa danni, riparte semplicemente ' +
     'con la versione precedente.',
@@ -152,23 +150,23 @@ export default {
   channelEdge: 'Sviluppo (ogni build)',
   autoUpdate: 'Installa automaticamente',
   autoUpdateHint:
-    "Installa di notte tra le 2 e le 5, cosi l'orologio non resta spento di " +
+    "Installa di notte tra le 2 e le 5, così l'orologio non resta spento di " +
     "sera. Disattivato per impostazione predefinita: un'immagine difettosa si " +
     'recupera solo via USB.',
   checkInterval: 'Controlla ogni',
   checkNever: 'mai',
   hours: (count) => `${count} h`,
   checkNow: 'Controlla ora',
-  checking: 'Controllo in corso ...',
+  checking: 'Controllo in corso …',
   available: 'Disponibile',
-  upToDate: "L'orologio e aggiornato.",
+  upToDate: "L'orologio è aggiornato.",
   neverChecked: 'non ancora controllato',
   lastChecked: (text) => `Ultimo controllo: ${text}`,
   justNow: 'proprio ora',
   minutesAgo: (count) => `${count} min fa`,
   hoursAgo: (count) => `${count} h fa`,
   installNow: 'Aggiorna ora',
-  downloading: (percent) => `Download ... ${percent} %`,
+  downloading: (percent) => `Download … ${percent} %`,
   runningFrom: 'Slot attivo',
 
   // --- api errors ---

@@ -122,8 +122,8 @@ export default {
   unknown: 'unbekannt',
   uploadImage: 'Image hochladen',
   file: 'Datei',
-  noFile: 'keine Datei ausgewaehlt',
-  chooseFile: 'Datei auswaehlen',
+  noFile: 'keine Datei ausgewählt',
+  chooseFile: 'Datei auswählen',
   detectedAs: 'Erkannt als',
   firmwareImage: 'Firmware-Image',
   filesystemImage: 'Dateisystem-Image (Weboberfläche)',
@@ -141,11 +141,9 @@ export default {
     'Die Uhr hat sich nach dem Neustart nicht zurückgemeldet. Sie startet bei ' +
     'einem fehlerhaften Image mit der bisherigen Version.',
   buildHint:
-    'firmware.bin und littlefs.bin entstehen mit "pio run" bzw. ' +
-    '"pio run -t buildfs" im Ordner .pio/build/seeed_xiao_esp32s3/. Die Uhr ' +
-    'prüft die Prüfsumme, bevor sie auf das neue Image umschaltet — ein ' +
-    'abgebrochener Upload macht also nichts kaputt, sie startet dann einfach ' +
-    'mit der bisherigen Version.',
+    'Die Uhr prüft die Prüfsumme, bevor sie auf das neue Image umschaltet — ' +
+    'ein abgebrochener Upload macht also nichts kaputt, sie startet dann ' +
+    'einfach mit der bisherigen Version.',
 
   // --- update channel ---
   updateSource: 'Aktualisierung',
@@ -155,22 +153,22 @@ export default {
   autoUpdate: 'Automatisch installieren',
   autoUpdateHint:
     'Installiert nachts zwischen 2 und 5 Uhr, damit die Uhr abends nicht ' +
-    'dunkel wird. Standardmaessig aus: ein fehlerhaftes Image laesst sich nur ' +
-    'per USB-Kabel zurueckholen.',
-  checkInterval: 'Pruefen alle',
+    'dunkel wird. Standardmäßig aus: ein fehlerhaftes Image lässt sich nur ' +
+    'per USB-Kabel zurückholen.',
+  checkInterval: 'Prüfen alle',
   checkNever: 'nie',
   hours: (count) => `${count} h`,
-  checkNow: 'Jetzt pruefen',
-  checking: 'Wird geprueft ...',
-  available: 'Verfuegbar',
+  checkNow: 'Jetzt prüfen',
+  checking: 'Wird geprüft …',
+  available: 'Verfügbar',
   upToDate: 'Die Uhr ist auf dem neuesten Stand.',
-  neverChecked: 'noch nicht geprueft',
-  lastChecked: (text) => `Zuletzt geprueft: ${text}`,
+  neverChecked: 'noch nicht geprüft',
+  lastChecked: (text) => `Zuletzt geprüft: ${text}`,
   justNow: 'gerade eben',
   minutesAgo: (count) => `vor ${count} min`,
   hoursAgo: (count) => `vor ${count} h`,
   installNow: 'Jetzt aktualisieren',
-  downloading: (percent) => `Wird geladen ... ${percent} %`,
+  downloading: (percent) => `Wird geladen … ${percent} %`,
   runningFrom: 'Aktiver Slot',
 
   // --- api errors ---

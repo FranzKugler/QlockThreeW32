@@ -120,7 +120,7 @@ export default {
   unknown: 'inconnu',
   uploadImage: 'Envoyer une image',
   file: 'Fichier',
-  noFile: 'aucun fichier selectionne',
+  noFile: 'aucun fichier sélectionné',
   chooseFile: 'Choisir un fichier',
   detectedAs: 'Reconnu comme',
   firmwareImage: 'Image du micrologiciel',
@@ -139,36 +139,34 @@ export default {
     "L'horloge ne s'est pas manifestée après le redémarrage. Avec une image " +
     "défectueuse, elle repart sur la version précédente.",
   buildHint:
-    'firmware.bin et littlefs.bin sont produits par « pio run » et ' +
-    '« pio run -t buildfs » dans .pio/build/seeed_xiao_esp32s3/. ' +
     "L'horloge vérifie la somme de contrôle avant de basculer sur la nouvelle " +
     'image ; un envoi interrompu est donc sans danger, elle redémarre ' +
     'simplement sur la version précédente.',
 
   // --- update channel ---
-  updateSource: 'Mises a jour',
+  updateSource: 'Mises à jour',
   channel: 'Canal',
-  channelStable: 'Stable (versions testees)',
-  channelEdge: 'Developpement (chaque build)',
+  channelStable: 'Stable (versions testées)',
+  channelEdge: 'Développement (chaque build)',
   autoUpdate: 'Installer automatiquement',
   autoUpdateHint:
-    "Installe la nuit entre 2 h et 5 h, pour que l'horloge ne s'eteigne pas " +
-    'le soir. Desactive par defaut : une image defectueuse ne se recupere ' +
-    "qu'avec un cable USB.",
-  checkInterval: 'Verifier toutes les',
+    "Installe la nuit entre 2 h et 5 h, pour que l'horloge ne s'éteigne pas " +
+    'le soir. Désactivé par défaut : une image défectueuse ne se récupère ' +
+    "qu'avec un câble USB.",
+  checkInterval: 'Vérifier toutes les',
   checkNever: 'jamais',
   hours: (count) => `${count} h`,
-  checkNow: 'Verifier maintenant',
-  checking: 'Verification ...',
+  checkNow: 'Vérifier maintenant',
+  checking: 'Vérification …',
   available: 'Disponible',
-  upToDate: "L'horloge est a jour.",
-  neverChecked: 'pas encore verifie',
-  lastChecked: (text) => `Derniere verification : ${text}`,
-  justNow: "a l'instant",
+  upToDate: "L'horloge est à jour.",
+  neverChecked: 'pas encore vérifié',
+  lastChecked: (text) => `Dernière vérification : ${text}`,
+  justNow: "à l'instant",
   minutesAgo: (count) => `il y a ${count} min`,
   hoursAgo: (count) => `il y a ${count} h`,
-  installNow: 'Mettre a jour',
-  downloading: (percent) => `Telechargement ... ${percent} %`,
+  installNow: 'Mettre à jour',
+  downloading: (percent) => `Téléchargement … ${percent} %`,
   runningFrom: 'Emplacement actif',
 
   // --- api errors ---

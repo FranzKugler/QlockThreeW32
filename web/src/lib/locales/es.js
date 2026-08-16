@@ -120,7 +120,7 @@ export default {
   unknown: 'desconocido',
   uploadImage: 'Subir imagen',
   file: 'Archivo',
-  noFile: 'ningun archivo seleccionado',
+  noFile: 'ningún archivo seleccionado',
   chooseFile: 'Elegir un archivo',
   detectedAs: 'Reconocido como',
   firmwareImage: 'Imagen de firmware',
@@ -139,9 +139,7 @@ export default {
     'El reloj no ha respondido tras el reinicio. Con una imagen defectuosa ' +
     'arranca con la versión anterior.',
   buildHint:
-    'firmware.bin y littlefs.bin se generan con «pio run» y ' +
-    '«pio run -t buildfs» en la carpeta .pio/build/seeed_xiao_esp32s3/. El ' +
-    'reloj comprueba la suma de verificación antes de pasar a la nueva ' +
+    'El reloj comprueba la suma de verificación antes de pasar a la nueva ' +
     'imagen, así que una subida interrumpida no causa daños: simplemente ' +
     'arranca con la versión anterior.',
 
@@ -149,8 +147,8 @@ export default {
   updateSource: 'Actualizaciones',
   channel: 'Canal',
   channelStable: 'Estable (versiones probadas)',
-  channelEdge: 'Desarrollo (cada compilacion)',
-  autoUpdate: 'Instalar automaticamente',
+  channelEdge: 'Desarrollo (cada compilación)',
+  autoUpdate: 'Instalar automáticamente',
   autoUpdateHint:
     'Instala de noche entre las 2 y las 5, para que el reloj no se apague por ' +
     'la tarde. Desactivado por defecto: una imagen defectuosa solo se ' +
@@ -159,16 +157,16 @@ export default {
   checkNever: 'nunca',
   hours: (count) => `${count} h`,
   checkNow: 'Comprobar ahora',
-  checking: 'Comprobando ...',
+  checking: 'Comprobando …',
   available: 'Disponible',
-  upToDate: 'El reloj esta actualizado.',
-  neverChecked: 'aun sin comprobar',
-  lastChecked: (text) => `Ultima comprobacion: ${text}`,
+  upToDate: 'El reloj está actualizado.',
+  neverChecked: 'aún sin comprobar',
+  lastChecked: (text) => `Última comprobación: ${text}`,
   justNow: 'ahora mismo',
   minutesAgo: (count) => `hace ${count} min`,
   hoursAgo: (count) => `hace ${count} h`,
   installNow: 'Actualizar ahora',
-  downloading: (percent) => `Descargando ... ${percent} %`,
+  downloading: (percent) => `Descargando … ${percent} %`,
   runningFrom: 'Ranura activa',
 
   // --- api errors ---
