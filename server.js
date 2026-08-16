@@ -115,8 +115,12 @@ const wifi = {
   errorDetail: ''
 };
 
+// Two entries share an SSID on purpose: a dual-band router answers a scan
+// once per radio, and that used to crash the network list.
 const FAKE_NETWORKS = [
   { ssid: 'Heimnetz', rssi: -54, secure: true },
+  { ssid: 'Heimnetz', rssi: -66, secure: true },
+  { ssid: '', rssi: -70, secure: true },
   { ssid: 'Heimnetz-Gast', rssi: -61, secure: true },
   { ssid: 'FRITZ!Box 7590', rssi: -72, secure: true },
   { ssid: 'Nachbar-WLAN', rssi: -83, secure: true },

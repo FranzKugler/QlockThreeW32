@@ -42,6 +42,26 @@
     }
   }
 
+  /**
+   * One entry per network name, strongest first.
+   *
+   * A mesh or a dual-band router answers a scan several times under the same
+   * SSID. You join a network by name, not by radio, so the repeats are noise -
+   * and they were fatal here: the list below is keyed by SSID, and Svelte
+   * throws on a duplicate key, which took the whole list down rather than one
+   * row. Hidden networks come back nameless and cannot be picked, so they go
+   * as well.
+   */
+  function strongestPerName(found) {
+    const best = new Map();
+    for (const net of found) {
+      if (!net.ssid) continue;
+      const seen = best.get(net.ssid);
+      if (!seen || net.rssi > seen.rssi) best.set(net.ssid, net);
+    }
+    return [...best.values()].sort((a, b) => b.rssi - a.rssi);
+  }
+
   // The clock scans asynchronously, so poll until it reports a result.
   async function scan() {
     scanning = true;
@@ -50,7 +70,7 @@
       try {
         const res = await api.fetchWifiScan();
         if (!res.scanning) {
-          networks = res.networks ?? [];
+          networks = strongestPerName(res.networks ?? []);
           scanning = false;
           return;
         }

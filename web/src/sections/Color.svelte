@@ -136,7 +136,9 @@
     <div class="wheel" use:wheel></div>
 
     <div class="preview" style="--led: {ledColor}; --size: {WHEEL_SIZE}px">
-      {#each t.preview as line (line)}
+      <!-- Keyed by position: two identical lines in some future translation
+           would otherwise throw, the same way the network list did. -->
+      {#each t.preview as line, i (i)}
         <span>{line}</span>
       {/each}
     </div>
