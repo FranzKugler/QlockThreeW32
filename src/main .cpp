@@ -479,6 +479,56 @@ TimeChangeRule tzRuleFrom(const char* abbrev, uint8_t week, uint8_t dow,
 }
 
 /**
+ * The letters on the front panel, for the serial log.
+ *
+ * The panel is a physical German one, so these are the letters that light up
+ * whatever language the renderer is set to - pick a language whose words do
+ * not fit this grid and the face spells nothing, which is exactly what the log
+ * will then show. Written without umlauts because it goes to a serial console.
+ * Matches the listing in Woerter_DE.h.
+ */
+static const char PANEL[10][12] = {
+    "ESKISTAFUNF",
+    "ZEHNZWANZIG",
+    "DREIVIERTEL",
+    "VORFUNKNACH",
+    "HALBAELFUNF",
+    "EINSXAMZWEI",
+    "DREIAUJVIER",
+    "SECHSNLACHT",
+    "SIEBENZWOLF",
+    "ZEHNEUNKUHR",
+};
+
+/**
+ * The lit letters of the frame buffer, as words - read back out of `matrix`
+ * rather than worked out again, so it cannot drift from what the renderer did.
+ * Column 0 is the most significant bit of a row, and a gap ends a word.
+ */
+String displayedWords()
+{
+    String out;
+    for (int row = 0; row < 10; row++)
+    {
+        bool inWord = false;
+        for (int col = 0; col < 11; col++)
+        {
+            if (matrix[row] & (1 << (15 - col)))
+            {
+                if (!inWord && out.length()) out += ' ';
+                out += PANEL[row][col];
+                inWord = true;
+            }
+            else
+            {
+                inWord = false;
+            }
+        }
+    }
+    return out;
+}
+
+/**
  * Rebuilds ActiveTimezone from the settings. Without daylight saving the
  * library takes the standard rule on its own.
  */
@@ -1559,14 +1609,26 @@ ArduinoOTA.begin();
 
 void loop()
 {
-    // An OTA update is through and the clock is about to restart. Nothing else
-    // may run in the meantime: on a filesystem update LittleFS is unmounted, so
-    // the deferred settings write would land in the image just flashed.
+    // A restart is pending - after an update, or after a rename. Nothing else
+    // may run in the meantime, because on a filesystem update LittleFS is
+    // unmounted underneath us.
+    //
+    // The settings are the exception, and they have to be: they are what the
+    // deferred write still owes, and skipping it loses every change made in
+    // the twenty seconds before the restart. That used to be the right call
+    // when they lived in qlockconf.json, where writing would have landed in
+    // the image just flashed. They live in NVS now, in a partition no update
+    // touches, so flushing here is safe.
     if (otaRebootAt)
     {
         if ((long)(millis() - otaRebootAt) >= 0)
         {
-            debugA("Restarting after OTA update");
+            if (timeToSaveToFLASH != std::numeric_limits<time_t>::max())
+            {
+                debugA("Flushing pending settings before the restart");
+                settings.storeSettings();
+            }
+            debugA("Restarting");
             server.stop();
             ESP.restart();
         }
@@ -1710,8 +1772,11 @@ void loop()
 	{
 		needsUpdateFromRtc = false;
 
-        // convert time to correct timezone and store in actual
-        time_t actual = ActiveTimezone.toLocal(now());
+        // convert time to correct timezone and store in actual. The rule that
+        // applied comes back too, so the log below can name it - which is what
+        // tells standard time from summer time at a glance.
+        TimeChangeRule *activeRule = NULL;
+        time_t actual = ActiveTimezone.toLocal(now(), &activeRule);
 
         // set color and brightness first
         // The only place the user's units meet FastLED's 8 bit ones. Rounded
@@ -1740,6 +1805,24 @@ void loop()
                 renderer.clearScreenBuffer(matrix);
                 renderer.setMinutes(hour(actual), minute(actual), settings.getLanguage(), matrix);
                 renderer.setCorners(minute(actual), settings.getRenderCornersCw(), matrix);
+
+                // Once a minute, what the face actually reads - the sentence is
+                // read back out of the frame buffer, so it is the letters that
+                // are lit and not a second guess at the renderer's rules.
+                // Together with the local time, UTC and the name of the rule in
+                // force, this is enough to check a timezone without looking at
+                // the clock itself.
+                static int loggedMinute = -1;
+                if (minute(actual) != loggedMinute)
+                {
+                    loggedMinute = minute(actual);
+                    debugA("Display %02d:%02d %s (UTC %02d:%02d) | %s | corners +%d",
+                           hour(actual), minute(actual),
+                           activeRule ? activeRule->abbrev : "?",
+                           hour(now()), minute(now()),
+                           displayedWords().c_str(),
+                           minute(actual) % 5);
+                }
                 if (mode == EXT_MODE_NORMAL_WIFISTATUS)
                 {
                     if (wifiConnected)  ledDriver.updateFunkStatus(WIFISTATUS_GREEN);

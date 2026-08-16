@@ -139,6 +139,11 @@ void Settings::loadSettings()
     Brightness =        doc["Brightness"] | 50;
     ColorHue =          doc["ColorHue"] | 0;
     ColorSat =          doc["ColorSat"] | 0;
+    // The display mode used to be reported to the web UI and settable through
+    // /display, but was in neither this function nor fillDocument - so it was
+    // the one thing on screen that no restart survived. "Off (dark)" and
+    // "time with WiFi status" are settings someone means to keep.
+    Mode =              doc["Mode"] | 1;
 
     // Schema 1 kept hue and saturation scaled to 0..255, which cost precision
     // twice over: 195/90 set in the UI came back as 194/89. They are stored in
@@ -197,6 +202,7 @@ void Settings::fillDocument(JsonDocument &doc)
     doc["Brightness"]       = Brightness;
     doc["ColorHue"]         = ColorHue;
     doc["ColorSat"]         = ColorSat;
+    doc["Mode"]             = Mode;
     doc["Hostname"]         = String(Hostname);
 
     doc["NTPServer"]        = String(NTPServer);
