@@ -169,6 +169,24 @@ export default {
   downloading: (percent) => `Téléchargement … ${percent} %`,
   runningFrom: 'Emplacement actif',
 
+  // --- error codes reported by the clock (see lib/errors.js) ---
+  err_otaBegin: 'Mise à jour refusée',
+  err_otaWrite: "Erreur d'écriture pendant le flash",
+  err_otaIncomplete: 'Image incomplète',
+  err_otaAborted: 'Envoi interrompu',
+  err_otaNoImage: 'Aucune image reçue',
+  err_otaNoUpdate: 'Aucune mise à jour disponible',
+  err_otaBusy: 'Une mise à jour est déjà en cours',
+  err_otaServer: 'Serveur de mise à jour injoignable',
+  err_otaManifestHttp: 'Manifeste non récupérable',
+  err_otaManifestParse: 'Manifeste illisible',
+  err_otaDownload: 'Échec du téléchargement',
+  err_otaConnectionLost: 'Connexion perdue pendant le téléchargement',
+  err_otaSize: 'Téléchargement incomplet',
+  err_otaChecksum: 'Somme de contrôle incorrecte — image rejetée',
+  err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
+  err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,
+
   // --- api errors ---
   connectionLost: "Connexion à l'horloge interrompue",
   uploadAborted: 'Envoi interrompu'

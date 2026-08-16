@@ -94,8 +94,13 @@
 
   const css = (rgb) => `rgb(${rgb.map(Math.round).join(' ')})`;
 
-  /** The clock's face, which unlit letters blend into. Matches .preview's background. */
-  const FACE = [192, 192, 192];
+  /**
+   * The clock's face, which unlit letters blend into. Must match .preview's
+   * background in app.css - that is the light theme's --bg, written out there
+   * for the same reason it is written out here: a physical clock face stays
+   * pale whichever theme the browser is in.
+   */
+  const FACE = [244, 245, 247];
 
   const HUE_TRACK =
     'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)';

@@ -168,6 +168,24 @@ export default {
   downloading: (percent) => `Downloading … ${percent} %`,
   runningFrom: 'Active slot',
 
+  // --- error codes reported by the clock (see lib/errors.js) ---
+  err_otaBegin: 'Update refused',
+  err_otaWrite: 'Write error while flashing',
+  err_otaIncomplete: 'Image incomplete',
+  err_otaAborted: 'Upload aborted',
+  err_otaNoImage: 'No image received',
+  err_otaNoUpdate: 'No update available',
+  err_otaBusy: 'An update is already running',
+  err_otaServer: 'Update server not reachable',
+  err_otaManifestHttp: 'Manifest could not be fetched',
+  err_otaManifestParse: 'Manifest unreadable',
+  err_otaDownload: 'Download failed',
+  err_otaConnectionLost: 'Connection lost during the download',
+  err_otaSize: 'Download incomplete',
+  err_otaChecksum: 'Checksum does not match — image discarded',
+  err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
+  err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,
+
   // --- api errors ---
   connectionLost: 'Connection to the clock was lost',
   uploadAborted: 'Upload aborted'

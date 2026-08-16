@@ -18,6 +18,7 @@
   import { onMount, onDestroy } from 'svelte';
   import * as api from '../lib/api.js';
   import { dict } from '../lib/i18n.svelte.js';
+  import { errorText } from '../lib/errors.js';
 
   const t = $derived(dict());
 
@@ -77,7 +78,7 @@
       // come back.
       if (progress < 0.99) {
         phase = 'failed';
-        error = err.message;
+        error = errorText(t, err.message, '');
         return;
       }
     }
@@ -136,7 +137,7 @@
         return;
       }
       if (info.state === 'failed') {
-        channelError = info.error;
+        channelError = errorText(t, info.error, info.errorDetail);
         return;
       }
       return;
@@ -148,9 +149,9 @@
     channelError = null;
     try {
       info = await api.checkForUpdate();
-      if (info.error) channelError = info.error;
+      if (info.error) channelError = errorText(t, info.error, info.errorDetail);
     } catch (err) {
-      channelError = err.message;
+      channelError = errorText(t, err.message, '');
     }
     checking = false;
   }
@@ -161,7 +162,7 @@
       info = await api.installUpdate();
       follow();
     } catch (err) {
-      channelError = err.message;
+      channelError = errorText(t, err.message, '');
     }
   }
 
@@ -170,7 +171,7 @@
     try {
       info = await api.setOtaConfig(patch);
     } catch (err) {
-      channelError = err.message;
+      channelError = errorText(t, err.message, '');
     }
   }
 

@@ -171,6 +171,24 @@ export default {
   downloading: (percent) => `Wird geladen … ${percent} %`,
   runningFrom: 'Aktiver Slot',
 
+  // --- error codes reported by the clock (see lib/errors.js) ---
+  err_otaBegin: 'Update abgelehnt',
+  err_otaWrite: 'Schreibfehler beim Flashen',
+  err_otaIncomplete: 'Image unvollständig',
+  err_otaAborted: 'Upload abgebrochen',
+  err_otaNoImage: 'Kein Image empfangen',
+  err_otaNoUpdate: 'Kein Update verfügbar',
+  err_otaBusy: 'Es läuft bereits ein Update',
+  err_otaServer: 'Update-Server nicht erreichbar',
+  err_otaManifestHttp: 'Manifest nicht abrufbar',
+  err_otaManifestParse: 'Manifest unlesbar',
+  err_otaDownload: 'Download fehlgeschlagen',
+  err_otaConnectionLost: 'Verbindung während des Downloads abgerissen',
+  err_otaSize: 'Download unvollständig',
+  err_otaChecksum: 'Prüfsumme stimmt nicht — Image verworfen',
+  err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
+  err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,
+
   // --- api errors ---
   connectionLost: 'Verbindung zur Uhr unterbrochen',
   uploadAborted: 'Upload abgebrochen'

@@ -168,6 +168,24 @@ export default {
   downloading: (percent) => `Wordt gedownload … ${percent} %`,
   runningFrom: 'Actieve slot',
 
+  // --- error codes reported by the clock (see lib/errors.js) ---
+  err_otaBegin: 'Update geweigerd',
+  err_otaWrite: 'Schrijffout tijdens het flashen',
+  err_otaIncomplete: 'Image onvolledig',
+  err_otaAborted: 'Upload afgebroken',
+  err_otaNoImage: 'Geen image ontvangen',
+  err_otaNoUpdate: 'Geen update beschikbaar',
+  err_otaBusy: 'Er loopt al een update',
+  err_otaServer: 'Updateserver niet bereikbaar',
+  err_otaManifestHttp: 'Manifest niet op te halen',
+  err_otaManifestParse: 'Manifest onleesbaar',
+  err_otaDownload: 'Download mislukt',
+  err_otaConnectionLost: 'Verbinding verbroken tijdens de download',
+  err_otaSize: 'Download onvolledig',
+  err_otaChecksum: 'Controlesom klopt niet — image verworpen',
+  err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
+  err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,
+
   // --- api errors ---
   connectionLost: 'Verbinding met de klok verbroken',
   uploadAborted: 'Upload afgebroken'

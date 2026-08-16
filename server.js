@@ -111,7 +111,8 @@ const wifi = {
   mac: '84:F7:03:AA:BB:CC',
   hostname: 'QlockThreeW32',
   switching: false,
-  error: ''
+  error: '',
+  errorDetail: ''
 };
 
 const FAKE_NETWORKS = [
@@ -146,11 +147,14 @@ app.post('/wifi', (req, res) => {
   const previous = { ssid: wifi.ssid, ip: wifi.ip };
   wifi.switching = true;
   wifi.error = '';
+  wifi.errorDetail = '';
   res.json({ msg: '' });
 
   setTimeout(() => {
     if (password === 'wrong') {
-      wifi.error = `Verbindung zu '${ssid}' fehlgeschlagen`;
+      // A code, not a sentence - the UI translates it. See lib/errors.js.
+      wifi.error = 'wifiConnect';
+      wifi.errorDetail = ssid;
       wifi.ssid = previous.ssid;
       wifi.ip = previous.ip;
     } else {
@@ -178,6 +182,7 @@ const ota = {
   sketchSize: 1287856,
   freeSpace: 6553600,
   error: '',
+  errorDetail: '',
   partition: 'app0',
   channel: 0, // 0 = stable, 1 = edge
   autoUpdate: false,
@@ -226,10 +231,10 @@ app.get('/ota/check', (req, res) => {
 
 app.post('/ota/install', (req, res) => {
   if (!refreshOta().updateAvailable) {
-    return res.status(409).json({ error: 'Kein Update verfuegbar' });
+    return res.status(409).json({ error: 'otaNoUpdate' });
   }
   if (ota.state === 'downloading') {
-    return res.status(409).json({ error: 'Update laeuft bereits' });
+    return res.status(409).json({ error: 'otaBusy' });
   }
 
   ota.state = 'downloading';
@@ -301,7 +306,7 @@ app.post('/ota/upload', (req, res) => {
     console.log(`/ota/upload ${filename} (${kind}, ${bytes} bytes)`);
 
     if (/bad/i.test(filename)) {
-      return res.status(500).json({ error: 'Image unvollstaendig: Bad Magic Byte' });
+      return res.status(500).json({ error: 'otaIncomplete', errorDetail: 'Bad Magic Byte' });
     }
 
     if (kind === 'firmware') {

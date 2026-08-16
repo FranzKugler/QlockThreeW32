@@ -112,16 +112,23 @@ WifiSwitchState wifiSwitchState = WIFI_SWITCH_IDLE;
 String wifiPendingSsid, wifiPendingPass;
 String wifiPreviousSsid, wifiPreviousPass;
 unsigned long wifiSwitchDeadline = 0;
-// Empty unless the last switch failed; shown by the web UI.
+// Empty unless the last switch failed. Holds a code, not a sentence: the web
+// UI speaks six languages and translates it - see errorText() in errors.js.
 String wifiLastError;
+// The variable part of that message, e.g. the SSID. Never translated.
+String wifiErrorDetail;
 
 // --- over the air update through the web UI -------------------------------
 // Milliseconds to wait between answering a finished upload and restarting, so
 // the HTTP response is on the wire before the socket dies with the reboot.
 #define OTA_REBOOT_DELAY 1000
 
-// Empty unless the last upload failed; shown by the web UI.
+// Empty unless the last update failed. A code rather than a sentence, for the
+// same reason as wifiLastError above.
 String otaError;
+// Technical detail behind the code - an HTTP status, the Update library's own
+// message. Shown as-is, never translated.
+String otaErrorDetail;
 // Version of the filesystem image, read from /version.json at boot.
 String otaFsVersion;
 // millis() at which to restart, 0 when no restart is pending.
@@ -526,7 +533,8 @@ void sendWifiStatus()
     doc["mac"]       = WiFi.macAddress();
     doc["hostname"]  = "QlockThreeW32";
     doc["switching"] = (wifiSwitchState != WIFI_SWITCH_IDLE);
-    doc["error"]     = wifiLastError;
+    doc["error"]       = wifiLastError;
+    doc["errorDetail"] = wifiErrorDetail;
 
     String out;
     serializeJson(doc, out);
@@ -589,6 +597,7 @@ void updateWifi()
     wifiPreviousSsid = WiFi.SSID();
     wifiPreviousPass = WiFi.psk();
     wifiLastError = "";
+    wifiErrorDetail = "";
     wifiSwitchState = WIFI_SWITCH_START;
 
     debugI("WiFi switch requested: %s", wifiPendingSsid.c_str());
@@ -620,7 +629,8 @@ void handleWifiSwitch()
             else if ((long)(millis() - wifiSwitchDeadline) >= 0)
             {
                 debugW("WiFi switch failed, falling back to %s", wifiPreviousSsid.c_str());
-                wifiLastError = "Verbindung zu '" + wifiPendingSsid + "' fehlgeschlagen";
+                wifiLastError = "wifiConnect";
+                wifiErrorDetail = wifiPendingSsid;
                 WiFi.disconnect();
                 WiFi.begin(wifiPreviousSsid.c_str(), wifiPreviousPass.c_str());
                 wifiSwitchDeadline = millis() + WIFI_SWITCH_TIMEOUT;
@@ -640,7 +650,8 @@ void handleWifiSwitch()
             {
                 // Both networks are gone; the normal reconnect logic takes over.
                 debugE("Fallback to %s failed too", wifiPreviousSsid.c_str());
-                wifiLastError += " - Rückfall auf '" + wifiPreviousSsid + "' ebenfalls fehlgeschlagen";
+                wifiLastError = "wifiFallback";
+                wifiErrorDetail = wifiPreviousSsid;
                 wifiSwitchState = WIFI_SWITCH_IDLE;
             }
             break;
@@ -685,6 +696,7 @@ void sendOtaStatus()
     // Size of the inactive OTA slot, i.e. the largest image that would fit.
     doc["freeSpace"] = ESP.getFreeSketchSpace();
     doc["error"] = otaError;
+    doc["errorDetail"] = otaErrorDetail;
 
     // Which slot we booted from. Without this an update to the same version is
     // indistinguishable from nothing having happened at all.
@@ -720,12 +732,12 @@ void handleOtaInstall()
 {
     if (!otaUpdateAvailable())
     {
-        server.send(409, "application/json", "{\"error\":\"Kein Update verfügbar\"}");
+        server.send(409, "application/json", "{\"error\":\"otaNoUpdate\"}");
         return;
     }
     if (!otaStartInstall())
     {
-        server.send(409, "application/json", "{\"error\":\"Update läuft bereits\"}");
+        server.send(409, "application/json", "{\"error\":\"otaBusy\"}");
         return;
     }
     sendOtaStatus();
@@ -771,6 +783,7 @@ void handleOtaUploadData()
         case UPLOAD_FILE_START:
         {
             otaError = "";
+            otaErrorDetail = "";
             otaCommand = -1;    // decided below, from the first byte
             debugA("OTA upload started: %s", upload.filename.c_str());
             break;
@@ -798,7 +811,8 @@ void handleOtaUploadData()
 
                 if (!Update.begin(UPDATE_SIZE_UNKNOWN, otaCommand))
                 {
-                    otaError = String("Update abgelehnt: ") + Update.errorString();
+                    otaError = "otaBegin";
+                    otaErrorDetail = Update.errorString();
                     debugE("OTA begin failed: %s", Update.errorString());
                     break;
                 }
@@ -806,7 +820,8 @@ void handleOtaUploadData()
 
             if (Update.write(upload.buf, upload.currentSize) != upload.currentSize)
             {
-                otaError = String("Schreibfehler: ") + Update.errorString();
+                otaError = "otaWrite";
+                otaErrorDetail = Update.errorString();
                 debugE("OTA write failed: %s", Update.errorString());
             }
             break;
@@ -823,7 +838,8 @@ void handleOtaUploadData()
             }
             else
             {
-                otaError = String("Image unvollständig: ") + Update.errorString();
+                otaError = "otaIncomplete";
+                otaErrorDetail = Update.errorString();
                 debugE("OTA end failed: %s", Update.errorString());
             }
             break;
@@ -831,7 +847,7 @@ void handleOtaUploadData()
         case UPLOAD_FILE_ABORTED:
         {
             Update.abort();
-            otaError = "Upload abgebrochen";
+            otaError = "otaAborted";
             debugW("OTA upload aborted");
             break;
         }
@@ -848,6 +864,7 @@ void handleOtaUploadDone()
     {
         JsonDocument doc;
         doc["error"] = otaError;
+        doc["errorDetail"] = otaErrorDetail;
         String out;
         serializeJson(doc, out);
         server.send(500, "application/json", out);
@@ -857,7 +874,7 @@ void handleOtaUploadDone()
     // Nothing was written at all: the request carried no file part.
     if (otaCommand < 0)
     {
-        server.send(400, "application/json", "{\"error\":\"Kein Image empfangen\"}");
+        server.send(400, "application/json", "{\"error\":\"otaNoImage\"}");
         return;
     }
 
@@ -932,6 +949,7 @@ bool otaFetchManifest()
 
     otaState = OTA_STATE_CHECKING;
     otaError = "";
+    otaErrorDetail = "";
 
     WiFiClientSecure client;
     HTTPClient http;
@@ -942,7 +960,7 @@ bool otaFetchManifest()
 
     if (!http.begin(client, url))
     {
-        otaError = "Update-Server nicht erreichbar";
+        otaError = "otaServer";
         otaState = OTA_STATE_FAILED;
         return false;
     }
@@ -951,7 +969,8 @@ bool otaFetchManifest()
     if (code != HTTP_CODE_OK)
     {
         // 404 on stable simply means no tagged release exists yet.
-        otaError = String("Manifest nicht abrufbar (HTTP ") + code + ")";
+        otaError = "otaManifestHttp";
+        otaErrorDetail = String("HTTP ") + code;
         debugW("Manifest fetch failed: HTTP %d", code);
         http.end();
         otaState = OTA_STATE_FAILED;
@@ -964,7 +983,7 @@ bool otaFetchManifest()
 
     if (parseError)
     {
-        otaError = "Manifest unlesbar";
+        otaError = "otaManifestParse";
         debugE("Manifest parse failed: %s", parseError.c_str());
         otaState = OTA_STATE_FAILED;
         return false;
@@ -1015,14 +1034,15 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
 
     if (!http.begin(client, url))
     {
-        otaError = "Download nicht möglich";
+        otaError = "otaDownload";
         return false;
     }
 
     int code = http.GET();
     if (code != HTTP_CODE_OK)
     {
-        otaError = String("Download fehlgeschlagen (HTTP ") + code + ")";
+        otaError = "otaDownload";
+        otaErrorDetail = String("HTTP ") + code;
         http.end();
         return false;
     }
@@ -1072,7 +1092,7 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
         {
             if (!http.connected() || millis() - lastData > 20000)
             {
-                otaError = "Verbindung während des Downloads abgerissen";
+                otaError = "otaConnectionLost";
                 break;
             }
             delay(5);
@@ -1092,14 +1112,14 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
 
     if (written != expectedSize)
     {
-        otaError = "Download unvollständig";
+        otaError = "otaSize";
         Update.abort();
         return false;
     }
 
     if (otaHex(digest) != expectedSha)
     {
-        otaError = "Prüfsumme stimmt nicht";
+        otaError = "otaChecksum";
         debugE("SHA-256 mismatch: got %s, expected %s", otaHex(digest).c_str(), expectedSha.c_str());
         Update.abort();
         return false;
@@ -1156,6 +1176,8 @@ bool otaStartInstall()
     if (!otaUpdateAvailable()) return false;
 
     otaError = "";
+
+    otaErrorDetail = "";
     otaProgress = 0;
     otaState = OTA_STATE_DOWNLOADING;
 

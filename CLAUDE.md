@@ -76,6 +76,8 @@ Both [src/main .cpp](src/main%20.cpp) and [server.js](server.js) implement the s
 
 Changing the API means touching three places: the firmware handler, `server.js`, and `web/src/lib/api.js`.
 
+**Errors are codes, not sentences.** The firmware answers with `{"error": "otaChecksum", "errorDetail": "HTTP 404"}` — a stable code plus an untranslated technical detail — and [web/src/lib/errors.js](web/src/lib/errors.js) turns it into text in the current language from the `err_*` keys in the locale files. It used to send German sentences, which was fine while the UI was German too. An unknown code is displayed as-is rather than swallowed, so a clock running newer firmware than its web UI still says something useful.
+
 `/currentState` used to answer with JSONP (the response wrapped in the callback named by the query string). That was a jQuery-era workaround; it now returns plain JSON, since the SPA is served from the same origin and the firmware already calls `server.enableCORS()` for cross-origin dev access.
 
 ### Web UI architecture

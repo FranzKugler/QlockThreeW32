@@ -13,6 +13,7 @@
   import { onMount, onDestroy } from 'svelte';
   import * as api from '../lib/api.js';
   import { dict } from '../lib/i18n.svelte.js';
+  import { errorText } from '../lib/errors.js';
 
   const t = $derived(dict());
 
@@ -117,7 +118,7 @@
     <div class="field"><span class="key">{t.mac}</span><span>{status.mac}</span></div>
 
     {#if status.error}
-      <p class="banner">{status.error}</p>
+      <p class="banner">{errorText(t, status.error, status.errorDetail)}</p>
     {/if}
   {:else}
     <p class="hint">{t.loadingShort}</p>

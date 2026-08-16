@@ -169,6 +169,24 @@ export default {
   downloading: (percent) => `Descargando … ${percent} %`,
   runningFrom: 'Ranura activa',
 
+  // --- error codes reported by the clock (see lib/errors.js) ---
+  err_otaBegin: 'Actualización rechazada',
+  err_otaWrite: 'Error de escritura al grabar',
+  err_otaIncomplete: 'Imagen incompleta',
+  err_otaAborted: 'Subida interrumpida',
+  err_otaNoImage: 'No se ha recibido ninguna imagen',
+  err_otaNoUpdate: 'No hay actualizaciones disponibles',
+  err_otaBusy: 'Ya hay una actualización en curso',
+  err_otaServer: 'Servidor de actualizaciones no accesible',
+  err_otaManifestHttp: 'No se ha podido obtener el manifiesto',
+  err_otaManifestParse: 'Manifiesto ilegible',
+  err_otaDownload: 'Error en la descarga',
+  err_otaConnectionLost: 'Conexión perdida durante la descarga',
+  err_otaSize: 'Descarga incompleta',
+  err_otaChecksum: 'La suma de verificación no coincide — imagen descartada',
+  err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
+  err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,
+
   // --- api errors ---
   connectionLost: 'Se ha perdido la conexión con el reloj',
   uploadAborted: 'Subida interrumpida'

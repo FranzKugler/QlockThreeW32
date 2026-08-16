@@ -169,6 +169,24 @@ export default {
   downloading: (percent) => `Download … ${percent} %`,
   runningFrom: 'Slot attivo',
 
+  // --- error codes reported by the clock (see lib/errors.js) ---
+  err_otaBegin: 'Aggiornamento rifiutato',
+  err_otaWrite: 'Errore di scrittura durante il flash',
+  err_otaIncomplete: 'Immagine incompleta',
+  err_otaAborted: 'Caricamento interrotto',
+  err_otaNoImage: 'Nessuna immagine ricevuta',
+  err_otaNoUpdate: 'Nessun aggiornamento disponibile',
+  err_otaBusy: 'Un aggiornamento è già in corso',
+  err_otaServer: 'Server di aggiornamento non raggiungibile',
+  err_otaManifestHttp: 'Manifest non recuperabile',
+  err_otaManifestParse: 'Manifest illeggibile',
+  err_otaDownload: 'Download non riuscito',
+  err_otaConnectionLost: 'Connessione persa durante il download',
+  err_otaSize: 'Download incompleto',
+  err_otaChecksum: 'Somma di controllo errata — immagine scartata',
+  err_wifiConnect: (ssid) => `Impossibile connettersi a «${ssid}»`,
+  err_wifiFallback: (ssid) => `Anche il ritorno a «${ssid}» non è riuscito`,
+
   // --- api errors ---
   connectionLost: "Collegamento con l'orologio interrotto",
   uploadAborted: 'Caricamento interrotto'

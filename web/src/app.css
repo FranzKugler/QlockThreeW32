@@ -435,7 +435,11 @@ select:disabled {
 /* Preview of the lit clock face. Square and the same size as the wheel (both
    from WHEEL_SIZE in Color.svelte). The ground is a light grey standing in for
    the clock's face rather than black, so letters set to white stay visible.
-   Fixed in both themes, since it represents the physical clock. */
+   It is the light theme's --bg written out rather than the variable itself:
+   the panel represents a physical, pale clock face, and following --bg into
+   dark mode would turn it near black and defeat the point. Keep it in step
+   with FACE in Color.svelte, which blends the letters into it.
+   Border and radius match the dropdowns. */
 .preview {
   flex: 0 0 auto;
   width: var(--size);
@@ -446,8 +450,8 @@ select:disabled {
   gap: 0.35rem;
   padding: 1rem 0.9rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: rgb(192 192 192);
+  border-radius: 7px;
+  background: rgb(244 245 247);
   text-align: center;
 }
 
