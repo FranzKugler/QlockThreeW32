@@ -40,10 +40,13 @@ public:
     boolean getUseLdr() {return this->UseLdr;}
     void    setBrightness(byte Brightness) {this->Brightness = Brightness;}
     byte    getBrightness() {return this->Brightness;}
-    void    setColorHue(byte ColorHue) {this->ColorHue = ColorHue;}
-    byte    getColorHue() {return this->ColorHue;}
-    void    setColorSat(byte ColorSat) {this->ColorSat = ColorSat;}
-    byte    getColorSat() {return this->ColorSat;}
+    // Hue 0..359 and saturation 0..100 - the units the web UI works in, so a
+    // value set there comes back unchanged. The conversion to the 8 bits
+    // FastLED wants happens once, where the colour is handed to the driver.
+    void     setColorHue(uint16_t ColorHue) {this->ColorHue = ColorHue;}
+    uint16_t getColorHue() {return this->ColorHue;}
+    void     setColorSat(byte ColorSat) {this->ColorSat = ColorSat;}
+    byte     getColorSat() {return this->ColorSat;}
     void    setMode (byte Mode) {this->Mode = Mode;}
     byte    getMode() {return this->Mode;}
     char*   getNTPServer() {return this->NTPServer;}
@@ -99,9 +102,9 @@ private:
     boolean RenderCornersCw;
     boolean RenderColorCorner;
     boolean UseLdr;
-    byte    Brightness;
-    byte    ColorHue;
-    byte    ColorSat;
+    byte     Brightness;   // 0..100
+    uint16_t ColorHue;     // 0..359
+    byte     ColorSat;     // 0..100
     byte    Mode;
     
     // Entries for automatic Timezone

@@ -33,6 +33,11 @@ extern RemoteDebug Debug;
 // update, then removed.
 #define LEGACY_CONF_FILE "/qlockconf.json"
 
+// Bumped whenever a stored field changes meaning, so loadSettings() can convert
+// an older record instead of silently misreading it. 1 = pre-2.0.1, hue and
+// saturation scaled to 0..255.
+#define SETTINGS_SCHEMA 2
+
 
 /**
  *  Konstruktor.
@@ -133,6 +138,23 @@ void Settings::loadSettings()
     ColorHue =          doc["ColorHue"] | 0;
     ColorSat =          doc["ColorSat"] | 0;
 
+    // Schema 1 kept hue and saturation scaled to 0..255, which cost precision
+    // twice over: 195/90 set in the UI came back as 194/89. They are stored in
+    // the UI's own units now, so an older record has to be converted once.
+    // Absent field means schema 1 - that is what makes this detectable at all.
+    if ((int)(doc["Schema"] | 1) < SETTINGS_SCHEMA)
+    {
+        ColorHue = (uint16_t)((ColorHue * 359L + 127) / 255);
+        ColorSat = (byte)((ColorSat * 100L + 127) / 255);
+        debugA("Settings migrated to schema %d (hue %u, sat %u).\n",
+               SETTINGS_SCHEMA, ColorHue, ColorSat);
+    }
+
+    // A record from the future, or a corrupted one, must not drive the renderer
+    // out of range.
+    if (ColorHue > 359) ColorHue = 0;
+    if (ColorSat > 100) ColorSat = 100;
+
     strcpy(NTPServer, doc["NTPServer"] | "pool.ntp.org");
     UseDs =             doc["UseDs"] | true;
     strcpy(TzName, doc["TzName"] | "CET");
@@ -155,6 +177,7 @@ void Settings::loadSettings()
 
 void Settings::fillDocument(JsonDocument &doc)
 {
+    doc["Schema"]           = SETTINGS_SCHEMA;
     doc["Language"]         = Language;
     doc["RenderCornersCw"]  = RenderCornersCw;
     doc["RenderColorCorner"]= RenderColorCorner;
@@ -226,8 +249,8 @@ String Settings::getJSONSettings()
 {
 	StaticJsonDocument<200> doc;
 	doc["display"] = Mode;
-	doc["hue"] = (int)((ColorHue * 359) / 255);
-	doc["sat"] = (int)((ColorSat * 100) / 255);
+	doc["hue"] = ColorHue;
+	doc["sat"] = ColorSat;
 	doc["lum"] = Brightness;
 	doc["automaticLum"] = (bool)UseLdr;
 	doc["language"] = Language;

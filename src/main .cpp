@@ -428,8 +428,9 @@ void updateColor()
 {
     StaticJsonDocument<200> doc;
     deserializeJson(doc, server.arg(0));
-    settings.setColorHue((byte)((int)doc["hue"]*255 / 359));
-    settings.setColorSat((byte)((int)doc["sat"]*255 / 100));
+    // Stored in the units they arrive in; the renderer scales them to 8 bit.
+    settings.setColorHue((uint16_t)doc["hue"]);
+    settings.setColorSat((byte)doc["sat"]);
     settings.setBrightness(doc["lum"]);
 
     needsUpdateFromRtc = true;
@@ -1531,7 +1532,11 @@ void loop()
         time_t actual = ActiveTimezone.toLocal(now());
 
         // set color and brightness first
-        ledDriver.setColorHS(settings.getColorHue(), settings.getColorSat());
+        // The only place the user's units meet FastLED's 8 bit ones. Rounded
+        // rather than truncated, so the LEDs get the nearest hue the hardware
+        // can actually produce - 360 hues do not fit into 256 steps.
+        ledDriver.setColorHS((byte)((settings.getColorHue() * 255L + 179) / 359),
+                             (byte)((settings.getColorSat() * 255L + 50) / 100));
         // brightness only if we're in manual mode or slider changed during automatic mode
         if(!settings.getUseLdr() || brightnessChanged) 
             ledDriver.setBrightness(settings.getBrightness());
