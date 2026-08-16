@@ -478,14 +478,23 @@ TimeChangeRule tzRuleFrom(const char* abbrev, uint8_t week, uint8_t dow,
     return rule;
 }
 
+/** In the order of the LANGUAGE_* defines, for the log line below. */
+static const char *LANGUAGE_NAMES[] = {
+    "DE", "DE-SW", "DE-BA", "DE-SA", "CH", "EN", "FR", "IT", "NL", "ES"
+};
+
 /**
  * The letters on the front panel, for the serial log.
  *
- * The panel is a physical German one, so these are the letters that light up
- * whatever language the renderer is set to - pick a language whose words do
- * not fit this grid and the face spells nothing, which is exactly what the log
- * will then show. Written without umlauts because it goes to a serial console.
- * Matches the listing in Woerter_DE.h.
+ * The panel is a physical German one, and the renderer lights positions, not
+ * letters - so setting a language whose grid differs puts words where this one
+ * has different letters, and the face really does spell nonsense. English at
+ * 00:20 lights IT IS TWENTY PAST TWELVE, which on these letters reads
+ * "ES IS DREIVI HALB NZWOLF". That is why the language is logged next to the
+ * sentence: it is the only thing that explains such a line.
+ *
+ * Written without umlauts because it goes to a serial console. Matches the
+ * listing in Woerter_DE.h.
  */
 static const char PANEL[10][12] = {
     "ESKISTAFUNF",
@@ -1835,10 +1844,12 @@ void loop()
                 if (minute(actual) != loggedMinute)
                 {
                     loggedMinute = minute(actual);
-                    debugA("Display %02d:%02d %s (UTC %02d:%02d) | %s | corners +%d",
+                    byte lang = settings.getLanguage();
+                    debugA("Display %02d:%02d %s (UTC %02d:%02d) [%s] | %s | corners +%d",
                            hour(actual), minute(actual),
                            activeRule ? activeRule->abbrev : "?",
                            hour(now()), minute(now()),
+                           lang < LANGUAGE_COUNT ? LANGUAGE_NAMES[lang] : "?",
                            displayedWords().c_str(),
                            minute(actual) % 5);
                 }

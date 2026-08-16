@@ -34,7 +34,10 @@
 #define LANGUAGE_IT    7
 #define LANGUAGE_NL    8
 #define LANGUAGE_ES    9
-#define LANGUAGE_COUNT 9
+// Ten languages, numbered 0..9 - this said 9, which is the highest number and
+// not the count. Nothing reads it yet; a bounds check that did would have cut
+// off Spanish.
+#define LANGUAGE_COUNT 10
 
 class Renderer {
 public:
