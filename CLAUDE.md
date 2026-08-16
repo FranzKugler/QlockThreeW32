@@ -184,6 +184,7 @@ Things that are load-bearing here:
 
 - **The edge release must stay a pre-release.** Otherwise it takes over `/releases/latest`, and clocks on the stable channel would start following every commit.
 - **`fetch-depth: 0`** on the checkout. A shallow clone has no tags, `scripts/version.py` would fall back to `Version.h` on every build, and every release would claim the same version.
+- **`version.py` matches `v[0-9]*` and nothing else.** The edge release lives under a fixed tag `edge`, which the workflow deletes and recreates on the commit of every build — so a plain `git describe --tags` answers `edge`, which is not a version, and the build falls back to `Version.h`. That is self-inflicting: once one edge build has run, every later one is stuck reporting the same number. Cost half an hour to find, because the two builds either side of it looked identical.
 - **The version is computed once, not twice.** `version.py` writes what it settled on to `.pio/version.txt`; the workflow reads that file for the manifest, the release title and `QLOCK_VERSION`. Working it out a second time in shell would eventually disagree with the value compiled into the image.
 - **Step order**: firmware first (produces `version.txt`), then the web build with `QLOCK_VERSION` set, then `buildfs`. Reversing the first two makes `version.json` report whatever is in `package.json`.
 - `src/Secrets.h` does not exist in CI, so published images have no espota password — which is what you want for a public image.

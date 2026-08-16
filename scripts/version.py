@@ -31,10 +31,16 @@ VERSION_STAMP = os.path.join(PROJECT_DIR, ".pio", "version.txt")
 
 
 def git_version():
-    """Version from the nearest tag, or None when there is nothing usable."""
+    """Version from the nearest release tag, or None when there is nothing usable.
+
+    Only tags named like a version count. The release workflow keeps the edge
+    build under a fixed tag `edge`, recreated on the commit of every build - so
+    without --match it is always the nearest tag, `git describe` answers "edge",
+    and every build from then on falls back to the version in Version.h.
+    """
     try:
         described = subprocess.check_output(
-            ["git", "describe", "--tags", "--dirty"],
+            ["git", "describe", "--tags", "--dirty", "--match", "v[0-9]*"],
             cwd=PROJECT_DIR,
             stderr=subprocess.DEVNULL,
             universal_newlines=True,
