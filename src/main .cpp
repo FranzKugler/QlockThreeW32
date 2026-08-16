@@ -1037,6 +1037,11 @@ void handleOtaUploadDone()
 
 // --- update from the release channel ---------------------------------------
 
+// How long a download may go without delivering anything before it counts as
+// dead. Used both for the socket's own read timeout and for the stall check in
+// the loop, so a slow server cannot be cut off by one while the other waits.
+#define OTA_STREAM_TIMEOUT_MS 20000
+
 /**
  * TLS without certificate verification, on purpose.
  *
@@ -1050,9 +1055,16 @@ void handleOtaUploadDone()
 void otaPrepareClient(WiFiClientSecure &client, HTTPClient &http)
 {
     client.setInsecure();
-    client.setTimeout(20);
+    // Milliseconds. NetworkClientSecure inherits NetworkClient, and neither
+    // overrides setTimeout - only NetworkServer does, and that one takes
+    // seconds. So this falls through to Stream::setTimeout, which is in
+    // milliseconds. It read 20 here, and 20 ms is not enough for readBytes()
+    // to wait out the next TLS record of a multi-megabyte transfer: it
+    // returned 0, the download loop treated that as the end of the stream,
+    // and every install failed as "otaSize".
+    client.setTimeout(OTA_STREAM_TIMEOUT_MS);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-    http.setTimeout(20000);
+    http.setTimeout(OTA_STREAM_TIMEOUT_MS);
     http.setUserAgent("QlockThreeW32/" FIRMWARE_VERSION);
 }
 
@@ -1207,7 +1219,8 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
 
     if (!Update.begin(expectedSize, command))
     {
-        otaError = String("Update abgelehnt: ") + Update.errorString();
+        otaError = "otaBegin";
+        otaErrorDetail = Update.errorString();
         http.end();
         return false;
     }
@@ -1224,15 +1237,20 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
     while (written < expectedSize)
     {
         size_t available = stream->available();
-        if (available)
-        {
-            int read = stream->readBytes(buffer, min(available, sizeof(buffer)));
-            if (read <= 0) break;
+        // Never ask for more than is still wanted: a response one byte longer
+        // than the manifest claims would otherwise overshoot and be reported
+        // as the wrong size despite having arrived intact.
+        size_t wanted = min(min(available, sizeof(buffer)), expectedSize - written);
 
+        int read = wanted ? stream->readBytes(buffer, wanted) : 0;
+
+        if (read > 0)
+        {
             mbedtls_sha256_update(&sha, buffer, read);
             if (Update.write(buffer, read) != (size_t)read)
             {
-                otaError = String("Schreibfehler: ") + Update.errorString();
+                otaError = "otaWrite";
+                otaErrorDetail = Update.errorString();
                 break;
             }
 
@@ -1242,7 +1260,10 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
         }
         else
         {
-            if (!http.connected() || millis() - lastData > 20000)
+            // Nothing this time round. That is not the end of the stream - a
+            // TLS record can simply not have arrived yet - so only give up
+            // once the connection is gone or nothing has come for a while.
+            if (!http.connected() || millis() - lastData > OTA_STREAM_TIMEOUT_MS)
             {
                 otaError = "otaConnectionLost";
                 break;
@@ -1265,6 +1286,9 @@ bool otaDownloadImage(const String &url, const String &expectedSha, size_t expec
     if (written != expectedSize)
     {
         otaError = "otaSize";
+        // Says how far it got, which is the difference between "the server
+        // sent the wrong thing" and "the transfer stopped part way".
+        otaErrorDetail = String(written) + "/" + String(expectedSize);
         Update.abort();
         return false;
     }

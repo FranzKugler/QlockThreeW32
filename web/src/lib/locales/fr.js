@@ -204,6 +204,8 @@ export default {
   err_otaConnectionLost: 'Connexion perdue pendant le téléchargement',
   err_otaSize: 'Téléchargement incomplet',
   err_otaChecksum: 'Somme de contrôle incorrecte — image rejetée',
+  err_otaBegin: 'Impossible de démarrer la mise à jour',
+  err_otaWrite: 'Échec de l’écriture en flash',
   err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,

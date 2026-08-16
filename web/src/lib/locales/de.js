@@ -205,6 +205,8 @@ export default {
   err_otaConnectionLost: 'Verbindung während des Downloads abgerissen',
   err_otaSize: 'Download unvollständig',
   err_otaChecksum: 'Prüfsumme stimmt nicht — Image verworfen',
+  err_otaBegin: 'Update ließ sich nicht starten',
+  err_otaWrite: 'Schreiben in den Flash fehlgeschlagen',
   err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,

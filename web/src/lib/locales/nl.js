@@ -203,6 +203,8 @@ export default {
   err_otaConnectionLost: 'Verbinding verbroken tijdens de download',
   err_otaSize: 'Download onvolledig',
   err_otaChecksum: 'Controlesom klopt niet — image verworpen',
+  err_otaBegin: 'De update kon niet worden gestart',
+  err_otaWrite: 'Schrijven naar flash is mislukt',
   err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,
