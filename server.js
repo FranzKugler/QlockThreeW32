@@ -175,9 +175,12 @@ app.post('/hostname', (req, res) => {
     return;
   }
 
+  // The clock restarts to take the name on, and says so; the mock only
+  // reports it, so the UI's wait-for-it-to-come-back path can be exercised.
+  const restarting = clean !== state.hostname;
   state.hostname = clean;
-  console.log('/hostname ->', clean);
-  res.json({ hostname: clean });
+  console.log('/hostname ->', clean, restarting ? '(restarting)' : '(unchanged)');
+  res.json({ hostname: clean, restarting });
 });
 
 app.get('/wifi/scan', (req, res) => {

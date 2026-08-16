@@ -134,6 +134,12 @@
     hostname.replace(/^-+|-+$/g, '').length > 0 && hostname !== status?.hostname
   );
 
+  /**
+   * Renames the clock, which restarts it: the name is read in six places and
+   * only mDNS can be changed while it runs. The clock answers first and
+   * restarts a second later, so this waits for it to come back rather than
+   * leaving the page looking as though nothing happened.
+   */
   async function rename(event) {
     event.preventDefault();
     if (!renameable || renaming) return;
@@ -144,11 +150,26 @@
     try {
       // The firmware answers with what it stored, which is what should end up
       // on screen - it may have trimmed a trailing hyphen.
-      const { hostname: stored } = await api.setHostname(hostname);
+      const { hostname: stored, restarting } = await api.setHostname(hostname);
       hostname = stored;
       if (status) status.hostname = stored;
       setAppName(stored);
-      renameNote = t.hostnameSaved(stored);
+
+      if (!restarting) {
+        renameNote = t.hostnameSaved(stored);
+      } else {
+        renameNote = t.restarting;
+        await sleep(3000);
+
+        renameNote = t.noResponse;
+        for (let i = 0; i < 20 && !destroyed; i++) {
+          if (await loadStatus({ quiet: true })) {
+            renameNote = t.hostnameSaved(stored);
+            break;
+          }
+          await sleep(1500);
+        }
+      }
     } catch (err) {
       renameError = err.message;
     }
@@ -205,7 +226,7 @@
     </div>
 
     <button type="submit" disabled={!renameable || renaming}>
-      {renaming ? t.saving : t.save}
+      {renaming ? t.restarting : t.saveAndRestart}
     </button>
   </form>
 
@@ -215,7 +236,7 @@
     <p class="hint">{renameNote}</p>
   {/if}
 
-  <p class="hint">{t.hostnameHint(hostname || 'QlockThreeW32')}</p>
+  <p class="hint">{t.hostnameHint()}</p>
 </section>
 
 <section class="card">

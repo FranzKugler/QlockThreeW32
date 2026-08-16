@@ -105,13 +105,13 @@ export default {
   statusUnavailable: 'Stato non disponibile',
   clockName: 'Nome dell’orologio',
   name: 'Nome',
-  save: 'Salva',
-  saving: 'Salvataggio …',
-  hostnameSaved: (host) => `Salvato. L’orologio ora risponde a ${host}.local.`,
-  hostnameHint: (host) =>
-    'Solo lettere, cifre e trattini. Con questo nome l’orologio si annuncia ' +
-    `in rete: ${host}.local. Il nome mostrato dal router e quello usato da ` +
-    'espota cambiano solo dopo un riavvio.',
+  saveAndRestart: 'Salva e riavvia',
+  restarting: 'L’orologio si sta riavviando …',
+  hostnameSaved: (host) => `Riavviato. L’orologio ora risponde a ${host}.local.`,
+  hostnameHint: () =>
+    'Solo lettere, cifre e trattini. Il nome vale per mDNS, il router, espota ' +
+    'e il punto di accesso di configurazione — l’orologio lo adotta quindi ' +
+    'con un riavvio.',
   availableNetworks: 'Reti disponibili',
   scanning: 'Ricerca in corso …',
   noNetworks: 'Nessuna rete trovata.',

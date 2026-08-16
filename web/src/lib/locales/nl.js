@@ -105,13 +105,13 @@ export default {
   statusUnavailable: 'Status niet op te vragen',
   clockName: 'Naam van de klok',
   name: 'Naam',
-  save: 'Opslaan',
-  saving: 'Opslaan …',
-  hostnameSaved: (host) => `Opgeslagen. De klok is nu bereikbaar op ${host}.local.`,
-  hostnameHint: (host) =>
-    'Alleen letters, cijfers en koppeltekens. Onder deze naam meldt de klok ' +
-    `zich in het netwerk: ${host}.local. De naam in de router en die voor ` +
-    'espota volgen pas na een herstart.',
+  saveAndRestart: 'Opslaan en herstarten',
+  restarting: 'De klok start opnieuw op …',
+  hostnameSaved: (host) => `Herstart. De klok is nu bereikbaar op ${host}.local.`,
+  hostnameHint: () =>
+    'Alleen letters, cijfers en koppeltekens. De naam geldt voor mDNS, de ' +
+    'router, espota en het instel-accesspoint — de klok neemt hem daarom over ' +
+    'met een herstart.',
   availableNetworks: 'Beschikbare netwerken',
   scanning: 'Bezig met zoeken …',
   noNetworks: 'Geen netwerken gevonden.',

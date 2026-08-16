@@ -105,13 +105,13 @@ export default {
   statusUnavailable: 'État indisponible',
   clockName: 'Nom de l’horloge',
   name: 'Nom',
-  save: 'Enregistrer',
-  saving: 'Enregistrement …',
-  hostnameSaved: (host) => `Enregistré. L’horloge répond désormais à ${host}.local.`,
-  hostnameHint: (host) =>
-    'Lettres, chiffres et traits d’union uniquement. L’horloge s’annonce sous ' +
-    `ce nom : ${host}.local. Le nom affiché par le routeur et celui employé ` +
-    'par espota ne suivent qu’après un redémarrage.',
+  saveAndRestart: 'Enregistrer et redémarrer',
+  restarting: 'L’horloge redémarre …',
+  hostnameSaved: (host) => `Redémarrée. L’horloge répond désormais à ${host}.local.`,
+  hostnameHint: () =>
+    'Lettres, chiffres et traits d’union uniquement. Le nom sert au mDNS, au ' +
+    'routeur, à espota et au point d’accès de configuration — l’horloge ' +
+    'l’adopte donc au redémarrage.',
   availableNetworks: 'Réseaux disponibles',
   scanning: 'Recherche en cours …',
   noNetworks: 'Aucun réseau trouvé.',

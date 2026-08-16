@@ -106,13 +106,13 @@ export default {
   statusUnavailable: 'Status nicht abrufbar',
   clockName: 'Name der Uhr',
   name: 'Name',
-  save: 'Speichern',
-  saving: 'Speichere …',
-  hostnameSaved: (host) => `Gespeichert. Die Uhr ist jetzt als ${host}.local erreichbar.`,
-  hostnameHint: (host) =>
-    'Nur Buchstaben, Ziffern und Bindestriche. Unter diesem Namen meldet sich ' +
-    `die Uhr im Netz: ${host}.local. Der Name im Router und für espota folgt ` +
-    'erst nach einem Neustart.',
+  saveAndRestart: 'Speichern und neu starten',
+  restarting: 'Die Uhr startet neu …',
+  hostnameSaved: (host) => `Neu gestartet. Die Uhr ist jetzt als ${host}.local erreichbar.`,
+  hostnameHint: () =>
+    'Nur Buchstaben, Ziffern und Bindestriche. Der Name gilt für mDNS, den ' +
+    'Router, espota und den Einrichtungs-Accesspoint — die Uhr übernimmt ihn ' +
+    'deshalb mit einem Neustart.',
   availableNetworks: 'Verfügbare Netze',
   scanning: 'Suche läuft …',
   noNetworks: 'Keine Netze gefunden.',

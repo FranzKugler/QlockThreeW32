@@ -104,13 +104,13 @@ export default {
   statusUnavailable: 'Status not available',
   clockName: 'Clock name',
   name: 'Name',
-  save: 'Save',
-  saving: 'Saving …',
-  hostnameSaved: (host) => `Saved. The clock now answers at ${host}.local.`,
-  hostnameHint: (host) =>
-    'Letters, digits and hyphens only. The clock announces itself under this ' +
-    `name: ${host}.local. The name the router shows, and the one espota uses, ` +
-    'follow after a restart.',
+  saveAndRestart: 'Save and restart',
+  restarting: 'The clock is restarting …',
+  hostnameSaved: (host) => `Restarted. The clock now answers at ${host}.local.`,
+  hostnameHint: () =>
+    'Letters, digits and hyphens only. The name is used for mDNS, the router, ' +
+    'espota and the setup access point — so the clock takes it on with a ' +
+    'restart.',
   availableNetworks: 'Available networks',
   scanning: 'Scanning …',
   noNetworks: 'No networks found.',

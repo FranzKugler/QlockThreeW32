@@ -584,11 +584,17 @@ String sanitizeHostname(const String& wanted)
 }
 
 /**
- * Renames the clock. mDNS can be restarted while the clock runs, so
- * `<name>.local` follows immediately; the DHCP name, the OTA name and the
- * setup access point are only read as the interface comes up and follow on the
- * next restart. The answer carries the name that was actually stored, which is
- * not necessarily the one that was asked for.
+ * Renames the clock and restarts it.
+ *
+ * A restart because the name is read in six places and only mDNS can be
+ * changed while the clock runs - the DHCP name, the OTA name and the setup
+ * access point are all read as the interface comes up. Renaming without one
+ * left the clock answering to two different names depending on who was asking.
+ *
+ * The settings go to NVS here and now rather than through the deferred write,
+ * which would still be pending when the restart happens and would lose the new
+ * name. The answer carries the name that was actually stored, which is not
+ * necessarily the one that was asked for.
  */
 void updateHostname()
 {
@@ -602,28 +608,26 @@ void updateHostname()
         return;
     }
 
+    JsonDocument answer;
+    answer["hostname"] = wanted;
+    answer["restarting"] = (wanted != String(settings.getHostname()));
+    String out;
+    serializeJson(answer, out);
+
     if (wanted != String(settings.getHostname()))
     {
         settings.setHostname(wanted.c_str());
-        debugA("Hostname changed to %s", settings.getHostname());
+        settings.storeSettings();
+        debugA("Renamed to %s, restarting", settings.getHostname());
 
-        MDNS.end();
-        if (MDNS.begin(settings.getHostname()))
-        {
-            MDNS.addService("http", "tcp", 80);
-        }
-        else
-        {
-            debugE("Could not restart the mDNS responder under the new name");
-        }
-
-        timeToSaveToFLASH = now() + WAIT_BEFORE_SETTINGS_WRITE;
+        // Answer first, then restart from loop() - the response would never
+        // reach the browser otherwise. Nothing else is pending: the write above
+        // has already happened.
+        server.send(200, "application/json", out);
+        otaRebootAt = millis() + OTA_REBOOT_DELAY;
+        return;
     }
 
-    JsonDocument answer;
-    answer["hostname"] = settings.getHostname();
-    String out;
-    serializeJson(answer, out);
     server.send(200, "application/json", out);
 }
 
@@ -1319,15 +1323,27 @@ void otaInstallTask(void *unused)
 {
     bool ok = true;
 
-    // Filesystem first: a firmware that expects a newer web UI is the less
-    // awkward mismatch of the two, should the second half fail.
-    if (ok && otaFilesystemOutdated() && otaFilesystemUrl.length())
-    {
-        ok = otaDownloadImage(otaFilesystemUrl, otaFilesystemSha, otaFilesystemSize, U_SPIFFS);
-    }
+    // Firmware first, and the order matters twice over.
+    //
+    // Update is a singleton, and a second session in the same boot does not
+    // activate: installing the filesystem first and the firmware after it got
+    // both images down intact, digests and all, and then failed in
+    // esp_ota_set_boot_partition with "Could Not Activate The Firmware".
+    // Alone, the same firmware install goes through. This way round the
+    // firmware gets the fresh session, and the filesystem - which needs no
+    // boot partition switched, only bytes written - gets the second.
+    //
+    // It is also the safer half to fail on. Update.begin(U_SPIFFS) erases the
+    // partition before the download starts, so an interrupted filesystem
+    // install leaves the clock with no web UI until someone reaches it over
+    // USB. Doing it last means a firmware that fails cannot cost the UI.
     if (ok && otaFirmwareOutdated() && otaFirmwareUrl.length())
     {
         ok = otaDownloadImage(otaFirmwareUrl, otaFirmwareSha, otaFirmwareSize, U_FLASH);
+    }
+    if (ok && otaFilesystemOutdated() && otaFilesystemUrl.length())
+    {
+        ok = otaDownloadImage(otaFilesystemUrl, otaFilesystemSha, otaFilesystemSize, U_SPIFFS);
     }
 
     if (ok)
