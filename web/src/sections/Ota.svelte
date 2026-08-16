@@ -6,8 +6,9 @@
    * filesystem holding this web UI - and works out from the file itself which
    * one it was handed.
    *
-   * The GitHub path (checking a manifest, optional automatic updates) will be
-   * added here as a second card.
+   * The second card covers the release channel: what the manifest of the
+   * selected channel offers, and installing it - either on request or, if
+   * switched on, by itself at night.
    *
    * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
    * @version  2.0
@@ -283,7 +284,9 @@
       </div>
       <p class="hint">{t.downloading(info.progress)}</p>
     {:else if info.updateAvailable}
-      <button type="button" onclick={install} disabled={busy}>{t.installNow}</button>
+      <button type="button" class="primary" onclick={install} disabled={busy}>
+        {t.installNow}
+      </button>
     {:else if info.lastCheck >= 0}
       <p class="hint success">{t.upToDate}</p>
     {/if}
@@ -307,14 +310,25 @@
   <h2>{t.uploadImage}</h2>
 
   <div class="field">
-    <label for="image">{t.file}</label>
-    <input
-      id="image"
-      type="file"
-      accept=".bin,application/octet-stream"
-      onchange={pick}
-      disabled={phase === 'uploading' || phase === 'rebooting'}
-    />
+    <span class="key">{t.file}</span>
+    <span class="filepick">
+      <span class="filename" class:empty={!file}>{file ? file.name : t.noFile}</span>
+      <!-- The input is hidden but still focusable; the label opens it. -->
+      <input
+        id="image"
+        type="file"
+        accept=".bin,application/octet-stream"
+        onchange={pick}
+        disabled={phase === 'uploading' || phase === 'rebooting'}
+      />
+      <label class="iconbutton" for="image" title={t.chooseFile} aria-label={t.chooseFile}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4L11 8h6a1.5 1.5 0 0 1 1.5 1.5V10" />
+          <path d="M3 10h18l-2.1 7.6a1.5 1.5 0 0 1-1.45 1.4H4.5A1.5 1.5 0 0 1 3 17.5z" />
+        </svg>
+      </label>
+    </span>
   </div>
 
   {#if file}
@@ -353,6 +367,7 @@
 
   <button
     type="button"
+    class="primary"
     onclick={upload}
     disabled={!file || phase === 'uploading' || phase === 'rebooting'}
   >

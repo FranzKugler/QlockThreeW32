@@ -120,6 +120,8 @@ export default {
   unknown: 'onbekend',
   uploadImage: 'Image uploaden',
   file: 'Bestand',
+  noFile: 'geen bestand gekozen',
+  chooseFile: 'Bestand kiezen',
   detectedAs: 'Herkend als',
   firmwareImage: 'Firmware-image',
   filesystemImage: 'Bestandssysteem-image (webinterface)',

@@ -646,8 +646,10 @@ input[type="range"]:focus-visible {
 }
 
 button[type="submit"],
+button.primary,
 button.secondary {
   font: inherit;
+  line-height: 1.5;
   padding: 0.5rem 1.1rem;
   border-radius: 7px;
   cursor: pointer;
@@ -662,8 +664,80 @@ button.secondary {
 }
 
 button[type="submit"]:disabled,
+button.primary:disabled,
 button.secondary:disabled {
   opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- file picker ---------- */
+
+/* The native file input is replaced by a square icon button, so it matches the
+   other controls instead of rendering as whatever the browser fancies. The
+   input stays in the page - hidden but focusable - so it is still reachable
+   with the keyboard. */
+.filepick {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.filename {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filename.empty {
+  color: var(--muted);
+}
+
+.filepick input[type="file"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  border: 0;
+}
+
+/* Same padding and line height as the buttons above, so both come out the same
+   height; aspect-ratio then squares it off at whatever that height becomes. */
+.iconbutton {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  line-height: 1.5;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.iconbutton svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.iconbutton:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filepick input[type="file"]:focus-visible + .iconbutton {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.filepick input[type="file"]:disabled + .iconbutton {
+  opacity: 0.45;
   cursor: default;
 }
 

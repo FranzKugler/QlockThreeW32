@@ -120,6 +120,8 @@ export default {
   unknown: 'sconosciuto',
   uploadImage: 'Carica immagine',
   file: 'File',
+  noFile: 'nessun file selezionato',
+  chooseFile: 'Scegli un file',
   detectedAs: 'Riconosciuto come',
   firmwareImage: 'Immagine del firmware',
   filesystemImage: 'Immagine del file system (interfaccia web)',
