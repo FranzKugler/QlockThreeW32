@@ -30,6 +30,10 @@
 // over the air updates
 #include <ArduinoOTA.h>           // flashing from PlatformIO over the network
 #include <Update.h>               // writing an image uploaded through the web UI
+#include <HTTPClient.h>           // fetching the manifest and the images
+#include <WiFiClientSecure.h>
+#include <mbedtls/sha256.h>       // checking a download against the manifest
+#include <esp_ota_ops.h>          // which slot we are running from
 
 // debug library
 #include <RemoteDebug.h>          //https://github.com/JoaoLopesF/RemoteDebug
@@ -124,6 +128,45 @@ String otaFsVersion;
 unsigned long otaRebootAt = 0;
 // U_FLASH or U_SPIFFS, decided from the first byte of the uploaded image.
 int otaCommand = -1;
+
+// --- update from the release channel ---------------------------------------
+// The clocks never talk to the GitHub API, they poll one of two fixed URLs.
+// Change these when forking; see .github/workflows/release.yml for how they
+// are produced.
+#define OTA_REPO "FranzKugler/QlockThreeW32"
+#define OTA_MANIFEST_STABLE "https://github.com/" OTA_REPO "/releases/latest/download/manifest.json"
+#define OTA_MANIFEST_EDGE   "https://github.com/" OTA_REPO "/releases/download/edge/manifest.json"
+
+#define OTA_CHANNEL_STABLE 0
+#define OTA_CHANNEL_EDGE   1
+
+// Auto updates only run in this window, so the clock never goes dark in the
+// evening for the minute an update takes.
+#define OTA_AUTO_HOUR_FROM 2
+#define OTA_AUTO_HOUR_TO   5
+
+enum OtaState {
+    OTA_STATE_IDLE,
+    OTA_STATE_CHECKING,
+    OTA_STATE_AVAILABLE,
+    OTA_STATE_DOWNLOADING,
+    OTA_STATE_FAILED,
+    OTA_STATE_INSTALLED       // waiting for the restart
+};
+
+// Written by the download task on the other core, read by the web handlers.
+volatile OtaState otaState = OTA_STATE_IDLE;
+volatile int otaProgress = 0;
+
+// What the manifest of the selected channel offers.
+String otaAvailableVersion;
+String otaAvailableNotes;
+String otaFirmwareUrl, otaFirmwareSha;
+String otaFilesystemUrl, otaFilesystemSha;
+size_t otaFirmwareSize = 0;
+size_t otaFilesystemSize = 0;
+time_t otaLastCheck = 0;
+time_t otaNextCheck = 0;
 
 // Set web server port number to 80
 WebServer server(80);
@@ -624,6 +667,15 @@ String readFsVersion()
     return String(doc["version"] | "");
 }
 
+// Defined further down, with the manifest client.
+bool otaUpdateAvailable();
+bool otaFetchManifest();
+bool otaStartInstall();
+
+static const char *OTA_STATE_NAMES[] = {
+    "idle", "checking", "available", "downloading", "failed", "installed"
+};
+
 void sendOtaStatus()
 {
     JsonDocument doc;
@@ -634,9 +686,77 @@ void sendOtaStatus()
     doc["freeSpace"] = ESP.getFreeSketchSpace();
     doc["error"] = otaError;
 
+    // Which slot we booted from. Without this an update to the same version is
+    // indistinguishable from nothing having happened at all.
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    doc["partition"] = running ? running->label : "?";
+
+    doc["channel"] = settings.getOtaChannel();
+    doc["autoUpdate"] = (bool)settings.getOtaAutoUpdate();
+    doc["checkInterval"] = settings.getOtaCheckInterval();
+
+    doc["state"] = OTA_STATE_NAMES[otaState];
+    doc["progress"] = otaProgress;
+    doc["availableVersion"] = otaAvailableVersion;
+    doc["availableNotes"] = otaAvailableNotes;
+    doc["updateAvailable"] = otaUpdateAvailable();
+    // Seconds since the last successful check, -1 if there has not been one.
+    doc["lastCheck"] = otaLastCheck ? (long)(now() - otaLastCheck) : -1;
+
     String out;
     serializeJson(doc, out);
     server.send(200, "application/json", out);
+}
+
+/** Asks the release channel what it has, then answers with the full status. */
+void handleOtaCheck()
+{
+    otaFetchManifest();
+    sendOtaStatus();
+}
+
+/** Accepts the request and lets the task do the work; answers immediately. */
+void handleOtaInstall()
+{
+    if (!otaUpdateAvailable())
+    {
+        server.send(409, "application/json", "{\"error\":\"Kein Update verfuegbar\"}");
+        return;
+    }
+    if (!otaStartInstall())
+    {
+        server.send(409, "application/json", "{\"error\":\"Update laeuft bereits\"}");
+        return;
+    }
+    sendOtaStatus();
+}
+
+void handleOtaConfig()
+{
+    JsonDocument doc;
+    deserializeJson(doc, server.arg("plain"));
+
+    if (!doc["channel"].isNull())
+    {
+        byte channel = doc["channel"];
+        if (channel != settings.getOtaChannel())
+        {
+            settings.setOtaChannel(channel);
+            // What the other channel offers says nothing about this one.
+            otaAvailableVersion = "";
+            otaAvailableNotes = "";
+            otaLastCheck = 0;
+            otaState = OTA_STATE_IDLE;
+        }
+    }
+    if (!doc["autoUpdate"].isNull()) settings.setOtaAutoUpdate(doc["autoUpdate"]);
+    if (!doc["checkInterval"].isNull()) settings.setOtaCheckInterval(doc["checkInterval"]);
+
+    // Next check is due relative to the new interval.
+    otaNextCheck = 0;
+    timeToSaveToFLASH = now() + WAIT_BEFORE_SETTINGS_WRITE;
+
+    sendOtaStatus();
 }
 
 // Streaming half of POST /ota/upload: the web server calls this for every chunk
@@ -744,6 +864,303 @@ void handleOtaUploadDone()
     server.sendHeader("Connection", "close");
     server.send(200, "application/json", "{\"msg\":\"\",\"reboot\":true}");
     otaRebootAt = millis() + OTA_REBOOT_DELAY;
+}
+
+// --- update from the release channel ---------------------------------------
+
+/**
+ * TLS without certificate verification, on purpose.
+ *
+ * The SHA-256 in the manifest travels over the same connection as the image,
+ * so it catches a truncated or corrupted download - which is the realistic
+ * failure - but not somebody who can rewrite both. Pinning a root certificate
+ * would look better than it is: /ota/upload next door accepts any image from
+ * anyone on the network without asking. Worth revisiting the day that endpoint
+ * gets authentication, and not before.
+ */
+void otaPrepareClient(WiFiClientSecure &client, HTTPClient &http)
+{
+    client.setInsecure();
+    client.setTimeout(20);
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(20000);
+    http.setUserAgent("QlockThreeW32/" FIRMWARE_VERSION);
+}
+
+const char *otaManifestUrl()
+{
+    return settings.getOtaChannel() == OTA_CHANNEL_EDGE ? OTA_MANIFEST_EDGE : OTA_MANIFEST_STABLE;
+}
+
+/** Compares major.minor.patch, ignoring anything after a '-'. Only meaningful on stable. */
+int otaCompareVersions(const String &left, const String &right)
+{
+    int a[3] = {0, 0, 0};
+    int b[3] = {0, 0, 0};
+    sscanf(left.c_str(), "%d.%d.%d", &a[0], &a[1], &a[2]);
+    sscanf(right.c_str(), "%d.%d.%d", &b[0], &b[1], &b[2]);
+    for (int i = 0; i < 3; i++)
+    {
+        if (a[i] != b[i]) return a[i] > b[i] ? 1 : -1;
+    }
+    return 0;
+}
+
+/**
+ * Whether an offered version should replace an installed one.
+ *
+ * On stable that means strictly newer. On edge it means merely different:
+ * `git describe` output like 2.0.0-4-gabc123 has no order, so "newer" is not
+ * defined - and after a reverted commit the clock would otherwise never offer
+ * anything again.
+ */
+bool otaShouldReplace(const String &offered, const String &installed)
+{
+    if (offered.length() == 0) return false;
+    if (settings.getOtaChannel() == OTA_CHANNEL_EDGE) return offered != installed;
+    return otaCompareVersions(offered, installed) > 0;
+}
+
+bool otaFirmwareOutdated() { return otaShouldReplace(otaAvailableVersion, String(FIRMWARE_VERSION)); }
+bool otaFilesystemOutdated() { return otaShouldReplace(otaAvailableVersion, otaFsVersion); }
+bool otaUpdateAvailable() { return otaFirmwareOutdated() || otaFilesystemOutdated(); }
+
+/** Fetches and parses the manifest of the selected channel. Blocks for a second or two. */
+bool otaFetchManifest()
+{
+    if (!wifiConnected) return false;
+
+    otaState = OTA_STATE_CHECKING;
+    otaError = "";
+
+    WiFiClientSecure client;
+    HTTPClient http;
+    otaPrepareClient(client, http);
+
+    const char *url = otaManifestUrl();
+    debugI("Checking for updates: %s", url);
+
+    if (!http.begin(client, url))
+    {
+        otaError = "Update-Server nicht erreichbar";
+        otaState = OTA_STATE_FAILED;
+        return false;
+    }
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK)
+    {
+        // 404 on stable simply means no tagged release exists yet.
+        otaError = String("Manifest nicht abrufbar (HTTP ") + code + ")";
+        debugW("Manifest fetch failed: HTTP %d", code);
+        http.end();
+        otaState = OTA_STATE_FAILED;
+        return false;
+    }
+
+    JsonDocument doc;
+    DeserializationError parseError = deserializeJson(doc, http.getStream());
+    http.end();
+
+    if (parseError)
+    {
+        otaError = "Manifest unlesbar";
+        debugE("Manifest parse failed: %s", parseError.c_str());
+        otaState = OTA_STATE_FAILED;
+        return false;
+    }
+
+    otaAvailableVersion = String(doc["version"] | "");
+    otaAvailableNotes = String(doc["notes"] | "");
+    otaFirmwareUrl = String(doc["firmware"]["url"] | "");
+    otaFirmwareSha = String(doc["firmware"]["sha256"] | "");
+    otaFirmwareSize = doc["firmware"]["size"] | 0;
+    otaFilesystemUrl = String(doc["filesystem"]["url"] | "");
+    otaFilesystemSha = String(doc["filesystem"]["sha256"] | "");
+    otaFilesystemSize = doc["filesystem"]["size"] | 0;
+
+    otaLastCheck = now();
+    otaState = otaUpdateAvailable() ? OTA_STATE_AVAILABLE : OTA_STATE_IDLE;
+    debugA("Manifest says %s, %s", otaAvailableVersion.c_str(),
+           otaUpdateAvailable() ? "update available" : "up to date");
+    return true;
+}
+
+/** Lower-case hex of a 32 byte digest. */
+String otaHex(const unsigned char *digest)
+{
+    static const char nibble[] = "0123456789abcdef";
+    String out;
+    out.reserve(64);
+    for (int i = 0; i < 32; i++)
+    {
+        out += nibble[digest[i] >> 4];
+        out += nibble[digest[i] & 0x0f];
+    }
+    return out;
+}
+
+/**
+ * Streams one image into its partition, hashing as it goes. The boot partition
+ * is only switched once the digest matches, so a corrupted download cannot
+ * take the clock down.
+ */
+bool otaDownloadImage(const String &url, const String &expectedSha, size_t expectedSize, int command)
+{
+    WiFiClientSecure client;
+    HTTPClient http;
+    otaPrepareClient(client, http);
+
+    debugA("Downloading %s (%u bytes)", url.c_str(), (unsigned)expectedSize);
+
+    if (!http.begin(client, url))
+    {
+        otaError = "Download nicht moeglich";
+        return false;
+    }
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK)
+    {
+        otaError = String("Download fehlgeschlagen (HTTP ") + code + ")";
+        http.end();
+        return false;
+    }
+
+    if (command == U_SPIFFS)
+    {
+        // Cached writes would otherwise be flushed over the new image.
+        LittleFS.end();
+    }
+
+    if (!Update.begin(expectedSize, command))
+    {
+        otaError = String("Update abgelehnt: ") + Update.errorString();
+        http.end();
+        return false;
+    }
+
+    mbedtls_sha256_context sha;
+    mbedtls_sha256_init(&sha);
+    mbedtls_sha256_starts(&sha, 0);
+
+    WiFiClient *stream = http.getStreamPtr();
+    uint8_t buffer[1024];
+    size_t written = 0;
+    unsigned long lastData = millis();
+
+    while (written < expectedSize)
+    {
+        size_t available = stream->available();
+        if (available)
+        {
+            int read = stream->readBytes(buffer, min(available, sizeof(buffer)));
+            if (read <= 0) break;
+
+            mbedtls_sha256_update(&sha, buffer, read);
+            if (Update.write(buffer, read) != (size_t)read)
+            {
+                otaError = String("Schreibfehler: ") + Update.errorString();
+                break;
+            }
+
+            written += read;
+            otaProgress = (written * 100) / expectedSize;
+            lastData = millis();
+        }
+        else
+        {
+            if (!http.connected() || millis() - lastData > 20000)
+            {
+                otaError = "Verbindung waehrend des Downloads abgerissen";
+                break;
+            }
+            delay(5);
+        }
+    }
+
+    unsigned char digest[32];
+    mbedtls_sha256_finish(&sha, digest);
+    mbedtls_sha256_free(&sha);
+    http.end();
+
+    if (otaError.length())
+    {
+        Update.abort();
+        return false;
+    }
+
+    if (written != expectedSize)
+    {
+        otaError = "Download unvollstaendig";
+        Update.abort();
+        return false;
+    }
+
+    if (otaHex(digest) != expectedSha)
+    {
+        otaError = "Pruefsumme stimmt nicht";
+        debugE("SHA-256 mismatch: got %s, expected %s", otaHex(digest).c_str(), expectedSha.c_str());
+        Update.abort();
+        return false;
+    }
+
+    if (!Update.end(true))
+    {
+        otaError = String("Image unvollstaendig: ") + Update.errorString();
+        return false;
+    }
+
+    debugA("Installed %u bytes, digest verified", (unsigned)written);
+    return true;
+}
+
+/**
+ * Runs the whole install off the loop, so the web server keeps answering and
+ * the UI can show progress during the minute or so this takes.
+ */
+void otaInstallTask(void *unused)
+{
+    bool ok = true;
+
+    // Filesystem first: a firmware that expects a newer web UI is the less
+    // awkward mismatch of the two, should the second half fail.
+    if (ok && otaFilesystemOutdated() && otaFilesystemUrl.length())
+    {
+        ok = otaDownloadImage(otaFilesystemUrl, otaFilesystemSha, otaFilesystemSize, U_SPIFFS);
+    }
+    if (ok && otaFirmwareOutdated() && otaFirmwareUrl.length())
+    {
+        ok = otaDownloadImage(otaFirmwareUrl, otaFirmwareSha, otaFirmwareSize, U_FLASH);
+    }
+
+    if (ok)
+    {
+        otaState = OTA_STATE_INSTALLED;
+        otaProgress = 100;
+        otaRebootAt = millis() + OTA_REBOOT_DELAY;
+    }
+    else
+    {
+        otaState = OTA_STATE_FAILED;
+        debugE("Update failed: %s", otaError.c_str());
+    }
+
+    vTaskDelete(NULL);
+}
+
+/** Starts the install unless one is already running. */
+bool otaStartInstall()
+{
+    if (otaState == OTA_STATE_DOWNLOADING) return false;
+    if (!otaUpdateAvailable()) return false;
+
+    otaError = "";
+    otaProgress = 0;
+    otaState = OTA_STATE_DOWNLOADING;
+
+    // Pinned to core 0; loop() and the web server have core 1 to themselves.
+    return xTaskCreatePinnedToCore(otaInstallTask, "otaInstall", 10240, NULL, 1, NULL, 0) == pdPASS;
 }
 
 void setup()
@@ -880,6 +1297,9 @@ void setup()
     // of both handlers is all it takes.
     server.on("/ota/status", HTTP_GET, sendOtaStatus);
     server.on("/ota/upload", HTTP_POST, handleOtaUploadDone, handleOtaUploadData);
+    server.on("/ota/check", HTTP_GET, handleOtaCheck);
+    server.on("/ota/install", HTTP_POST, handleOtaInstall);
+    server.on("/ota/config", HTTP_POST, handleOtaConfig);
     server.begin();
 
 ArduinoOTA.setPort(8266);
@@ -989,6 +1409,38 @@ void loop()
 
         // update the display too
         needsUpdateFromRtc = true;
+    }
+
+    // Periodic check of the release channel, and the automatic install if it
+    // is switched on. Needs the time, both for the interval and for the night
+    // window - before the first NTP answer now() is meaningless.
+    if (wifiConnected && otaState != OTA_STATE_DOWNLOADING && otaRebootAt == 0 &&
+        settings.getOtaCheckInterval() > 0 && timeStatus() != timeNotSet)
+    {
+        if (otaNextCheck == 0)
+        {
+            // Not immediately after boot: the clock has better things to do.
+            otaNextCheck = now() + 120;
+        }
+        else if (now() >= otaNextCheck)
+        {
+            otaNextCheck = now() + (time_t)settings.getOtaCheckInterval() * 3600;
+            otaFetchManifest();
+
+            if (settings.getOtaAutoUpdate() && otaUpdateAvailable())
+            {
+                int localHour = hour(ActiveTimezone.toLocal(now()));
+                if (localHour >= OTA_AUTO_HOUR_FROM && localHour < OTA_AUTO_HOUR_TO)
+                {
+                    debugA("Installing %s automatically", otaAvailableVersion.c_str());
+                    otaStartInstall();
+                }
+                else
+                {
+                    debugI("Update %s waiting for the night window", otaAvailableVersion.c_str());
+                }
+            }
+        }
     }
 
     // this is true when SNTP has just set the system clock

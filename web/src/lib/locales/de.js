@@ -145,6 +145,32 @@ export default {
     'abgebrochener Upload macht also nichts kaputt, sie startet dann einfach ' +
     'mit der bisherigen Version.',
 
+  // --- update channel ---
+  updateSource: 'Aktualisierung',
+  channel: 'Kanal',
+  channelStable: 'Stabil (getestete Versionen)',
+  channelEdge: 'Entwicklung (jeder Stand)',
+  autoUpdate: 'Automatisch installieren',
+  autoUpdateHint:
+    'Installiert nachts zwischen 2 und 5 Uhr, damit die Uhr abends nicht ' +
+    'dunkel wird. Standardmaessig aus: ein fehlerhaftes Image laesst sich nur ' +
+    'per USB-Kabel zurueckholen.',
+  checkInterval: 'Pruefen alle',
+  checkNever: 'nie',
+  hours: (count) => `${count} h`,
+  checkNow: 'Jetzt pruefen',
+  checking: 'Wird geprueft ...',
+  available: 'Verfuegbar',
+  upToDate: 'Die Uhr ist auf dem neuesten Stand.',
+  neverChecked: 'noch nicht geprueft',
+  lastChecked: (text) => `Zuletzt geprueft: ${text}`,
+  justNow: 'gerade eben',
+  minutesAgo: (count) => `vor ${count} min`,
+  hoursAgo: (count) => `vor ${count} h`,
+  installNow: 'Jetzt aktualisieren',
+  downloading: (percent) => `Wird geladen ... ${percent} %`,
+  runningFrom: 'Aktiver Slot',
+
   // --- api errors ---
   connectionLost: 'Verbindung zur Uhr unterbrochen',
   uploadAborted: 'Upload abgebrochen'

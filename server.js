@@ -173,18 +173,100 @@ const UPLOAD_RATE = 400 * 1024; // bytes/s, roughly what the ESP32 manages
 const REBOOT_MS = 6000;
 
 const ota = {
-  firmwareVersion: '2.1.0',
-  fsVersion: '2.1.0',
-  sketchSize: 1348192,
+  firmwareVersion: '2.0.0',
+  fsVersion: '2.0.0',
+  sketchSize: 1287856,
   freeSpace: 6553600,
-  error: ''
+  error: '',
+  partition: 'app0',
+  channel: 0, // 0 = stable, 1 = edge
+  autoUpdate: false,
+  checkInterval: 24,
+  state: 'idle',
+  progress: 0,
+  availableVersion: '',
+  availableNotes: '',
+  updateAvailable: false,
+  lastCheck: -1
 };
+
+// What the two channels would offer. Stable is one patch level ahead of what
+// is installed; edge is a `git describe` string, which is deliberately not
+// comparable - the firmware only asks whether it differs.
+const CHANNELS = [
+  { version: '2.0.1', notes: 'Fixes the corner LEDs running backwards in Swiss German.' },
+  { version: '2.0.0-7-g4f2a1c9', notes: 'Rolling build of the latest commit on main.' }
+];
 
 let rebootUntil = 0;
 
+/** Recomputes the derived fields the firmware also derives. */
+function refreshOta() {
+  ota.updateAvailable =
+    ota.availableVersion !== '' &&
+    (ota.availableVersion !== ota.firmwareVersion || ota.availableVersion !== ota.fsVersion);
+  return ota;
+}
+
 app.get('/ota/status', (req, res) => {
   if (Date.now() < rebootUntil) return res.status(503).json({ error: 'rebooting' });
+  res.json(refreshOta());
+});
+
+app.get('/ota/check', (req, res) => {
+  const offer = CHANNELS[ota.channel] ?? CHANNELS[0];
+  ota.availableVersion = offer.version;
+  ota.availableNotes = offer.notes;
+  ota.lastCheck = 0;
+  refreshOta();
+  ota.state = ota.updateAvailable ? 'available' : 'idle';
+  console.log('/ota/check ->', ota.availableVersion, ota.state);
   res.json(ota);
+});
+
+app.post('/ota/install', (req, res) => {
+  if (!refreshOta().updateAvailable) {
+    return res.status(409).json({ error: 'Kein Update verfuegbar' });
+  }
+  if (ota.state === 'downloading') {
+    return res.status(409).json({ error: 'Update laeuft bereits' });
+  }
+
+  ota.state = 'downloading';
+  ota.progress = 0;
+  ota.error = '';
+  res.json(ota);
+
+  // Walk the progress up the way a real download does, then reboot.
+  const tick = setInterval(() => {
+    ota.progress += 4;
+    if (ota.progress >= 100) {
+      clearInterval(tick);
+      ota.progress = 100;
+      ota.firmwareVersion = ota.availableVersion;
+      ota.fsVersion = ota.availableVersion;
+      ota.partition = ota.partition === 'app0' ? 'app1' : 'app0';
+      ota.state = 'installed';
+      refreshOta();
+      rebootUntil = Date.now() + REBOOT_MS;
+      console.log('/ota/install finished ->', ota.firmwareVersion, 'from', ota.partition);
+    }
+  }, 400);
+});
+
+app.post('/ota/config', (req, res) => {
+  console.log('/ota/config', req.body);
+  if (req.body.channel !== undefined && req.body.channel !== ota.channel) {
+    ota.channel = req.body.channel;
+    // A different channel says nothing about what the old one offered.
+    ota.availableVersion = '';
+    ota.availableNotes = '';
+    ota.lastCheck = -1;
+    ota.state = 'idle';
+  }
+  if (req.body.autoUpdate !== undefined) ota.autoUpdate = Boolean(req.body.autoUpdate);
+  if (req.body.checkInterval !== undefined) ota.checkInterval = req.body.checkInterval;
+  res.json(refreshOta());
 });
 
 /** Next patch level, so an update visibly changes something. */
@@ -222,8 +304,13 @@ app.post('/ota/upload', (req, res) => {
       return res.status(500).json({ error: 'Image unvollstaendig: Bad Magic Byte' });
     }
 
-    if (kind === 'firmware') ota.firmwareVersion = bumped(ota.firmwareVersion);
-    else ota.fsVersion = bumped(ota.fsVersion);
+    if (kind === 'firmware') {
+      ota.firmwareVersion = bumped(ota.firmwareVersion);
+      // A firmware upload boots from the other slot, same as on the device.
+      ota.partition = ota.partition === 'app0' ? 'app1' : 'app0';
+    } else {
+      ota.fsVersion = bumped(ota.fsVersion);
+    }
 
     rebootUntil = Date.now() + REBOOT_MS;
     res.json({ msg: '', reboot: true });

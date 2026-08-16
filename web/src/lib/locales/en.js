@@ -142,6 +142,31 @@ export default {
     'verifies the checksum before switching to the new image, so an aborted ' +
     'upload does no harm — it simply keeps running the previous version.',
 
+  // --- update channel ---
+  updateSource: 'Updates',
+  channel: 'Channel',
+  channelStable: 'Stable (tested releases)',
+  channelEdge: 'Development (every build)',
+  autoUpdate: 'Install automatically',
+  autoUpdateHint:
+    'Installs at night between 2 and 5, so the clock never goes dark in the ' +
+    'evening. Off by default: a faulty image can only be recovered over USB.',
+  checkInterval: 'Check every',
+  checkNever: 'never',
+  hours: (count) => `${count} h`,
+  checkNow: 'Check now',
+  checking: 'Checking ...',
+  available: 'Available',
+  upToDate: 'The clock is up to date.',
+  neverChecked: 'not checked yet',
+  lastChecked: (text) => `Last checked: ${text}`,
+  justNow: 'just now',
+  minutesAgo: (count) => `${count} min ago`,
+  hoursAgo: (count) => `${count} h ago`,
+  installNow: 'Update now',
+  downloading: (percent) => `Downloading ... ${percent} %`,
+  runningFrom: 'Active slot',
+
   // --- api errors ---
   connectionLost: 'Connection to the clock was lost',
   uploadAborted: 'Upload aborted'

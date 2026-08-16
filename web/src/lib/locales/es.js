@@ -143,6 +143,32 @@ export default {
     'imagen, así que una subida interrumpida no causa daños: simplemente ' +
     'arranca con la versión anterior.',
 
+  // --- update channel ---
+  updateSource: 'Actualizaciones',
+  channel: 'Canal',
+  channelStable: 'Estable (versiones probadas)',
+  channelEdge: 'Desarrollo (cada compilacion)',
+  autoUpdate: 'Instalar automaticamente',
+  autoUpdateHint:
+    'Instala de noche entre las 2 y las 5, para que el reloj no se apague por ' +
+    'la tarde. Desactivado por defecto: una imagen defectuosa solo se ' +
+    'recupera por USB.',
+  checkInterval: 'Comprobar cada',
+  checkNever: 'nunca',
+  hours: (count) => `${count} h`,
+  checkNow: 'Comprobar ahora',
+  checking: 'Comprobando ...',
+  available: 'Disponible',
+  upToDate: 'El reloj esta actualizado.',
+  neverChecked: 'aun sin comprobar',
+  lastChecked: (text) => `Ultima comprobacion: ${text}`,
+  justNow: 'ahora mismo',
+  minutesAgo: (count) => `hace ${count} min`,
+  hoursAgo: (count) => `hace ${count} h`,
+  installNow: 'Actualizar ahora',
+  downloading: (percent) => `Descargando ... ${percent} %`,
+  runningFrom: 'Ranura activa',
+
   // --- api errors ---
   connectionLost: 'Se ha perdido la conexión con el reloj',
   uploadAborted: 'Subida interrumpida'

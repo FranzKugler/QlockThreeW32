@@ -143,6 +143,32 @@ export default {
     'image ; un envoi interrompu est donc sans danger, elle redémarre ' +
     'simplement sur la version précédente.',
 
+  // --- update channel ---
+  updateSource: 'Mises a jour',
+  channel: 'Canal',
+  channelStable: 'Stable (versions testees)',
+  channelEdge: 'Developpement (chaque build)',
+  autoUpdate: 'Installer automatiquement',
+  autoUpdateHint:
+    "Installe la nuit entre 2 h et 5 h, pour que l'horloge ne s'eteigne pas " +
+    'le soir. Desactive par defaut : une image defectueuse ne se recupere ' +
+    "qu'avec un cable USB.",
+  checkInterval: 'Verifier toutes les',
+  checkNever: 'jamais',
+  hours: (count) => `${count} h`,
+  checkNow: 'Verifier maintenant',
+  checking: 'Verification ...',
+  available: 'Disponible',
+  upToDate: "L'horloge est a jour.",
+  neverChecked: 'pas encore verifie',
+  lastChecked: (text) => `Derniere verification : ${text}`,
+  justNow: "a l'instant",
+  minutesAgo: (count) => `il y a ${count} min`,
+  hoursAgo: (count) => `il y a ${count} h`,
+  installNow: 'Mettre a jour',
+  downloading: (percent) => `Telechargement ... ${percent} %`,
+  runningFrom: 'Emplacement actif',
+
   // --- api errors ---
   connectionLost: "Connexion à l'horloge interrompue",
   uploadAborted: 'Envoi interrompu'

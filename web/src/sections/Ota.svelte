@@ -109,6 +109,82 @@
     return false;
   }
 
+  // ---- update from the release channel ----
+
+  let checking = $state(false);
+  let channelError = $state(null);
+
+  const CHECK_INTERVALS = [0, 6, 12, 24, 72, 168];
+
+  /** Poll while the clock downloads, then wait out the reboot. */
+  async function follow() {
+    for (let i = 0; i < 200 && !destroyed; i++) {
+      await sleep(1500);
+      if (!(await loadInfo({ quiet: true }))) continue;
+      if (info.state === 'downloading') continue;
+      if (info.state === 'installed') {
+        phase = 'rebooting';
+        if (await waitForClock()) {
+          phase = 'done';
+          await sleep(1500);
+          location.reload();
+        } else {
+          phase = 'failed';
+          error = t.noResponseAfterReboot;
+        }
+        return;
+      }
+      if (info.state === 'failed') {
+        channelError = info.error;
+        return;
+      }
+      return;
+    }
+  }
+
+  async function check() {
+    checking = true;
+    channelError = null;
+    try {
+      info = await api.checkForUpdate();
+      if (info.error) channelError = info.error;
+    } catch (err) {
+      channelError = err.message;
+    }
+    checking = false;
+  }
+
+  async function install() {
+    channelError = null;
+    try {
+      info = await api.installUpdate();
+      follow();
+    } catch (err) {
+      channelError = err.message;
+    }
+  }
+
+  async function pushConfig(patch) {
+    channelError = null;
+    try {
+      info = await api.setOtaConfig(patch);
+    } catch (err) {
+      channelError = err.message;
+    }
+  }
+
+  /** "just now" / "12 min ago" / "3 h ago" from a count of seconds. */
+  function since(seconds) {
+    if (seconds === undefined || seconds < 0) return t.neverChecked;
+    if (seconds < 90) return t.justNow;
+    if (seconds < 5400) return t.minutesAgo(Math.round(seconds / 60));
+    return t.hoursAgo(Math.round(seconds / 3600));
+  }
+
+  const busy = $derived(
+    checking || info?.state === 'downloading' || phase === 'uploading' || phase === 'rebooting'
+  );
+
   const kindLabel = $derived({
     firmware: t.firmwareImage,
     filesystem: t.filesystemImage
@@ -137,6 +213,90 @@
     <div class="field"><span class="key">{t.used}</span><span>{size(info.sketchSize)}</span></div>
     <div class="field">
       <span class="key">{t.roomForUpdate}</span><span>{size(info.freeSpace)}</span>
+    </div>
+    {#if info.partition}
+      <div class="field"><span class="key">{t.runningFrom}</span><span>{info.partition}</span></div>
+    {/if}
+  {:else}
+    <p class="hint">{t.loadingShort}</p>
+  {/if}
+</section>
+
+<section class="card">
+  <h2>{t.updateSource}</h2>
+
+  {#if info}
+    <div class="field">
+      <label for="channel">{t.channel}</label>
+      <select
+        id="channel"
+        value={info.channel}
+        disabled={busy}
+        onchange={(e) => pushConfig({ channel: Number(e.currentTarget.value) })}
+      >
+        <option value={0}>{t.channelStable}</option>
+        <option value={1}>{t.channelEdge}</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="interval">{t.checkInterval}</label>
+      <select
+        id="interval"
+        value={info.checkInterval}
+        disabled={busy}
+        onchange={(e) => pushConfig({ checkInterval: Number(e.currentTarget.value) })}
+      >
+        {#each CHECK_INTERVALS as value (value)}
+          <option {value}>{value === 0 ? t.checkNever : t.hours(value)}</option>
+        {/each}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="auto">{t.autoUpdate}</label>
+      <span class="switch">
+        <input
+          id="auto"
+          type="checkbox"
+          checked={info.autoUpdate}
+          disabled={busy}
+          onchange={(e) => pushConfig({ autoUpdate: e.currentTarget.checked })}
+        />
+        <span></span>
+      </span>
+    </div>
+    <p class="hint">{t.autoUpdateHint}</p>
+
+    <div class="field">
+      <span class="key">{t.available}</span>
+      <span>{info.availableVersion || '—'}</span>
+    </div>
+
+    {#if info.availableNotes}
+      <p class="hint">{info.availableNotes}</p>
+    {/if}
+
+    {#if info.state === 'downloading'}
+      <div class="progress" role="progressbar" aria-valuenow={info.progress}>
+        <div class="bar" style="width: {info.progress}%"></div>
+      </div>
+      <p class="hint">{t.downloading(info.progress)}</p>
+    {:else if info.updateAvailable}
+      <button type="button" onclick={install} disabled={busy}>{t.installNow}</button>
+    {:else if info.lastCheck >= 0}
+      <p class="hint success">{t.upToDate}</p>
+    {/if}
+
+    {#if channelError}
+      <p class="banner">{channelError}</p>
+    {/if}
+
+    <div class="field">
+      <span class="key">{since(info.lastCheck)}</span>
+      <button type="button" class="secondary" onclick={check} disabled={busy}>
+        {checking ? t.checking : t.checkNow}
+      </button>
     </div>
   {:else}
     <p class="hint">{t.loadingShort}</p>

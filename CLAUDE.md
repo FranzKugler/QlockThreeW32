@@ -70,6 +70,9 @@ Both [src/main .cpp](src/main%20.cpp) and [server.js](server.js) implement the s
 - `POST /wifi` — `{ssid, password}`; answers immediately, the switch runs in `loop()`.
 - `GET /ota/status` — `{firmwareVersion, fsVersion, sketchSize, freeSpace, error}`.
 - `POST /ota/upload` — `multipart/form-data` with one file part; answers, then reboots.
+- `GET /ota/check` — polls the channel's manifest, answers with the full status.
+- `POST /ota/install` — starts the download in a task; answers immediately.
+- `POST /ota/config` — `{channel, autoUpdate, checkInterval}`.
 
 Changing the API means touching three places: the firmware handler, `server.js`, and `web/src/lib/api.js`.
 
@@ -106,7 +109,14 @@ Three ways in, in order of how they arrived:
 
 - **`espota`** — ArduinoOTA is started in `setup()` and listens on **port 8266**, not the ESP32 default 3232, so `pio run -t upload --upload-port <ip>` needs `--upload-port` *and* a matching port setting. Needs PlatformIO on the same LAN. Its password comes from `OTA_PASSWORD` in `src/Secrets.h` (see "Credentials" below).
 - **Browser upload** (the "Update" tab, [web/src/sections/Ota.svelte](web/src/sections/Ota.svelte)) — `POST /ota/upload`. The synchronous `WebServer` streams the body through the second handler registered on the route, so the image goes to flash as it arrives rather than through RAM. **The target partition is not chosen by the user**: ESP32 app images start with the magic byte `0xE9`, anything else is treated as the filesystem image (`U_FLASH` vs `U_SPIFFS`). The mock and the UI repeat that same test, the UI only to label the file before uploading.
-- **GitHub manifest** — the publishing half exists (see "Release workflow"), the client in the firmware does not. The clock is to poll the `manifest.json` of its channel and offer or auto-apply the update. That download will have to run in a FreeRTOS task, because the synchronous web server is dead for the ~40 s an HTTPS transfer takes. Still missing: `otaChannel`/`otaAutoUpdate`/`otaCheckInterval` in `Settings`, the `/ota/check`, `/ota/install` and `/ota/config` endpoints, and a second card in the update tab.
+- **GitHub manifest** — the clock polls the `manifest.json` of its channel (`otaFetchManifest()`), and `otaInstallTask` downloads and installs in a FreeRTOS task pinned to core 0, so the synchronous web server on core 1 keeps answering during the ~40 s a transfer takes. Each image is streamed straight into its partition while being hashed; the boot partition is only switched once the SHA-256 matches the manifest. Only the halves whose version differs are fetched.
+
+Two rules that are easy to get wrong here:
+
+- **Version comparison differs per channel.** `stable` gives clean semver, where "newer" is meaningful. `edge` gives `git describe` output (`2.0.0-7-gabc123`), which has no order — there the test is "differs from what is installed". Comparing by order on edge would mean the clock never offers anything again after a reverted commit. `otaShouldReplace()` holds both rules.
+- **`OTA_IDLE` and friends are taken.** `esp_ota_ops.h` defines them, hence `OTA_STATE_*` here.
+
+Automatic installs are off by default and only run between 02:00 and 05:00 local (`OTA_AUTO_HOUR_FROM`/`_TO`), so the clock never goes dark in the evening. `/ota/status` reports the running partition (`app0`/`app1`) — without it, an update to the same version is indistinguishable from nothing having happened.
 
 Details that are easy to get wrong:
 

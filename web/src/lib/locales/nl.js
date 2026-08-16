@@ -143,6 +143,31 @@ export default {
     'een afgebroken upload richt dus geen schade aan, hij start gewoon op met ' +
     'de vorige versie.',
 
+  // --- update channel ---
+  updateSource: 'Updates',
+  channel: 'Kanaal',
+  channelStable: 'Stabiel (geteste versies)',
+  channelEdge: 'Ontwikkeling (elke build)',
+  autoUpdate: 'Automatisch installeren',
+  autoUpdateHint:
+    "'s Nachts tussen 2 en 5 uur, zodat de klok 's avonds niet donker wordt. " +
+    'Standaard uit: een onjuist image is alleen via USB te herstellen.',
+  checkInterval: 'Controleren elke',
+  checkNever: 'nooit',
+  hours: (count) => `${count} u`,
+  checkNow: 'Nu controleren',
+  checking: 'Bezig met controleren ...',
+  available: 'Beschikbaar',
+  upToDate: 'De klok is up-to-date.',
+  neverChecked: 'nog niet gecontroleerd',
+  lastChecked: (text) => `Laatst gecontroleerd: ${text}`,
+  justNow: 'zojuist',
+  minutesAgo: (count) => `${count} min geleden`,
+  hoursAgo: (count) => `${count} u geleden`,
+  installNow: 'Nu bijwerken',
+  downloading: (percent) => `Wordt gedownload ... ${percent} %`,
+  runningFrom: 'Actieve slot',
+
   // --- api errors ---
   connectionLost: 'Verbinding met de klok verbroken',
   uploadAborted: 'Upload afgebroken'

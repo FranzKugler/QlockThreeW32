@@ -80,6 +80,46 @@ export async function fetchOtaStatus() {
 }
 
 /**
+ * Asks the clock to poll its release channel. Takes a second or two, since the
+ * clock fetches the manifest while answering. Returns the same shape as
+ * /ota/status.
+ */
+export async function checkForUpdate() {
+  const res = await fetch('/ota/check');
+  if (!res.ok) throw new Error(`/ota/check: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Starts the download. Answers immediately - the clock installs in a task of
+ * its own, so the caller polls /ota/status for progress.
+ */
+export async function installUpdate() {
+  const res = await fetch('/ota/install', { method: 'POST' });
+  if (!res.ok) {
+    let message = `HTTP ${res.status}`;
+    try {
+      message = (await res.json()).error || message;
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(message);
+  }
+  return res.json();
+}
+
+/** Channel, automatic updates and check interval. */
+export async function setOtaConfig(config) {
+  const res = await fetch('/ota/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config)
+  });
+  if (!res.ok) throw new Error(`/ota/config: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
  * Uploads a firmware or filesystem image; the clock decides from the image
  * itself where it belongs and reboots into it.
  *

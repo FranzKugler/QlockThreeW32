@@ -143,6 +143,32 @@ export default {
     'immagine: un caricamento interrotto non fa danni, riparte semplicemente ' +
     'con la versione precedente.',
 
+  // --- update channel ---
+  updateSource: 'Aggiornamenti',
+  channel: 'Canale',
+  channelStable: 'Stabile (versioni testate)',
+  channelEdge: 'Sviluppo (ogni build)',
+  autoUpdate: 'Installa automaticamente',
+  autoUpdateHint:
+    "Installa di notte tra le 2 e le 5, cosi l'orologio non resta spento di " +
+    "sera. Disattivato per impostazione predefinita: un'immagine difettosa si " +
+    'recupera solo via USB.',
+  checkInterval: 'Controlla ogni',
+  checkNever: 'mai',
+  hours: (count) => `${count} h`,
+  checkNow: 'Controlla ora',
+  checking: 'Controllo in corso ...',
+  available: 'Disponibile',
+  upToDate: "L'orologio e aggiornato.",
+  neverChecked: 'non ancora controllato',
+  lastChecked: (text) => `Ultimo controllo: ${text}`,
+  justNow: 'proprio ora',
+  minutesAgo: (count) => `${count} min fa`,
+  hoursAgo: (count) => `${count} h fa`,
+  installNow: 'Aggiorna ora',
+  downloading: (percent) => `Download ... ${percent} %`,
+  runningFrom: 'Slot attivo',
+
   // --- api errors ---
   connectionLost: "Collegamento con l'orologio interrotto",
   uploadAborted: 'Caricamento interrotto'
