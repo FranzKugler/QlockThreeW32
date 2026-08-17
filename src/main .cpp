@@ -493,6 +493,19 @@ void setup()
     // Starts its own sampling task, and says so if no sensor answers.
     ambientLight.begin();
 
+    // Automatic brightness needs something to measure. Left switched on with
+    // no sensor it would be a setting that reads "on" and does nothing, so it
+    // is cleared here - the web UI hides the section entirely in that case,
+    // and hiding a switch that is still on would leave no way to turn it off.
+    // Written straight out rather than deferred: the deferred write is armed
+    // at the end of setup() and would drop this.
+    if (!ambientLight.present() && settings.getUseLdr())
+    {
+        debugA("No light sensor, switching automatic brightness off");
+        settings.setUseLdr(false);
+        settings.storeSettings();
+    }
+
     // Start the mDNS responder for <hostname>.local
     if (MDNS.begin(settings.getHostname()))
     {

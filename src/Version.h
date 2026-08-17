@@ -21,7 +21,7 @@
 #define VERSION_H
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "2.0.1"
+#define FIRMWARE_VERSION "2.0.2"
 #endif
 
 #endif

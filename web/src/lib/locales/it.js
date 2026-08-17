@@ -56,9 +56,10 @@ export default {
   increaseBy: (label, step) => `Aumenta ${label} di ${step}`,
   automatic: 'Automatico',
   autoBrightness: 'Luminosità automatica',
+  measured: 'Misurato',
   ldrHint:
-    "Senza effetto finché la valutazione dell'LDR è commentata nel firmware " +
-    '(vedi src/LDR.cpp).',
+    'La luce ambientale viene misurata ma non regola ancora il display — ' +
+    'il valore serve a giudicare la posizione del sensore.',
 
   // --- timezone tab ---
   timeServer: 'Server orario',
@@ -203,8 +204,6 @@ export default {
   err_otaConnectionLost: 'Connessione persa durante il download',
   err_otaSize: 'Download incompleto',
   err_otaChecksum: 'Somma di controllo errata — immagine scartata',
-  err_otaBegin: 'Impossibile avviare l’aggiornamento',
-  err_otaWrite: 'Scrittura nella flash non riuscita',
   err_hostnameInvalid: 'Questo nome non contiene caratteri utilizzabili',
   err_wifiConnect: (ssid) => `Impossibile connettersi a «${ssid}»`,
   err_wifiFallback: (ssid) => `Anche il ritorno a «${ssid}» non è riuscito`,

@@ -40,6 +40,16 @@ export const setDisplay = (display) => post('/display', { display });
 
 export const setColor = ({ hue, sat, lum }) => post('/color', { hue, sat, lum });
 
+/**
+ * What the light sensor sees, and whether there is one at all. Throws, so the
+ * caller can tell "no sensor fitted" from "could not ask".
+ */
+export async function fetchLight() {
+  const res = await fetch('/light');
+  if (!res.ok) throw new Error(`/light: HTTP ${res.status}`);
+  return res.json();
+}
+
 export const setAutoLuminance = (automaticLum) =>
   post('/autoluminance', { automaticLum: automaticLum ? 1 : 0 });
 

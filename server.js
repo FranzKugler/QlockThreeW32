@@ -155,6 +155,22 @@ app.get('/manifest.webmanifest', (req, res) => {
   });
 });
 
+/**
+ * What the light sensor sees. `present: false` is the normal case on a clock
+ * with no sensor fitted, and the colour tab then hides the automatic section
+ * entirely - set it to false here to develop against that.
+ */
+app.get('/light', (req, res) => {
+  res.json({
+    sensor: 'VEML7700',
+    present: true,
+    available: true,
+    // Roughly a lit living room seen through a dark front panel.
+    lux: 7.4 + Math.sin(Date.now() / 20000) * 2,
+    raw: 7.1 + Math.sin(Date.now() / 3000) * 3
+  });
+});
+
 // The name lives in the settings, like it does on the clock, and is only
 // reported here as well - so there is one copy of it, not two that drift.
 app.get('/wifi', (req, res) => res.json({ ...wifi, hostname: state.hostname }));

@@ -56,9 +56,10 @@ export default {
   increaseBy: (label, step) => `${label} met ${step} verhogen`,
   automatic: 'Automatisch',
   autoBrightness: 'Automatische helderheid',
+  measured: 'Gemeten',
   ldrHint:
-    'Zonder effect zolang de LDR-verwerking in de firmware is ' +
-    'uitgecommentarieerd (zie src/LDR.cpp).',
+    'Het omgevingslicht wordt gemeten maar stuurt het display nog niet aan ' +
+    '— de waarde dient om de plaatsing van de sensor te beoordelen.',
 
   // --- timezone tab ---
   timeServer: 'Tijdserver',
@@ -202,8 +203,6 @@ export default {
   err_otaConnectionLost: 'Verbinding verbroken tijdens de download',
   err_otaSize: 'Download onvolledig',
   err_otaChecksum: 'Controlesom klopt niet — image verworpen',
-  err_otaBegin: 'De update kon niet worden gestart',
-  err_otaWrite: 'Schrijven naar flash is mislukt',
   err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,

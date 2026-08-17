@@ -10,17 +10,34 @@
    * @updated  15.8.2026
    */
   import iro from '@jaames/iro';
+  import { onMount } from 'svelte';
   import * as api from '../lib/api.js';
   import { throttle } from '../lib/throttle.js';
   import { dict } from '../lib/i18n.svelte.js';
   import SliderRow from './SliderRow.svelte';
 
-  let { state } = $props();
+  // Aliased: a local binding called `state` would turn every `$state(...)` in
+  // this component into a store subscription instead of the rune, and the
+  // compiler only warns. See the note in CLAUDE.md.
+  let { state: clock } = $props();
 
   const t = $derived(dict());
 
+  // Null until asked, and left null when the clock cannot answer - in both
+  // cases the automatic section stays hidden rather than appearing and then
+  // vanishing again.
+  let sensor = $state(null);
+
+  onMount(async () => {
+    try {
+      sensor = await api.fetchLight();
+    } catch {
+      /* older firmware has no /light; treat that as no sensor */
+    }
+  });
+
   const push = throttle((hue, sat, lum) => api.setColor({ hue, sat, lum }), 120);
-  const send = () => push(state.hue, state.sat, state.lum);
+  const send = () => push(clock.hue, clock.sat, clock.lum);
 
   let picker = null;
   // Set while we move the wheel ourselves, so its change event doesn't bounce
@@ -40,13 +57,13 @@
       borderWidth: 2,
       borderColor: 'rgba(128,128,128,0.35)',
       layout: [{ component: iro.ui.Wheel }],
-      color: { h: state.hue, s: state.sat, v: 100 }
+      color: { h: clock.hue, s: clock.sat, v: 100 }
     });
 
     const onChange = (color) => {
       if (applying) return;
-      state.hue = Math.round(color.hsv.h);
-      state.sat = Math.round(color.hsv.s);
+      clock.hue = Math.round(color.hsv.h);
+      clock.sat = Math.round(color.hsv.s);
       send();
     };
     picker.on('color:change', onChange);
@@ -63,7 +80,7 @@
   function syncWheel() {
     if (!picker) return;
     applying = true;
-    picker.color.set({ h: state.hue, s: state.sat, v: 100 });
+    picker.color.set({ h: clock.hue, s: clock.sat, v: 100 });
     applying = false;
   }
 
@@ -108,10 +125,10 @@
   // Saturation runs from white to the pure hue; brightness from black to the
   // colour at full brightness.
   const satTrack = $derived(
-    `linear-gradient(to right, ${css(hsvRgb(state.hue, 0, 100))}, ${css(hsvRgb(state.hue, 100, 100))})`
+    `linear-gradient(to right, ${css(hsvRgb(clock.hue, 0, 100))}, ${css(hsvRgb(clock.hue, 100, 100))})`
   );
   const lumTrack = $derived(
-    `linear-gradient(to right, #000, ${css(hsvRgb(state.hue, state.sat, 100))})`
+    `linear-gradient(to right, #000, ${css(hsvRgb(clock.hue, clock.sat, 100))})`
   );
 
   /**
@@ -122,8 +139,8 @@
    */
   const ledColor = $derived(
     css(
-      hsvRgb(state.hue, state.sat, 100).map(
-        (part, i) => FACE[i] + (part - FACE[i]) * (state.lum / 100)
+      hsvRgb(clock.hue, clock.sat, 100).map(
+        (part, i) => FACE[i] + (part - FACE[i]) * (clock.lum / 100)
       )
     )
   );
@@ -152,7 +169,7 @@
     max={359}
     stepSize={2}
     wrap
-    bind:value={state.hue}
+    bind:value={clock.hue}
     track={HUE_TRACK}
     onchange={onWheelValueChange}
   />
@@ -161,7 +178,7 @@
     id="sat"
     label={t.saturation}
     unit="%"
-    bind:value={state.sat}
+    bind:value={clock.sat}
     track={satTrack}
     onchange={onWheelValueChange}
   />
@@ -170,27 +187,39 @@
     id="lum"
     label={t.brightness}
     unit="%"
-    bind:value={state.lum}
+    bind:value={clock.lum}
     track={lumTrack}
     onchange={send}
   />
 </section>
 
-<section class="card">
-  <h2>{t.automatic}</h2>
+<!--
+  Only shown when the clock has a light sensor. Most do not: the firmware is
+  the same for every build of the clock and the sensor is an addition, so a
+  switch that cannot do anything would be worse than no switch at all.
+-->
+{#if sensor?.present}
+  <section class="card">
+    <h2>{t.automatic}</h2>
 
-  <div class="field">
-    <label for="autoLum">{t.autoBrightness}</label>
-    <span class="switch">
-      <input
-        id="autoLum"
-        type="checkbox"
-        bind:checked={state.automaticLum}
-        onchange={() => api.setAutoLuminance(state.automaticLum)}
-      />
-      <span></span>
-    </span>
-  </div>
+    <div class="field">
+      <label for="autoLum">{t.autoBrightness}</label>
+      <span class="switch">
+        <input
+          id="autoLum"
+          type="checkbox"
+          bind:checked={clock.automaticLum}
+          onchange={() => api.setAutoLuminance(clock.automaticLum)}
+        />
+        <span></span>
+      </span>
+    </div>
 
-  <p class="hint">{t.ldrHint}</p>
-</section>
+    <div class="field">
+      <span class="key">{t.measured}</span>
+      <span>{sensor.available ? `${sensor.lux.toFixed(1)} lx` : t.loadingShort}</span>
+    </div>
+
+    <p class="hint">{t.ldrHint}</p>
+  </section>
+{/if}

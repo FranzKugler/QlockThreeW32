@@ -56,9 +56,10 @@ export default {
   increaseBy: (label, step) => `Augmenter ${label} de ${step}`,
   automatic: 'Automatique',
   autoBrightness: 'Luminosité automatique',
+  measured: 'Mesuré',
   ldrHint:
-    "Sans effet tant que l'évaluation du LDR est commentée dans le " +
-    'micrologiciel (voir src/LDR.cpp).',
+    "La lumière ambiante est mesurée mais ne pilote pas encore l'affichage " +
+    "— la valeur sert à juger de l'emplacement du capteur.",
 
   // --- timezone tab ---
   timeServer: 'Serveur de temps',
@@ -203,8 +204,6 @@ export default {
   err_otaConnectionLost: 'Connexion perdue pendant le téléchargement',
   err_otaSize: 'Téléchargement incomplet',
   err_otaChecksum: 'Somme de contrôle incorrecte — image rejetée',
-  err_otaBegin: 'Impossible de démarrer la mise à jour',
-  err_otaWrite: 'Échec de l’écriture en flash',
   err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,

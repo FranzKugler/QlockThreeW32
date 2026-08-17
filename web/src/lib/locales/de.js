@@ -58,9 +58,10 @@ export default {
   increaseBy: (label, step) => `${label} um ${step} erhöhen`,
   automatic: 'Automatik',
   autoBrightness: 'Helligkeit automatisch',
+  measured: 'Gemessen',
   ldrHint:
-    'Ohne Wirkung, solange die LDR-Auswertung in der Firmware auskommentiert ' +
-    'ist (siehe src/LDR.cpp).',
+    'Die Helligkeit wird bereits gemessen, aber noch nicht geregelt — der ' +
+    'Wert dient vorerst dazu, die Platzierung des Sensors zu beurteilen.',
 
   // --- timezone tab ---
   timeServer: 'Zeitserver',
@@ -204,8 +205,6 @@ export default {
   err_otaConnectionLost: 'Verbindung während des Downloads abgerissen',
   err_otaSize: 'Download unvollständig',
   err_otaChecksum: 'Prüfsumme stimmt nicht — Image verworfen',
-  err_otaBegin: 'Update ließ sich nicht starten',
-  err_otaWrite: 'Schreiben in den Flash fehlgeschlagen',
   err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,
