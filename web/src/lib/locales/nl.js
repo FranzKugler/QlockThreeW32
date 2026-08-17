@@ -57,7 +57,6 @@ export default {
   automatic: 'Automatisch',
   autoBrightness: 'Automatische helderheid',
   measured: 'Gemeten',
-  resulting: 'Resultaat',
   calibration: 'Kalibratie',
   calDark: 'Donker',
   calBright: 'Licht',
@@ -67,9 +66,6 @@ export default {
     'Stel de helderheid in die je bij het huidige licht wilt en leg die vast ' +
     '— één keer in het donker, één keer bij daglicht. Alles daartussen ' +
     'regelt de klok zelf.',
-  calHintAutoOn:
-    'Schakel de automaat uit om te kalibreren: beide punten komen van de ' +
-    'helderheidsschuif, en die stuurt het display op dit moment niet aan.',
   ldrHint:
     'Het display volgt het omgevingslicht, logaritmisch tussen de twee ' +
     'punten — zo neemt het oog waar. De waarde tussen haakjes is ' +

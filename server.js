@@ -168,23 +168,32 @@ const curve = { ...DEFAULT_CURVE };
 // Same constant as CALIBRATION_MIN_RATIO in src/LightSensor.h.
 const MIN_RATIO = 4.0;
 
-/** The same log interpolation brightnessForLux() does in the firmware. */
-function brightnessForLux(lux) {
+const clamp = (value) => Math.min(100, Math.max(1, Math.round(value)));
+
+/** Where a reading sits between the two points, 0..1, on the log scale. */
+function luxPosition(lux) {
   const floor = 0.01;
   const value = Math.max(lux, floor);
   const low = Math.max(curve.luxLow, floor);
   const high = Math.max(curve.luxHigh, low * MIN_RATIO);
-  const position = Math.min(
+  return Math.min(
     1,
     Math.max(0, (Math.log10(value) - Math.log10(low)) / (Math.log10(high) - Math.log10(low)))
   );
-  return Math.min(100, Math.max(1, Math.round(curve.brightLow + position * (curve.brightHigh - curve.brightLow))));
 }
+
+/** The same log interpolation brightnessForLux() does in the firmware. */
+function brightnessForLux(lux) {
+  return clamp(curve.brightLow + luxPosition(lux) * (curve.brightHigh - curve.brightLow));
+}
+
+// Roughly a lit living room seen through a dark front panel, drifting slowly
+// so the tab has something to react to.
+const currentLux = () => 7.4 + Math.sin(Date.now() / 20000) * 2;
 
 /** The body of GET /light, shared with the POST which answers the same shape. */
 function lightState() {
-  // Roughly a lit living room seen through a dark front panel.
-  const lux = 7.4 + Math.sin(Date.now() / 20000) * 2;
+  const lux = currentLux();
   return {
     sensor: 'VEML7700',
     present: true,
@@ -207,6 +216,34 @@ app.get('/light', (req, res) => res.json(lightState()));
 app.post('/light', (req, res) => {
   if (req.body.reset) {
     Object.assign(curve, DEFAULT_CURVE);
+    return res.json(lightState());
+  }
+
+  // "At this light, I want this much" - translates the curve, keeping the
+  // slope, and where that will not fit pins the overflowing end and solves the
+  // other so the request is still met exactly. Same arithmetic as
+  // updateLight() in WebRoutes.cpp; keep the two in step.
+  if (typeof req.body.want === 'number') {
+    const want = req.body.want;
+    if (want < 1 || want > 100) return res.status(400).json({ error: 'calibrationRange' });
+
+    const lux = currentLux();
+    const delta = want - brightnessForLux(lux);
+    let low = curve.brightLow + delta;
+    let high = curve.brightHigh + delta;
+
+    if (low < 1 || low > 100 || high < 1 || high > 100) {
+      const position = luxPosition(lux);
+      low = clamp(low);
+      high = clamp(high);
+      if (position <= 0.5) low = Math.round((want - position * high) / (1 - position));
+      else high = Math.round((want - (1 - position) * low) / position);
+      low = clamp(low);
+      high = clamp(high);
+    }
+
+    curve.brightLow = low;
+    curve.brightHigh = high;
     return res.json(lightState());
   }
 

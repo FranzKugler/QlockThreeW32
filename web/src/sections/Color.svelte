@@ -37,12 +37,44 @@
   // server is single-threaded and this is the only tab that needs live data.
   const POLL_MS = 2000;
 
+  /*
+   * What the brightness slider shows while the automatic is on: the level the
+   * curve currently asks for, which is not clock.lum - that stays the manual
+   * setting, to be given back when the automatic goes off again.
+   */
+  let autoLum = $state(0);
+
+  // Polling must not yank the slider out from under a finger, nor undo an
+  // adjustment that the next poll has not caught up with yet.
+  let adjustedAt = 0;
+  const SETTLE_MS = 2000;
+
   async function refresh() {
     try {
-      sensor = await api.fetchLight();
+      const next = await api.fetchLight();
+      sensor = next;
+      if (Date.now() - adjustedAt > SETTLE_MS && next.brightness != null) {
+        autoLum = next.brightness;
+      }
     } catch {
       /* older firmware has no /light; treat that as no sensor */
     }
+  }
+
+  /*
+   * Throttled like the colour wheel, and for the same reason: one POST per
+   * pointer move would bury the clock's single-threaded web server. Each one
+   * is measured against the curve as it stands, so a drag converges on the
+   * value asked for rather than adding up shifts.
+   */
+  const pushNudge = throttle(async (want) => {
+    const result = await api.nudgeBrightness(want);
+    if (!result.error) sensor = result;
+  }, 250);
+
+  function nudge() {
+    adjustedAt = Date.now();
+    pushNudge(autoLum);
   }
 
   onMount(() => {
@@ -64,8 +96,8 @@
     // job.
     const here = sensor.lux;
     const point = end === 'low'
-      ? { luxLow: here, brightLow: clock.lum, luxHigh: sensor.luxHigh, brightHigh: sensor.brightHigh }
-      : { luxLow: sensor.luxLow, brightLow: sensor.brightLow, luxHigh: here, brightHigh: clock.lum };
+      ? { luxLow: here, brightLow: wantedNow, luxHigh: sensor.luxHigh, brightHigh: sensor.brightHigh }
+      : { luxLow: sensor.luxLow, brightLow: sensor.brightLow, luxHigh: here, brightHigh: wantedNow };
 
     const result = await api.setLightCurve(point);
     calibrationError = result.error ?? null;
@@ -81,9 +113,14 @@
    */
   const hasCurve = $derived(sensor?.luxLow != null);
 
-  // Both ends are captured from the brightness slider, so the slider has to be
-  // driving the display - which it is not while the automatic is on.
-  const canCalibrate = $derived(!clock.automaticLum && sensor?.available);
+  // Whether the ambient light is actually in charge of the display right now.
+  const autoActive = $derived(sensor?.present && clock.automaticLum && hasCurve);
+
+  // Whichever slider is on screen is the one a calibration point is taken
+  // from - both mean "this is how bright I want it here".
+  const wantedNow = $derived(autoActive ? autoLum : clock.lum);
+
+  const canCalibrate = $derived(sensor?.available);
 
   async function resetCurve() {
     const result = await api.setLightCurve({ reset: true });
@@ -195,7 +232,7 @@
   const ledColor = $derived(
     css(
       hsvRgb(clock.hue, clock.sat, 100).map(
-        (part, i) => FACE[i] + (part - FACE[i]) * (clock.lum / 100)
+        (part, i) => FACE[i] + (part - FACE[i]) * (wantedNow / 100)
       )
     )
   );
@@ -238,17 +275,32 @@
     onchange={onWheelValueChange}
   />
 
-  <!-- Locked while the ambient light drives the display: a slider that moves
-       and changes nothing is worse than one that is visibly not in charge. -->
-  <SliderRow
-    id="lum"
-    label={t.brightness}
-    unit="%"
-    bind:value={clock.lum}
-    track={lumTrack}
-    disabled={sensor?.present && clock.automaticLum}
-    onchange={send}
-  />
+  <!--
+    Two meanings, one control. With the automatic off it is the brightness.
+    With it on it is "at this light, I want this much" - the clock shifts its
+    whole curve to match and keeps the preference at every other light level.
+    Which is also the only way it can ever learn anything: nudging the slider
+    is the one signal that says the automatic got it wrong.
+  -->
+  {#if autoActive}
+    <SliderRow
+      id="lum"
+      label={t.brightness}
+      unit="%"
+      bind:value={autoLum}
+      track={lumTrack}
+      onchange={nudge}
+    />
+  {:else}
+    <SliderRow
+      id="lum"
+      label={t.brightness}
+      unit="%"
+      bind:value={clock.lum}
+      track={lumTrack}
+      onchange={send}
+    />
+  {/if}
 </section>
 
 <!--
@@ -288,13 +340,6 @@
     </div>
 
     {#if hasCurve}
-      {#if clock.automaticLum}
-        <div class="field">
-          <span class="key">{t.resulting}</span>
-          <span>{sensor.brightness} %</span>
-        </div>
-      {/if}
-
       <h3>{t.calibration}</h3>
 
       <div class="field">
@@ -321,7 +366,7 @@
         <p class="hint error">{errorText(t, calibrationError, '')}</p>
       {/if}
 
-      <p class="hint">{clock.automaticLum ? t.calHintAutoOn : t.calHint}</p>
+      <p class="hint">{t.calHint}</p>
 
       <button type="button" class="secondary" onclick={resetCurve}>{t.calReset}</button>
     {/if}

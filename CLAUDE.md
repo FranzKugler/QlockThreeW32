@@ -94,7 +94,7 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /color` — hue/saturation/luminance.
 - `POST /autoluminance` — toggle automatic brightness.
 - `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus the brightness curve (`luxLow`, `brightLow`, `luxHigh`, `brightHigh`, `minRatio`) and the `brightness` it yields for the current reading. Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
-- `POST /light` — the four curve fields, or `{reset: true}`. Answers with the same shape `GET` does, or with `calibrationTooClose` / `calibrationRange`.
+- `POST /light` — the four curve fields, `{want: 1..100}` ("at this light, this bright"), or `{reset: true}`. Answers with the same shape `GET` does, or with `calibrationTooClose` / `calibrationRange`.
 - `POST /configuration` — language, corner LED direction/color.
 - `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
 - `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
@@ -305,7 +305,17 @@ It is stored in **NVS**, not in the filesystem, because the filesystem partition
 - With it **on**, the computed value is approached by an eighth of the remaining distance per second, about twenty seconds for a full swing. The reading is already smoothed over 30 s, so this is not about noise: it is about the step when a lamp is switched on, which is a genuine jump the eye would otherwise catch.
 - **The manual setting is never overwritten.** Switching the automatic off has to give back the brightness the user chose, and the calibration needs it as the "how bright I want it here" half of a point.
 
-The calibration itself is **entirely in the browser**: the UI reads the current lux from `/light`, takes the brightness from the slider, and posts all four numbers. The firmware only ever stores and validates a curve — there is no "capture" concept in it. Two consequences worth keeping: the curve is written against the **smoothed** reading, not the raw one, because that is what the curve is fed at runtime; and the calibration buttons are disabled while the automatic is on, since the slider is then not what the display is doing.
+**The brightness slider has two meanings, and that is the point.** With the automatic off it is the brightness. With it on it is *"at this light, I want this much"* — `POST /light {want}` shifts the whole curve to satisfy it. Disabling the slider instead was the first attempt and it was wrong: nudging the brightness is the **only** signal a user ever gives about whether the automatic got it right, so locking the slider locks out the one input step 4 has to learn from. The endpoint is deliberately shaped as that learning primitive — it takes a wanted level at the current light, and a learning version keeps the samples and fits a line through them instead of applying each one immediately.
+
+How the shift works, and why it is not just an addition:
+
+- Normally both ends move by the same amount, which keeps the slope. The two calibration points say how hard the clock reacts to a change in light; this says at what level. Two questions, two controls.
+- **A pure translation cannot always express the request.** The default curve already reaches 100 % at its bright end, so "brighter here" has nowhere to go — the first version clamped the shift to zero and the slider silently did nothing, which is the exact fault this control exists to fix. Now the overflowing end is pinned and the other is **solved** so the curve passes through the requested point exactly. The slope gives way, and only at the extremes.
+- Which end gets solved is decided by `luxPosition()`, split at the middle so the divisor is never near zero: the far end is always at least half a span away.
+- Asking for 100 % (or 1 %) at a middling light level flattens the curve completely, because no line through that point stays in range. That is forced by the arithmetic, not a bug — `{reset: true}` is the way back.
+- A drag converges rather than compounding: each request is measured against the curve as it stands, so the last value sent is the one that ends up applied.
+
+The calibration buttons are **entirely in the browser**: the UI reads the current lux from `/light`, takes the brightness from whichever slider is on screen, and posts all four numbers. The firmware only ever stores and validates a curve — there is no "capture" concept in it. The curve is written against the **smoothed** reading, not the raw one, because that is what the curve is fed at runtime; calibrating against anything else builds in an offset.
 
 `POST /light` also accepts `{reset: true}`, which restores the curve from a freshly constructed `Settings` rather than repeating those four numbers in a second place.
 

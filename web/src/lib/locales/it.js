@@ -57,7 +57,6 @@ export default {
   automatic: 'Automatico',
   autoBrightness: 'Luminosità automatica',
   measured: 'Misurato',
-  resulting: 'Risultato',
   calibration: 'Calibrazione',
   calDark: 'Buio',
   calBright: 'Chiaro',
@@ -67,9 +66,6 @@ export default {
     'Imposta la luminosità desiderata con la luce attuale, poi memorizzala ' +
     '— una volta al buio, una alla luce del giorno. Di tutto ciò che sta in ' +
     'mezzo si occupa l’orologio.',
-  calHintAutoOn:
-    'Per calibrare disattiva l’automatico: i due punti vengono presi dal ' +
-    'cursore della luminosità, che al momento non comanda il display.',
   ldrHint:
     'Il display segue la luce ambientale, in modo logaritmico fra i due ' +
     'punti — è così che percepisce l’occhio. Il valore fra parentesi non ' +

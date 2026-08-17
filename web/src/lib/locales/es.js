@@ -57,7 +57,6 @@ export default {
   automatic: 'Automático',
   autoBrightness: 'Brillo automático',
   measured: 'Medido',
-  resulting: 'Resultado',
   calibration: 'Calibración',
   calDark: 'Oscuro',
   calBright: 'Claro',
@@ -67,9 +66,6 @@ export default {
     'Ajusta el brillo que quieras con la luz actual y memorízalo: una vez a ' +
     'oscuras y otra con luz de día. De todo lo intermedio se encarga el ' +
     'reloj.',
-  calHintAutoOn:
-    'Para calibrar, desactiva el automático: los dos puntos se toman del ' +
-    'control de brillo, y ahora mismo no gobierna la pantalla.',
   ldrHint:
     'La pantalla sigue la luz ambiental, de forma logarítmica entre los dos ' +
     'puntos: así es como percibe el ojo. El valor entre paréntesis no está ' +

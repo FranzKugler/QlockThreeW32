@@ -60,6 +60,16 @@ export const setAutoLuminance = (automaticLum) =>
  * validates the pair and answers either with the curve it stored or with a
  * code saying why it did not, and the calibration button has to show which.
  */
+/**
+ * "At the light there is right now, I want this much display."
+ *
+ * Shifts the curve rather than setting a brightness: with the automatic on,
+ * the slider is not a level any more but a preference, and the clock keeps it
+ * at every other light level too. The current reading is left to the firmware,
+ * which has it first-hand - this UI polls, and would be a step behind.
+ */
+export const nudgeBrightness = (want) => setLightCurve({ want });
+
 export async function setLightCurve(curve) {
   try {
     const res = await fetch('/light', {

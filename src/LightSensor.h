@@ -52,6 +52,13 @@
 #define CALIBRATION_MIN_RATIO 4.0f
 
 /**
+ * Where a reading sits between the two calibration points, 0..1, on the log
+ * scale the curve runs on. Shared so that the curve and the code that adjusts
+ * it cannot disagree about what "here" means.
+ */
+float luxPosition(float lux, float luxLow, float luxHigh);
+
+/**
  * Display brightness in percent for an ambient reading, from the two
  * calibration points.
  *

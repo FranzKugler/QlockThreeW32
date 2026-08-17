@@ -412,14 +412,17 @@ void sendLight()
 }
 
 /**
- * Writes the automatic brightness curve: two points of "this much light, this
- * much display".
+ * Writes the automatic brightness curve, three ways:
  *
- * The clock validates rather than trusts. The UI captures both points from a
- * live reading and will not offer to save a bad pair, but this endpoint is
- * reachable without it, and a curve whose points sit on top of each other makes
- * brightnessForLux() swing across its whole range on sensor noise. Rejected
- * with a code the UI can translate, not with a sentence - see errors.js.
+ *   {luxLow, brightLow, luxHigh, brightHigh}  the two calibration points
+ *   {want: 1..100}                            shift the level, keep the slope
+ *   {reset: true}                             back to the defaults
+ *
+ * The clock validates rather than trusts. The UI will not offer to save a bad
+ * pair, but this endpoint is reachable without it, and a curve whose points sit
+ * on top of each other makes brightnessForLux() swing across its whole range on
+ * sensor noise. Rejected with a code the UI can translate, not with a sentence
+ * - see errors.js.
  */
 void updateLight()
 {
@@ -436,6 +439,79 @@ void updateLight()
         settings.setAutoBrightLow(defaults.getAutoBrightLow());
         settings.setAutoLuxHigh(defaults.getAutoLuxHigh());
         settings.setAutoBrightHigh(defaults.getAutoBrightHigh());
+        needsUpdateFromRtc = true;
+        scheduleSettingsSave();
+        sendLight();
+        return;
+    }
+
+    // "At the light there is right now, I want this much display." The whole
+    // curve is shifted to satisfy that, keeping its slope: the two calibration
+    // points say how hard the clock reacts to a change in light, and this says
+    // at what level - two different questions that deserve two controls.
+    //
+    // The current light is taken from the sensor here rather than from the
+    // request: the browser polls every two seconds and would be shifting
+    // against a reading that has already moved on.
+    //
+    // This is also the signal a learning version has to collect. It stores one
+    // adjustment now, replacing the last; keeping them and fitting a line
+    // through the samples is what turns this into the learning step.
+    if (doc["want"].is<int>())
+    {
+        int want = doc["want"];
+        if (want < 1 || want > 100)
+        {
+            server.send(400, "application/json", "{\"error\":\"calibrationRange\"}");
+            return;
+        }
+
+        float lux = ambientLight.lux();
+        int low  = settings.getAutoBrightLow();
+        int high = settings.getAutoBrightHigh();
+        int delta = want - brightnessForLux(lux,
+                                            settings.getAutoLuxLow(), (byte)low,
+                                            settings.getAutoLuxHigh(), (byte)high);
+
+        // Moving both ends by the same amount keeps the slope, which is what
+        // the two calibration points are for. That is the normal case and the
+        // one to preserve.
+        int newLow  = low + delta;
+        int newHigh = high + delta;
+
+        if (newLow < 1 || newLow > 100 || newHigh < 1 || newHigh > 100)
+        {
+            // No room to translate: the display cannot go past 100 %, so a
+            // curve already reaching it cannot be lifted as a whole. The
+            // instruction still has to be carried out - a slider that silently
+            // does nothing is the fault this control was built to fix - so the
+            // end that would overflow is pinned and the other one solved to
+            // put the curve through the requested point exactly. The slope
+            // gives way, and only at the extremes.
+            //
+            // Which end moves is decided by the reading, and the halves are
+            // split at the middle so the divisor below can never approach
+            // zero: the far end is always at least half a span away.
+            float position = luxPosition(lux, settings.getAutoLuxLow(), settings.getAutoLuxHigh());
+
+            newLow  = constrain(newLow, 1, 100);
+            newHigh = constrain(newHigh, 1, 100);
+
+            if (position <= 0.5f)
+                newLow = lroundf((want - position * newHigh) / (1.0f - position));
+            else
+                newHigh = lroundf((want - (1.0f - position) * newLow) / position);
+
+            newLow  = constrain(newLow, 1, 100);
+            newHigh = constrain(newHigh, 1, 100);
+        }
+
+        settings.setAutoBrightLow((byte)newLow);
+        settings.setAutoBrightHigh((byte)newHigh);
+
+        debugI("Brightness nudged to %d %% at %.2f lx: curve %d..%d -> %d..%d",
+               want, lux, low, high, newLow, newHigh);
+
         needsUpdateFromRtc = true;
         scheduleSettingsSave();
         sendLight();

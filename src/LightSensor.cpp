@@ -30,8 +30,7 @@ extern RemoteDebug Debug;
 #define SAMPLE_TASK_STACK 4096
 
 
-byte brightnessForLux(float lux, float luxLow, byte brightLow,
-                      float luxHigh, byte brightHigh)
+float luxPosition(float lux, float luxLow, float luxHigh)
 {
     // NaN fails every comparison, so the test is written to let it through to
     // the floor rather than around it.
@@ -47,7 +46,13 @@ byte brightnessForLux(float lux, float luxLow, byte brightLow,
                      (log10f(luxHigh) - log10f(luxLow));
     if (position < 0.0f) position = 0.0f;
     if (position > 1.0f) position = 1.0f;
+    return position;
+}
 
+byte brightnessForLux(float lux, float luxLow, byte brightLow,
+                      float luxHigh, byte brightHigh)
+{
+    float position = luxPosition(lux, luxLow, luxHigh);
     float percent = brightLow + position * ((float)brightHigh - (float)brightLow);
 
     // Never 0: that is the display switching itself off, which is a mode the

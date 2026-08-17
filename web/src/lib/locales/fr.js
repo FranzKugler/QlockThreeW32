@@ -57,7 +57,6 @@ export default {
   automatic: 'Automatique',
   autoBrightness: 'Luminosité automatique',
   measured: 'Mesuré',
-  resulting: 'Résultat',
   calibration: 'Étalonnage',
   calDark: 'Sombre',
   calBright: 'Clair',
@@ -67,10 +66,6 @@ export default {
     'Réglez la luminosité voulue pour l’éclairage actuel, puis ' +
     'mémorisez-la — une fois dans le noir, une fois en plein jour. ' +
     'L’horloge se charge de tout l’intermédiaire.',
-  calHintAutoOn:
-    'Désactivez l’automatique pour étalonner : les deux points sont ' +
-    'repris du curseur de luminosité, qui ne commande pas l’affichage ' +
-    'pour le moment.',
   ldrHint:
     'L’affichage suit la lumière ambiante, de façon logarithmique entre ' +
     'les deux points — c’est ainsi que l’œil perçoit. La valeur entre ' +

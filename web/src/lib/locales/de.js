@@ -59,7 +59,6 @@ export default {
   automatic: 'Automatik',
   autoBrightness: 'Helligkeit automatisch',
   measured: 'Gemessen',
-  resulting: 'Daraus',
   calibration: 'Kalibrierung',
   calDark: 'Dunkel',
   calBright: 'Hell',
@@ -69,9 +68,6 @@ export default {
     'Helligkeit so einstellen, wie sie beim aktuellen Umgebungslicht sein ' +
     'soll, und merken — einmal im Dunkeln, einmal bei Tageslicht. Alles ' +
     'dazwischen regelt die Uhr selbst.',
-  calHintAutoOn:
-    'Zum Kalibrieren die Automatik ausschalten: beide Punkte werden vom ' +
-    'Helligkeitsregler übernommen, und der steuert gerade nicht die Anzeige.',
   ldrHint:
     'Die Anzeige folgt dem Umgebungslicht, zwischen den beiden Punkten ' +
     'logarithmisch — so nimmt das Auge wahr. Der Wert in Klammern ist ' +

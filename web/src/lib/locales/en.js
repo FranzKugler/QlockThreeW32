@@ -57,7 +57,6 @@ export default {
   automatic: 'Automatic',
   autoBrightness: 'Automatic brightness',
   measured: 'Measured',
-  resulting: 'Resulting',
   calibration: 'Calibration',
   calDark: 'Dark',
   calBright: 'Bright',
@@ -67,9 +66,6 @@ export default {
     'Set the brightness you want at the light there is right now, then ' +
     'capture it — once in the dark, once in daylight. Everything in ' +
     'between the clock works out for itself.',
-  calHintAutoOn:
-    'Switch the automatic off to calibrate: both points are taken from the ' +
-    'brightness slider, and it is not driving the display at the moment.',
   ldrHint:
     'The display follows the ambient light, logarithmically between the two ' +
     'points — that is how the eye perceives it. The figure in brackets is ' +
