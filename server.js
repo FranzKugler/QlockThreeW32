@@ -160,15 +160,67 @@ app.get('/manifest.webmanifest', (req, res) => {
  * with no sensor fitted, and the colour tab then hides the automatic section
  * entirely - set it to false here to develop against that.
  */
-app.get('/light', (req, res) => {
-  res.json({
+// Mirrors the defaults in src/Settings.cpp, and is changed by POST /light the
+// way the clock's own curve is.
+const DEFAULT_CURVE = { luxLow: 1.0, brightLow: 20, luxHigh: 200.0, brightHigh: 100 };
+const curve = { ...DEFAULT_CURVE };
+
+// Same constant as CALIBRATION_MIN_RATIO in src/LightSensor.h.
+const MIN_RATIO = 4.0;
+
+/** The same log interpolation brightnessForLux() does in the firmware. */
+function brightnessForLux(lux) {
+  const floor = 0.01;
+  const value = Math.max(lux, floor);
+  const low = Math.max(curve.luxLow, floor);
+  const high = Math.max(curve.luxHigh, low * MIN_RATIO);
+  const position = Math.min(
+    1,
+    Math.max(0, (Math.log10(value) - Math.log10(low)) / (Math.log10(high) - Math.log10(low)))
+  );
+  return Math.min(100, Math.max(1, Math.round(curve.brightLow + position * (curve.brightHigh - curve.brightLow))));
+}
+
+/** The body of GET /light, shared with the POST which answers the same shape. */
+function lightState() {
+  // Roughly a lit living room seen through a dark front panel.
+  const lux = 7.4 + Math.sin(Date.now() / 20000) * 2;
+  return {
     sensor: 'VEML7700',
     present: true,
     available: true,
-    // Roughly a lit living room seen through a dark front panel.
-    lux: 7.4 + Math.sin(Date.now() / 20000) * 2,
-    raw: 7.1 + Math.sin(Date.now() / 3000) * 3
-  });
+    lux,
+    raw: 7.1 + Math.sin(Date.now() / 3000) * 3,
+    ...curve,
+    brightness: brightnessForLux(lux),
+    minRatio: MIN_RATIO
+  };
+}
+
+app.get('/light', (req, res) => res.json(lightState()));
+
+/**
+ * Writes the brightness curve, and refuses the same pairs the firmware refuses
+ * - a UI that only ever sees the happy path here would not show its error
+ * state until it met a real clock.
+ */
+app.post('/light', (req, res) => {
+  if (req.body.reset) {
+    Object.assign(curve, DEFAULT_CURVE);
+    return res.json(lightState());
+  }
+
+  const { luxLow, brightLow, luxHigh, brightHigh } = req.body;
+
+  if (!(luxHigh > luxLow * MIN_RATIO)) {
+    return res.status(400).json({ error: 'calibrationTooClose' });
+  }
+  if (brightLow < 1 || brightLow > 100 || brightHigh < 1 || brightHigh > 100) {
+    return res.status(400).json({ error: 'calibrationRange' });
+  }
+
+  Object.assign(curve, { luxLow, brightLow, luxHigh, brightHigh });
+  res.json(lightState());
 });
 
 // The name lives in the settings, like it does on the clock, and is only

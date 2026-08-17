@@ -394,9 +394,82 @@ void sendLight()
     doc["lux"]       = ambientLight.lux();
     doc["raw"]       = ambientLight.raw();
 
+    // The curve, and what it makes of the current reading. The UI shows that
+    // number beside the slider: with the automatic on the slider is not what
+    // the display is doing, and a control that lies is worse than no control.
+    doc["luxLow"]      = settings.getAutoLuxLow();
+    doc["brightLow"]   = settings.getAutoBrightLow();
+    doc["luxHigh"]     = settings.getAutoLuxHigh();
+    doc["brightHigh"]  = settings.getAutoBrightHigh();
+    doc["brightness"]  = brightnessForLux(ambientLight.lux(),
+                                          settings.getAutoLuxLow(), settings.getAutoBrightLow(),
+                                          settings.getAutoLuxHigh(), settings.getAutoBrightHigh());
+    doc["minRatio"]    = CALIBRATION_MIN_RATIO;
+
     String out;
     serializeJson(doc, out);
     server.send(200, "application/json", out);
+}
+
+/**
+ * Writes the automatic brightness curve: two points of "this much light, this
+ * much display".
+ *
+ * The clock validates rather than trusts. The UI captures both points from a
+ * live reading and will not offer to save a bad pair, but this endpoint is
+ * reachable without it, and a curve whose points sit on top of each other makes
+ * brightnessForLux() swing across its whole range on sensor noise. Rejected
+ * with a code the UI can translate, not with a sentence - see errors.js.
+ */
+void updateLight()
+{
+    JsonDocument doc;
+    deserializeJson(doc, server.arg(0));
+
+    // Back to the cautious default curve, without naming it a second time
+    // here: a freshly constructed Settings carries it, and Settings.cpp stays
+    // the one place those four numbers are written down.
+    if (doc["reset"] | false)
+    {
+        Settings defaults;
+        settings.setAutoLuxLow(defaults.getAutoLuxLow());
+        settings.setAutoBrightLow(defaults.getAutoBrightLow());
+        settings.setAutoLuxHigh(defaults.getAutoLuxHigh());
+        settings.setAutoBrightHigh(defaults.getAutoBrightHigh());
+        needsUpdateFromRtc = true;
+        scheduleSettingsSave();
+        sendLight();
+        return;
+    }
+
+    float luxLow     = doc["luxLow"]  | 0.0f;
+    float luxHigh    = doc["luxHigh"] | 0.0f;
+    int   brightLow  = doc["brightLow"]  | 0;
+    int   brightHigh = doc["brightHigh"] | 0;
+
+    if (!(luxHigh > luxLow * CALIBRATION_MIN_RATIO))
+    {
+        server.send(400, "application/json", "{\"error\":\"calibrationTooClose\"}");
+        return;
+    }
+    if (brightLow < 1 || brightLow > 100 || brightHigh < 1 || brightHigh > 100)
+    {
+        server.send(400, "application/json", "{\"error\":\"calibrationRange\"}");
+        return;
+    }
+
+    settings.setAutoLuxLow(luxLow);
+    settings.setAutoBrightLow((byte)brightLow);
+    settings.setAutoLuxHigh(luxHigh);
+    settings.setAutoBrightHigh((byte)brightHigh);
+
+    debugA("Brightness curve: %.2f lx -> %d %%, %.2f lx -> %d %%",
+           luxLow, brightLow, luxHigh, brightHigh);
+
+    needsUpdateFromRtc = true;
+    scheduleSettingsSave();
+
+    sendLight();
 }
 
 // Current connection, plus the outcome of a switch requested via POST /wifi.
@@ -564,6 +637,7 @@ void Web::begin()
     server.on("/configuration", updateConfiguration);
     server.on("/timezone", updateTimezone);
     server.on("/light", HTTP_GET, sendLight);
+    server.on("/light", HTTP_POST, updateLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);
     server.on("/wifi", HTTP_GET, sendWifiStatus);

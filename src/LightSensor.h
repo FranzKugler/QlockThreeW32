@@ -40,6 +40,33 @@
 #define I2C_SCL_PIN 6
 #endif
 
+// Readings below this are treated as darkness. The VEML7700 reports a plain 0
+// in a closed room and log(0) has no answer, so the curve needs a floor - and
+// a hundredth of a lux is far below anything the eye distinguishes anyway.
+#define LUX_FLOOR 0.01f
+
+// How far apart the two calibration points have to be, as a ratio. Two points
+// taken in near enough the same light describe no slope at all, and dividing by
+// that span would swing the brightness across its whole range on sensor noise.
+// Two doublings is the least that still says something.
+#define CALIBRATION_MIN_RATIO 4.0f
+
+/**
+ * Display brightness in percent for an ambient reading, from the two
+ * calibration points.
+ *
+ * Brightness runs linearly in log(lux) between them, not in lux: perception is
+ * roughly logarithmic (Weber-Fechner), and the range the clock has to cover
+ * spans several decades - a dark bedroom and a sunlit room differ by a factor
+ * of thousands, which no linear mapping survives. The result is clamped to the
+ * two calibrated ends rather than extrapolated, so a sunbeam on the sensor
+ * cannot drive the display past what the user asked for.
+ *
+ * Pure, so the curve can be reasoned about without a sensor present.
+ */
+byte brightnessForLux(float lux, float luxLow, byte brightLow,
+                      float luxHigh, byte brightHigh);
+
 /** One ambient light sensor, whichever chip it happens to be. */
 class LightSensor
 {

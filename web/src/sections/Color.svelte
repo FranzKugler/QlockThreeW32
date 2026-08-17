@@ -14,6 +14,7 @@
   import * as api from '../lib/api.js';
   import { throttle } from '../lib/throttle.js';
   import { dict } from '../lib/i18n.svelte.js';
+  import { errorText } from '../lib/errors.js';
   import SliderRow from './SliderRow.svelte';
 
   // Aliased: a local binding called `state` would turn every `$state(...)` in
@@ -28,13 +29,67 @@
   // vanishing again.
   let sensor = $state(null);
 
-  onMount(async () => {
+  // Set when the clock refuses a calibration point, cleared on the next try.
+  let calibrationError = $state(null);
+
+  // Matches the sampling interval in the firmware, so the number moves as fast
+  // as it can and no faster. Only while this tab is open: the clock's web
+  // server is single-threaded and this is the only tab that needs live data.
+  const POLL_MS = 2000;
+
+  async function refresh() {
     try {
       sensor = await api.fetchLight();
     } catch {
       /* older firmware has no /light; treat that as no sensor */
     }
+  }
+
+  onMount(() => {
+    refresh();
+    const timer = setInterval(refresh, POLL_MS);
+    return () => clearInterval(timer);
   });
+
+  /**
+   * Stores "this much light should look like this much display" for one end of
+   * the curve, taking the light from the sensor and the brightness from the
+   * slider - which is why this needs the automatic off: with it on, the slider
+   * is not what the display is doing.
+   */
+  async function calibrate(end) {
+    // The smoothed reading, not the raw one: that is what the curve is fed at
+    // runtime, so calibrating against anything else builds in an offset. The
+    // raw number is shown above for placing the sensor, which is a different
+    // job.
+    const here = sensor.lux;
+    const point = end === 'low'
+      ? { luxLow: here, brightLow: clock.lum, luxHigh: sensor.luxHigh, brightHigh: sensor.brightHigh }
+      : { luxLow: sensor.luxLow, brightLow: sensor.brightLow, luxHigh: here, brightHigh: clock.lum };
+
+    const result = await api.setLightCurve(point);
+    calibrationError = result.error ?? null;
+    if (!result.error) sensor = result;
+  }
+
+  /*
+   * The two images are updated independently, so this UI can find itself
+   * talking to a firmware from before the curve existed: it answers /light
+   * with a reading and no curve at all. Everything below is gated on this
+   * rather than on `present`, because `sensor.luxLow.toFixed()` on a missing
+   * field would take the whole tab down.
+   */
+  const hasCurve = $derived(sensor?.luxLow != null);
+
+  // Both ends are captured from the brightness slider, so the slider has to be
+  // driving the display - which it is not while the automatic is on.
+  const canCalibrate = $derived(!clock.automaticLum && sensor?.available);
+
+  async function resetCurve() {
+    const result = await api.setLightCurve({ reset: true });
+    calibrationError = result.error ?? null;
+    if (!result.error) sensor = result;
+  }
 
   const push = throttle((hue, sat, lum) => api.setColor({ hue, sat, lum }), 120);
   const send = () => push(clock.hue, clock.sat, clock.lum);
@@ -183,12 +238,15 @@
     onchange={onWheelValueChange}
   />
 
+  <!-- Locked while the ambient light drives the display: a slider that moves
+       and changes nothing is worse than one that is visibly not in charge. -->
   <SliderRow
     id="lum"
     label={t.brightness}
     unit="%"
     bind:value={clock.lum}
     track={lumTrack}
+    disabled={sensor?.present && clock.automaticLum}
     onchange={send}
   />
 </section>
@@ -217,9 +275,75 @@
 
     <div class="field">
       <span class="key">{t.measured}</span>
-      <span>{sensor.available ? `${sensor.lux.toFixed(1)} lx` : t.loadingShort}</span>
+      <span>
+        {#if sensor.available}
+          {sensor.lux.toFixed(1)} lx
+          <!-- The unsmoothed reading beside it: moving the sensor around
+               behind the panel is only possible with a number that reacts. -->
+          <small class="raw">({sensor.raw.toFixed(1)} lx)</small>
+        {:else}
+          {t.loadingShort}
+        {/if}
+      </span>
     </div>
+
+    {#if hasCurve}
+      {#if clock.automaticLum}
+        <div class="field">
+          <span class="key">{t.resulting}</span>
+          <span>{sensor.brightness} %</span>
+        </div>
+      {/if}
+
+      <h3>{t.calibration}</h3>
+
+      <div class="field">
+        <span class="key">{t.calDark}</span>
+        <span class="point">
+          {sensor.luxLow.toFixed(1)} lx → {sensor.brightLow} %
+          <button type="button" class="secondary" onclick={() => calibrate('low')} disabled={!canCalibrate}>
+            {t.calCapture}
+          </button>
+        </span>
+      </div>
+
+      <div class="field">
+        <span class="key">{t.calBright}</span>
+        <span class="point">
+          {sensor.luxHigh.toFixed(1)} lx → {sensor.brightHigh} %
+          <button type="button" class="secondary" onclick={() => calibrate('high')} disabled={!canCalibrate}>
+            {t.calCapture}
+          </button>
+        </span>
+      </div>
+
+      {#if calibrationError}
+        <p class="hint error">{errorText(t, calibrationError, '')}</p>
+      {/if}
+
+      <p class="hint">{clock.automaticLum ? t.calHintAutoOn : t.calHint}</p>
+
+      <button type="button" class="secondary" onclick={resetCurve}>{t.calReset}</button>
+    {/if}
 
     <p class="hint">{t.ldrHint}</p>
   </section>
 {/if}
+
+<style>
+  h3 {
+    margin: 1.4rem 0 0.2rem;
+    font-size: 0.95rem;
+  }
+  .raw {
+    opacity: 0.6;
+  }
+  .point {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .error {
+    color: var(--danger, #c0392b);
+  }
+</style>

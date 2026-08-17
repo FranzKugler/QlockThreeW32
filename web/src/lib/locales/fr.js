@@ -57,9 +57,24 @@ export default {
   automatic: 'Automatique',
   autoBrightness: 'Luminosité automatique',
   measured: 'Mesuré',
+  resulting: 'Résultat',
+  calibration: 'Étalonnage',
+  calDark: 'Sombre',
+  calBright: 'Clair',
+  calCapture: 'Mémoriser',
+  calReset: 'Réinitialiser',
+  calHint:
+    'Réglez la luminosité voulue pour l’éclairage actuel, puis ' +
+    'mémorisez-la — une fois dans le noir, une fois en plein jour. ' +
+    'L’horloge se charge de tout l’intermédiaire.',
+  calHintAutoOn:
+    'Désactivez l’automatique pour étalonner : les deux points sont ' +
+    'repris du curseur de luminosité, qui ne commande pas l’affichage ' +
+    'pour le moment.',
   ldrHint:
-    "La lumière ambiante est mesurée mais ne pilote pas encore l'affichage " +
-    "— la valeur sert à juger de l'emplacement du capteur.",
+    'L’affichage suit la lumière ambiante, de façon logarithmique entre ' +
+    'les deux points — c’est ainsi que l’œil perçoit. La valeur entre ' +
+    'parenthèses n’est pas lissée et aide à placer le capteur.',
 
   // --- timezone tab ---
   timeServer: 'Serveur de temps',
@@ -204,6 +219,8 @@ export default {
   err_otaConnectionLost: 'Connexion perdue pendant le téléchargement',
   err_otaSize: 'Téléchargement incomplet',
   err_otaChecksum: 'Somme de contrôle incorrecte — image rejetée',
+  err_calibrationTooClose: 'Les deux points sont trop proches',
+  err_calibrationRange: 'Luminosité hors de la plage valide',
   err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,

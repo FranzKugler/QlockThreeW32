@@ -394,6 +394,53 @@ void applyTimezoneFromSettings()
     }
 }
 
+/**
+ * The brightness to drive the LEDs with, this second.
+ *
+ * With automatic brightness off, or before the sensor has answered once, that
+ * is simply the setting - immediately, because someone dragging the slider
+ * wants to see the effect while dragging.
+ *
+ * With it on, the reading is put through the calibrated curve and the result
+ * is approached rather than jumped to. The reading is already smoothed over
+ * half a minute, so this is not about noise: it is about the step when a lamp
+ * is switched on, which arrives as a genuine jump the eye would otherwise
+ * catch. An eighth of the remaining distance per tick fades over some twenty
+ * seconds, quickly enough not to feel broken and slowly enough not to be the
+ * thing you look at.
+ *
+ * The manual setting is never overwritten while this runs. Switching the
+ * automatic off has to give back the brightness the user chose, and the
+ * calibration needs it as the "how bright I want it here" half of a point.
+ */
+byte brightnessToApply()
+{
+    static int applied = -1;
+
+    if (!settings.getUseLdr() || !ambientLight.available())
+    {
+        // Remembered, so switching the automatic on fades from what is lit now
+        // instead of stepping.
+        applied = settings.getBrightness();
+        return settings.getBrightness();
+    }
+
+    byte target = brightnessForLux(ambientLight.lux(),
+                                   settings.getAutoLuxLow(), settings.getAutoBrightLow(),
+                                   settings.getAutoLuxHigh(), settings.getAutoBrightHigh());
+
+    if (applied < 0) applied = target;
+
+    int distance = (int)target - applied;
+    if (distance != 0)
+    {
+        int step = abs(distance) / 8;
+        if (step < 1) step = 1;
+        applied += (distance > 0) ? step : -step;
+    }
+    return (byte)applied;
+}
+
 void setup()
 {
     // setup serial
@@ -686,7 +733,7 @@ void loop()
         // can actually produce - 360 hues do not fit into 256 steps.
         ledDriver.setColorHS((byte)((settings.getColorHue() * 255L + 179) / 359),
                              (byte)((settings.getColorSat() * 255L + 50) / 100));
-        ledDriver.setBrightness(settings.getBrightness());
+        ledDriver.setBrightness(brightnessToApply());
 
         //
         // fill the frame buffer...

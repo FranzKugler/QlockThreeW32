@@ -40,6 +40,21 @@ public:
     boolean getUseLdr() {return this->UseLdr;}
     void    setBrightness(byte Brightness) {this->Brightness = Brightness;}
     byte    getBrightness() {return this->Brightness;}
+
+    // The two points of the automatic brightness curve: "this dark, and I want
+    // it this bright" and the same for the bright end. Brightness runs linearly
+    // in log(lux) between them, because perception does - see brightnessForLux()
+    // in LightSensor.cpp. Left as a pair of measured points rather than as a
+    // slope and an offset, since that is what the clock can actually capture:
+    // the user sets the brightness they want and the sensor supplies the lux.
+    void    setAutoLuxLow(float AutoLuxLow) {this->AutoLuxLow = AutoLuxLow;}
+    float   getAutoLuxLow() {return this->AutoLuxLow;}
+    void    setAutoBrightLow(byte AutoBrightLow) {this->AutoBrightLow = AutoBrightLow;}
+    byte    getAutoBrightLow() {return this->AutoBrightLow;}
+    void    setAutoLuxHigh(float AutoLuxHigh) {this->AutoLuxHigh = AutoLuxHigh;}
+    float   getAutoLuxHigh() {return this->AutoLuxHigh;}
+    void    setAutoBrightHigh(byte AutoBrightHigh) {this->AutoBrightHigh = AutoBrightHigh;}
+    byte    getAutoBrightHigh() {return this->AutoBrightHigh;}
     // Hue 0..359 and saturation 0..100 - the units the web UI works in, so a
     // value set there comes back unchanged. The conversion to the 8 bits
     // FastLED wants happens once, where the colour is handed to the driver.
@@ -119,7 +134,12 @@ private:
     boolean RenderCornersCw;
     boolean RenderColorCorner;
     boolean UseLdr;
-    byte     Brightness;   // 0..100
+    byte     Brightness;   // 0..100, the manual setting
+    // Automatic brightness curve, see the accessors above.
+    float    AutoLuxLow;
+    byte     AutoBrightLow;
+    float    AutoLuxHigh;
+    byte     AutoBrightHigh;
     uint16_t ColorHue;     // 0..359
     byte     ColorSat;     // 0..100
     byte    Mode;

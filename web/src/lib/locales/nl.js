@@ -57,9 +57,23 @@ export default {
   automatic: 'Automatisch',
   autoBrightness: 'Automatische helderheid',
   measured: 'Gemeten',
+  resulting: 'Resultaat',
+  calibration: 'Kalibratie',
+  calDark: 'Donker',
+  calBright: 'Licht',
+  calCapture: 'Nu vastleggen',
+  calReset: 'Herstellen',
+  calHint:
+    'Stel de helderheid in die je bij het huidige licht wilt en leg die vast ' +
+    '— één keer in het donker, één keer bij daglicht. Alles daartussen ' +
+    'regelt de klok zelf.',
+  calHintAutoOn:
+    'Schakel de automaat uit om te kalibreren: beide punten komen van de ' +
+    'helderheidsschuif, en die stuurt het display op dit moment niet aan.',
   ldrHint:
-    'Het omgevingslicht wordt gemeten maar stuurt het display nog niet aan ' +
-    '— de waarde dient om de plaatsing van de sensor te beoordelen.',
+    'Het display volgt het omgevingslicht, logaritmisch tussen de twee ' +
+    'punten — zo neemt het oog waar. De waarde tussen haakjes is ' +
+    'ongefilterd en helpt bij het plaatsen van de sensor.',
 
   // --- timezone tab ---
   timeServer: 'Tijdserver',
@@ -203,6 +217,8 @@ export default {
   err_otaConnectionLost: 'Verbinding verbroken tijdens de download',
   err_otaSize: 'Download onvolledig',
   err_otaChecksum: 'Controlesom klopt niet — image verworpen',
+  err_calibrationTooClose: 'De twee punten liggen te dicht bij elkaar',
+  err_calibrationRange: 'Helderheid buiten het geldige bereik',
   err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,

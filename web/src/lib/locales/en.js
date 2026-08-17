@@ -57,9 +57,23 @@ export default {
   automatic: 'Automatic',
   autoBrightness: 'Automatic brightness',
   measured: 'Measured',
+  resulting: 'Resulting',
+  calibration: 'Calibration',
+  calDark: 'Dark',
+  calBright: 'Bright',
+  calCapture: 'Capture now',
+  calReset: 'Reset',
+  calHint:
+    'Set the brightness you want at the light there is right now, then ' +
+    'capture it — once in the dark, once in daylight. Everything in ' +
+    'between the clock works out for itself.',
+  calHintAutoOn:
+    'Switch the automatic off to calibrate: both points are taken from the ' +
+    'brightness slider, and it is not driving the display at the moment.',
   ldrHint:
-    'Ambient light is measured but does not drive the display yet — the ' +
-    'reading is there to judge where the sensor sits.',
+    'The display follows the ambient light, logarithmically between the two ' +
+    'points — that is how the eye perceives it. The figure in brackets is ' +
+    'unsmoothed and helps when placing the sensor.',
 
   // --- timezone tab ---
   timeServer: 'Time server',
@@ -202,6 +216,8 @@ export default {
   err_otaConnectionLost: 'Connection lost during the download',
   err_otaSize: 'Download incomplete',
   err_otaChecksum: 'Checksum does not match — image discarded',
+  err_calibrationTooClose: 'The two points are too close together',
+  err_calibrationRange: 'Brightness outside the valid range',
   err_hostnameInvalid: 'That name contains no usable characters',
   err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
   err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,

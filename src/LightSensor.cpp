@@ -30,6 +30,35 @@ extern RemoteDebug Debug;
 #define SAMPLE_TASK_STACK 4096
 
 
+byte brightnessForLux(float lux, float luxLow, byte brightLow,
+                      float luxHigh, byte brightHigh)
+{
+    // NaN fails every comparison, so the test is written to let it through to
+    // the floor rather than around it.
+    if (!(lux > LUX_FLOOR)) lux = LUX_FLOOR;
+    if (!(luxLow > LUX_FLOOR)) luxLow = LUX_FLOOR;
+
+    // A stored curve whose points sit too close together would otherwise
+    // divide by something near zero. The web UI refuses to write one, but the
+    // endpoint is reachable without it and an old record could hold anything.
+    if (!(luxHigh > luxLow * CALIBRATION_MIN_RATIO)) luxHigh = luxLow * CALIBRATION_MIN_RATIO;
+
+    float position = (log10f(lux) - log10f(luxLow)) /
+                     (log10f(luxHigh) - log10f(luxLow));
+    if (position < 0.0f) position = 0.0f;
+    if (position > 1.0f) position = 1.0f;
+
+    float percent = brightLow + position * ((float)brightHigh - (float)brightLow);
+
+    // Never 0: that is the display switching itself off, which is a mode the
+    // user picks in the display tab and not something the light sensor decides.
+    long value = lroundf(percent);
+    if (value < 1) value = 1;
+    if (value > 100) value = 100;
+    return (byte)value;
+}
+
+
 bool Veml7700Sensor::begin()
 {
     Adafruit_VEML7700 *veml = new Adafruit_VEML7700();

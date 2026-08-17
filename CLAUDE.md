@@ -93,7 +93,8 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /display` — display mode.
 - `POST /color` — hue/saturation/luminance.
 - `POST /autoluminance` — toggle automatic brightness.
-- `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor. Not part of `/currentState`: it is a measurement, not a setting, and the colour tab polls it.
+- `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus the brightness curve (`luxLow`, `brightLow`, `luxHigh`, `brightHigh`, `minRatio`) and the `brightness` it yields for the current reading. Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
+- `POST /light` — the four curve fields, or `{reset: true}`. Answers with the same shape `GET` does, or with `calibrationTooClose` / `calibrationRange`.
 - `POST /configuration` — language, corner LED direction/color.
 - `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
 - `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
@@ -283,12 +284,34 @@ It is stored in **NVS**, not in the filesystem, because the filesystem partition
 
 `I2C_SDA_PIN` / `I2C_SCL_PIN` default to 5/6 (D4/D5 on the XIAO) and are overridable, because one firmware serves every build of the clock and the sensor is not in the same place in all of them.
 
-**Nothing regulates on the reading yet.** It is measured, smoothed and served to the web UI so the placement behind the panel can be judged first — how much light the acrylic passes is a property of each individual clock. `present()` distinguishes "no sensor on this clock" from "sensor found, no reading yet" (`available()`), and both the UI and the boot path depend on that distinction:
+`present()` distinguishes "no sensor on this clock" from "sensor found, no reading yet" (`available()`), and both the UI and the boot path depend on that distinction:
 
 - The colour tab **hides the whole "Automatik" section** when `present` is false, rather than showing a switch that does nothing.
 - `setup()` **clears `UseLdr` when no sensor answers**, writing straight to NVS rather than through the deferred write (which is armed later in `setup()` and would drop it). Without that, a clock whose sensor is removed keeps a stored "on" for a switch nobody can see, and therefore nobody can turn off.
 
-The roadmap agreed for this: (1) interface and sensor, (2) measure and display — both done — then (3) a conservative default log-lux curve plus two-point calibration, and (4) passive learning with a "geek" tab showing the curves and allowing backup/restore.
+### Automatic brightness
+
+`brightnessForLux()` in `LightSensor.cpp` maps a reading onto a display brightness, from two calibration points held in `Settings` (`AutoLuxLow`/`AutoBrightLow`, `AutoLuxHigh`/`AutoBrightHigh`). It is a free function with no state, so the curve can be reasoned about — and compared against a reference implementation — without a sensor present.
+
+- **Brightness is linear in log(lux), not in lux.** Perception is roughly logarithmic and the range to cover spans several decades: a dark bedroom and a sunlit room differ by a factor of thousands, which no linear mapping survives.
+- **The result is clamped to the two calibrated ends, never extrapolated**, so a torch or a sunbeam on the sensor cannot drive the display past what the user asked for.
+- **The floor is 1 %, never 0.** Zero is the display switching itself off, which is a mode chosen in the display tab, not something the light sensor gets to decide.
+- Two guards keep bad input out of a division: `LUX_FLOOR` (log(0) has no answer, and the VEML7700 reports a plain 0 in a closed room) and `CALIBRATION_MIN_RATIO`, the factor by which the two points must differ. Points too close together describe no slope and would swing the brightness across its whole range on sensor noise. `POST /light` rejects such a pair with `calibrationTooClose`; `brightnessForLux()` clamps as well, because the endpoint is reachable without the UI and an old record could hold anything.
+- The defaults (1 lx → 20 %, 200 lx → 100 %) are deliberately cautious rather than good: they assume a sensor in the open. **Behind a front panel both readings shrink by the same factor, which in log space only shifts the line sideways** — so an uncalibrated clock still dims in the right direction, just not by the right amount.
+
+`brightnessToApply()` in `main .cpp` decides what actually reaches the driver each tick:
+
+- With the automatic **off**, the setting is applied immediately — someone dragging the slider wants to see the effect while dragging, so no easing there.
+- With it **on**, the computed value is approached by an eighth of the remaining distance per second, about twenty seconds for a full swing. The reading is already smoothed over 30 s, so this is not about noise: it is about the step when a lamp is switched on, which is a genuine jump the eye would otherwise catch.
+- **The manual setting is never overwritten.** Switching the automatic off has to give back the brightness the user chose, and the calibration needs it as the "how bright I want it here" half of a point.
+
+The calibration itself is **entirely in the browser**: the UI reads the current lux from `/light`, takes the brightness from the slider, and posts all four numbers. The firmware only ever stores and validates a curve — there is no "capture" concept in it. Two consequences worth keeping: the curve is written against the **smoothed** reading, not the raw one, because that is what the curve is fed at runtime; and the calibration buttons are disabled while the automatic is on, since the slider is then not what the display is doing.
+
+`POST /light` also accepts `{reset: true}`, which restores the curve from a freshly constructed `Settings` rather than repeating those four numbers in a second place.
+
+**The colour tab polls `/light` every 2 s while it is open** — matching the sampling interval, so the number moves as fast as it can and no faster. It is the only tab that polls; the clock's web server is single-threaded.
+
+The roadmap agreed for this: (1) interface and sensor, (2) measure and display, (3) the curve and two-point calibration — all done — and (4) passive learning with a "geek" tab showing the curves and allowing backup/restore. Step 4 is where the slider could re-anchor the nearer point live, which would remove the "switch the automatic off to calibrate" step.
 
 ### Debugging
 

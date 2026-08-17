@@ -53,6 +53,30 @@ export async function fetchLight() {
 export const setAutoLuminance = (automaticLum) =>
   post('/autoluminance', { automaticLum: automaticLum ? 1 : 0 });
 
+/**
+ * Writes the two points of the automatic brightness curve.
+ *
+ * Not through post(), which reports and returns a bare boolean: the clock
+ * validates the pair and answers either with the curve it stored or with a
+ * code saying why it did not, and the calibration button has to show which.
+ */
+export async function setLightCurve(curve) {
+  try {
+    const res = await fetch('/light', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(curve)
+    });
+    const body = await res.json();
+    if (!res.ok) return { error: body.error || `HTTP ${res.status}` };
+    status.error = null;
+    return body;
+  } catch (err) {
+    status.error = `/light: ${err.message}`;
+    return { error: 'connectionLost' };
+  }
+}
+
 export const setConfiguration = ({ language, cornerColor, cornerDirection }) =>
   post('/configuration', { language, cornerColor, cornerDirection });
 

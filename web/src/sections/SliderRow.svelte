@@ -25,6 +25,8 @@
     track,
     /** Hue is circular, so its buttons wrap instead of stopping at the ends. */
     wrap = false,
+    /** Greyed out when something else is driving the value - see Color.svelte. */
+    disabled = false,
     onchange
   } = $props();
 
@@ -52,17 +54,17 @@
       type="button"
       class="step"
       onclick={() => stepBy(-stepSize)}
-      disabled={!wrap && value <= min}
+      disabled={disabled || (!wrap && value <= min)}
       aria-label={t.decreaseBy(label, `${stepSize}${unit}`)}
     >
       −
     </button>
-    <input {id} type="range" {min} {max} bind:value oninput={onchange} style="--track: {track}" />
+    <input {id} type="range" {min} {max} {disabled} bind:value oninput={onchange} style="--track: {track}" />
     <button
       type="button"
       class="step"
       onclick={() => stepBy(stepSize)}
-      disabled={!wrap && value >= max}
+      disabled={disabled || (!wrap && value >= max)}
       aria-label={t.increaseBy(label, `${stepSize}${unit}`)}
     >
       +

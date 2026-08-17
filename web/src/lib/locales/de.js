@@ -59,9 +59,23 @@ export default {
   automatic: 'Automatik',
   autoBrightness: 'Helligkeit automatisch',
   measured: 'Gemessen',
+  resulting: 'Daraus',
+  calibration: 'Kalibrierung',
+  calDark: 'Dunkel',
+  calBright: 'Hell',
+  calCapture: 'Jetzt merken',
+  calReset: 'Zurücksetzen',
+  calHint:
+    'Helligkeit so einstellen, wie sie beim aktuellen Umgebungslicht sein ' +
+    'soll, und merken — einmal im Dunkeln, einmal bei Tageslicht. Alles ' +
+    'dazwischen regelt die Uhr selbst.',
+  calHintAutoOn:
+    'Zum Kalibrieren die Automatik ausschalten: beide Punkte werden vom ' +
+    'Helligkeitsregler übernommen, und der steuert gerade nicht die Anzeige.',
   ldrHint:
-    'Die Helligkeit wird bereits gemessen, aber noch nicht geregelt — der ' +
-    'Wert dient vorerst dazu, die Platzierung des Sensors zu beurteilen.',
+    'Die Anzeige folgt dem Umgebungslicht, zwischen den beiden Punkten ' +
+    'logarithmisch — so nimmt das Auge wahr. Der Wert in Klammern ist ' +
+    'ungeglättet und hilft beim Platzieren des Sensors.',
 
   // --- timezone tab ---
   timeServer: 'Zeitserver',
@@ -205,6 +219,8 @@ export default {
   err_otaConnectionLost: 'Verbindung während des Downloads abgerissen',
   err_otaSize: 'Download unvollständig',
   err_otaChecksum: 'Prüfsumme stimmt nicht — Image verworfen',
+  err_calibrationTooClose: 'Die beiden Punkte liegen zu dicht beieinander',
+  err_calibrationRange: 'Helligkeit außerhalb des gültigen Bereichs',
   err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,

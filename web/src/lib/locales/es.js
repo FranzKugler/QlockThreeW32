@@ -57,9 +57,23 @@ export default {
   automatic: 'Automático',
   autoBrightness: 'Brillo automático',
   measured: 'Medido',
+  resulting: 'Resultado',
+  calibration: 'Calibración',
+  calDark: 'Oscuro',
+  calBright: 'Claro',
+  calCapture: 'Memorizar',
+  calReset: 'Restablecer',
+  calHint:
+    'Ajusta el brillo que quieras con la luz actual y memorízalo: una vez a ' +
+    'oscuras y otra con luz de día. De todo lo intermedio se encarga el ' +
+    'reloj.',
+  calHintAutoOn:
+    'Para calibrar, desactiva el automático: los dos puntos se toman del ' +
+    'control de brillo, y ahora mismo no gobierna la pantalla.',
   ldrHint:
-    'La luz ambiental se mide pero todavía no regula la pantalla: el valor ' +
-    'sirve para juzgar la ubicación del sensor.',
+    'La pantalla sigue la luz ambiental, de forma logarítmica entre los dos ' +
+    'puntos: así es como percibe el ojo. El valor entre paréntesis no está ' +
+    'suavizado y ayuda a colocar el sensor.',
 
   // --- timezone tab ---
   timeServer: 'Servidor de hora',
@@ -204,6 +218,8 @@ export default {
   err_otaConnectionLost: 'Conexión perdida durante la descarga',
   err_otaSize: 'Descarga incompleta',
   err_otaChecksum: 'La suma de verificación no coincide — imagen descartada',
+  err_calibrationTooClose: 'Los dos puntos están demasiado juntos',
+  err_calibrationRange: 'Brillo fuera del intervalo válido',
   err_hostnameInvalid: 'Ese nombre no contiene caracteres utilizables',
   err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
   err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,

@@ -57,9 +57,23 @@ export default {
   automatic: 'Automatico',
   autoBrightness: 'Luminosità automatica',
   measured: 'Misurato',
+  resulting: 'Risultato',
+  calibration: 'Calibrazione',
+  calDark: 'Buio',
+  calBright: 'Chiaro',
+  calCapture: 'Memorizza',
+  calReset: 'Ripristina',
+  calHint:
+    'Imposta la luminosità desiderata con la luce attuale, poi memorizzala ' +
+    '— una volta al buio, una alla luce del giorno. Di tutto ciò che sta in ' +
+    'mezzo si occupa l’orologio.',
+  calHintAutoOn:
+    'Per calibrare disattiva l’automatico: i due punti vengono presi dal ' +
+    'cursore della luminosità, che al momento non comanda il display.',
   ldrHint:
-    'La luce ambientale viene misurata ma non regola ancora il display — ' +
-    'il valore serve a giudicare la posizione del sensore.',
+    'Il display segue la luce ambientale, in modo logaritmico fra i due ' +
+    'punti — è così che percepisce l’occhio. Il valore fra parentesi non ' +
+    'è livellato e aiuta a posizionare il sensore.',
 
   // --- timezone tab ---
   timeServer: 'Server orario',
@@ -204,6 +218,8 @@ export default {
   err_otaConnectionLost: 'Connessione persa durante il download',
   err_otaSize: 'Download incompleto',
   err_otaChecksum: 'Somma di controllo errata — immagine scartata',
+  err_calibrationTooClose: 'I due punti sono troppo vicini',
+  err_calibrationRange: 'Luminosità fuori dall’intervallo valido',
   err_hostnameInvalid: 'Questo nome non contiene caratteri utilizzabili',
   err_wifiConnect: (ssid) => `Impossibile connettersi a «${ssid}»`,
   err_wifiFallback: (ssid) => `Anche il ritorno a «${ssid}» non è riuscito`,
