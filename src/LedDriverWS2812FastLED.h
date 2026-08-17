@@ -68,7 +68,11 @@ public:
     boolean getPixelFromScreenBuffer(byte x, byte y, word matrix[16]);
 
 private:
-    byte _brightnessInPercent;
+    byte _brightnessInPercent = 0;
+    // The setting after gamma, 0..255, which is what actually drives the LEDs.
+    // Kept alongside rather than computed per pixel: it only changes when the
+    // setting does.
+    byte _brightnessScaled = 0;
     boolean _dirty;
     boolean _colorCorners;
     boolean _cw;
@@ -83,6 +87,7 @@ private:
     uint32_t _wheel(byte wheelPos);
 
     byte _brightnessScaleColor(byte colorPart);
+    static byte _gammaScale(byte percent);
 
   	CRGB *_leds;
 };

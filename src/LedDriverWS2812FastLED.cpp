@@ -122,7 +122,7 @@ void LedDriverWS2812FastLED::writeScreenBufferToMatrix(word matrix[16], boolean 
 		}
 		else
 		{
-			int brightness = _brightnessInPercent * 255 / 100;
+			int brightness = _brightnessScaled;  // same gamma as the letters
 			switch (_minute % 5)
 			{
 			case 0:
@@ -169,7 +169,7 @@ void LedDriverWS2812FastLED::writeScreenBufferToMatrix(word matrix[16], boolean 
 
 		if (_funkStatus)
 		{
-			int brightness = _brightnessInPercent * 255 / 100;
+			int brightness = _brightnessScaled;  // same gamma as the letters
 			if ((_funkStatus & 0x0F) == 1)
 				color = CHSV(96, 255, brightness); 
 			else if ((_funkStatus & 0x0F) == 2)
@@ -217,8 +217,31 @@ void LedDriverWS2812FastLED::setBrightness(byte brightnessInPercent)
 	if (brightnessInPercent != _brightnessInPercent)
 	{
 		_brightnessInPercent = brightnessInPercent;
+		_brightnessScaled = _gammaScale(brightnessInPercent);
 		_dirty = true;
 	}
+}
+
+/**
+ * The setting as a drive value, with gamma.
+ *
+ * Perceived brightness follows roughly a power law, so driving the LEDs
+ * proportionally to the setting does not feel proportional: half way up the
+ * slider looked far brighter than half, and everything interesting happened in
+ * the bottom third. Raising the setting to 2.2 spreads the useful range over
+ * the whole slider.
+ *
+ * The floor matters as much as the curve: without it a setting of 1 to 3 per
+ * cent rounds to zero and the clock goes dark while the web UI says it is on.
+ */
+byte LedDriverWS2812FastLED::_gammaScale(byte percent)
+{
+	if (percent == 0) return 0;
+	if (percent >= 100) return 255;
+
+	long value = lroundf(255.0f * powf(percent / 100.0f, 2.2f));
+	if (value < 1) value = 1;
+	return (byte)value;
 }
 
 /**
@@ -320,7 +343,7 @@ uint32_t LedDriverWS2812FastLED::_wheel(byte wheelPos)
  */
 byte LedDriverWS2812FastLED::_brightnessScaleColor(byte colorPart)
 {
-	return map(_brightnessInPercent, 0, 100, 0, colorPart);
+	return (byte)(((int)colorPart * (int)_brightnessScaled + 127) / 255);
 }
 
 void LedDriverWS2812FastLED::setColor(byte red, byte green, byte blue) {

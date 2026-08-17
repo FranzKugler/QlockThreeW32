@@ -46,10 +46,10 @@
 // JSON library
 #include "ArduinoJson.h"
 
-#include "LDR.h"
 #include "LedDriverWS2812FastLED.h"
 #include "Renderer.h"
 #include "Settings.h"
+#include "LightSensor.h"
 // Credentials of this particular clock, not in version control. Without it the
 // build still works; see Secrets.example.h.
 #if __has_include("Secrets.h")
@@ -183,6 +183,11 @@ String header;
 // The persistent settings, stored in flash.
 Settings settings;
 
+// Measures the ambient light in the background. Nothing regulates on it yet -
+// it is reported through /light so the sensor's placement behind the front
+// panel can be judged before a curve is designed around it.
+AmbientLight ambientLight;
+
 // The renderer that puts the words onto the matrix.
 Renderer renderer;
 
@@ -190,11 +195,6 @@ Renderer renderer;
 LedDriverWS2812FastLED ledDriver; 
 
 // The light sensor
-//LDR ldr;
-unsigned long lastBrightnessCheck;
-bool brightnessChanged = false;
-float lastDisplayBrightness;
-int   lastControllerBrightness;
 
 // mark for initial update
 bool needsUpdateFromRtc = true;
@@ -439,11 +439,8 @@ void updateAutoLuminance()
     deserializeJson(doc, server.arg(0));
     settings.setUseLdr(doc["automaticLum"].as<int>());
 
-    //lastDisplayBrightness = ldr.lightLevel(); //ldr.getLDRValue();
-    lastControllerBrightness = settings.getBrightness();
     
     needsUpdateFromRtc = true;
-    brightnessChanged = true;
     timeToSaveToFLASH = now() + WAIT_BEFORE_SETTINGS_WRITE;
 
     server.send(200, "application/json", "{msg: ''}");
@@ -760,6 +757,26 @@ void sendManifest()
     String out;
     serializeJson(doc, out);
     server.send(200, "application/manifest+json", out);
+}
+
+/**
+ * What the light sensor sees. Polled by the colour tab while it is open, which
+ * is why it carries the raw reading as well as the smoothed one: placing the
+ * sensor behind the front panel is a matter of watching the raw number while
+ * moving it, and the smoothed one lags half a minute behind on purpose.
+ */
+void sendLight()
+{
+    JsonDocument doc;
+    doc["sensor"]    = ambientLight.name();
+    doc["present"]   = ambientLight.present();
+    doc["available"] = ambientLight.available();
+    doc["lux"]       = ambientLight.lux();
+    doc["raw"]       = ambientLight.raw();
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
 }
 
 // Current connection, plus the outcome of a switch requested via POST /wifi.
@@ -1574,6 +1591,9 @@ void setup()
     debugA("Version: %s", FIRMWARE_VERSION);
 	ledDriver.printSignature();
 
+    // Starts its own sampling task, and says so if no sensor answers.
+    ambientLight.begin();
+
     // Start the mDNS responder for <hostname>.local
     if (MDNS.begin(settings.getHostname()))
     {
@@ -1601,6 +1621,7 @@ void setup()
     server.on("/autoluminance", updateAutoLuminance);
     server.on("/configuration", updateConfiguration);
     server.on("/timezone", updateTimezone);
+    server.on("/light", HTTP_GET, sendLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);
     server.on("/wifi", HTTP_GET, sendWifiStatus);
@@ -1648,13 +1669,6 @@ ArduinoOTA
 
 ArduinoOTA.begin();
 
-/*
-    // read and discard LDR values, as the first ones are useless...
-	for (int i = 0; i < 1000; i++)
-	{
-		analogRead(PIN_LDR);
-	}
-*/
 	// print some info
 	debugA("Initialisation done and ready to rock!");
 
@@ -1797,34 +1811,6 @@ void loop()
         needsUpdateFromRtc = true;
     }
     
-    //
-	// Dimming.
-	//
-	if (settings.getUseLdr())
-	{
-        if (millis() < lastBrightnessCheck)
-		{
-			// we had an overflow...
-			lastBrightnessCheck = millis();
-		}
-		if (((lastBrightnessCheck + LDR_CHECK_RATE) < millis()) && !brightnessChanged)
-		{ // check slowly...
-			//byte lv = ldr.value();
-			//byte lv = ldr.calculateDisplayBrightness();
-            /*
-            if (ledDriver.getBrightness() > lv)
-			{
-				ledDriver.setBrightness(ledDriver.getBrightness() - 1);
-			}
-			else if (ledDriver.getBrightness() < lv)
-			{
-				ledDriver.setBrightness(ledDriver.getBrightness() + 1);
-			}
-			lastBrightnessCheck = millis();
-            */
-		}
-	}
-
 	// we have to change something at the display
     if (needsUpdateFromRtc)
 	{
@@ -1842,9 +1828,7 @@ void loop()
         // can actually produce - 360 hues do not fit into 256 steps.
         ledDriver.setColorHS((byte)((settings.getColorHue() * 255L + 179) / 359),
                              (byte)((settings.getColorSat() * 255L + 50) / 100));
-        // brightness only if we're in manual mode or slider changed during automatic mode
-        if(!settings.getUseLdr() || brightnessChanged) 
-            ledDriver.setBrightness(settings.getBrightness());
+        ledDriver.setBrightness(settings.getBrightness());
 
         //
         // fill the frame buffer...
@@ -1939,13 +1923,7 @@ void loop()
         settings.storeSettings();
         debugI("Settings saved to Flash\n");
 
-        if (settings.getUseLdr() && brightnessChanged)
-        {
-            //ldr.setNewReference(lastDisplayBrightness, lastControllerBrightness);
-            brightnessChanged = false;
-        }
-        
-        // o.k. done - so nothing to save 
+        // o.k. done - so nothing to save
         timeToSaveToFLASH = std::numeric_limits<time_t>::max();
     }
 }
