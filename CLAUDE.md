@@ -44,15 +44,43 @@ npm run mock         # mock REST API on :8080, also serves a built data/
 ```
 
 For UI work run `npm run mock` and `npm run dev` side by side: Vite proxies the
-six API routes to the mock, so the SPA behaves as it does on the device. To
+API routes listed in `vite.config.js` to the mock, so the SPA behaves as it
+does on the device — a new endpoint has to be added to that list. To
 check a production build instead, run `npm run build` and open the mock server
 on :8080 directly, which serves `data/` statically.
 
 ## Architecture
 
+### Firmware modules
+
+`main .cpp` had grown to 1951 lines and was split along the seams that were already there. It is 787 lines now and owns the clock itself — boot, network, time, and the render loop. Three modules sit next to it, each with a header of four or five functions and no other way in:
+
+| File | Owns |
+|---|---|
+| [src/OtaUpdate.cpp](src/OtaUpdate.cpp) | `Ota::` — browser upload, release-channel polling, install, the deferred restart |
+| [src/WebRoutes.cpp](src/WebRoutes.cpp) | `Web::` — every HTTP handler except `/ota/*`, `PORTAL_STYLE`, the network-switch state machine |
+| [src/LightSensor.cpp](src/LightSensor.cpp) | the `LightSensor` interface, `Veml7700Sensor`, and `AmbientLight` with its sampling task |
+| [src/DisplayModes.h](src/DisplayModes.h) | the mode numbers, shared because `main .cpp` renders them and `WebRoutes.cpp` accepts them |
+
+Two things make this a split rather than a rearrangement. **The modules take what they need as parameters instead of reading globals**: `Ota::poll(online, localHour)` gets told whether the network is up and what the local hour is, so nothing in it knows about `WiFiManager` or `Timezone`. And **`scheduleSettingsSave()` is the one named seam** both modules use to arm the deferred write, rather than each reaching into `timeToSaveToFLASH`.
+
+What remains shared is declared `extern` in the module `.cpp`s: `server`, `settings`, `wifiConnected`. That is the honest description of the coupling — a handler needs the server it hangs on, and the settings are the state of the whole clock.
+
+The move was verified as a pure relocation: the flash image grew by 48 bytes on the web-routes commit.
+
 ### Firmware request/render loop
 
-[src/main .cpp](src/main%20.cpp) (note the literal space in the filename) is the entry point. `setup()` mounts LittleFS, loads `Settings`, connects WiFi via `WiFiManager` (falls back to a `QlockThreeW32` AP for first-time config), starts NTP, mDNS, ArduinoOTA, RemoteDebug, and the `WebServer` on port 80. `loop()` re-syncs WiFi/NTP as needed, services the web server and OTA, and once per second rebuilds `matrix[16]` (the 16-row bitmask framebuffer) according to `mode` and pushes it to the LED driver. `mode` selects between normal time display, the same with a WiFi status pixel, dark, a seconds counter and an LED test pattern (see the `STD_MODE_*` / `EXT_MODE_*` defines near the top of the file).
+[src/main .cpp](src/main%20.cpp) (note the literal space in the filename) is the entry point. `setup()` mounts LittleFS, loads `Settings`, connects WiFi via `WiFiManager` (falls back to a `QlockThreeW32` AP for first-time config), starts NTP, mDNS, ArduinoOTA, RemoteDebug, the light sensor, and the `WebServer` on port 80. `loop()` re-syncs WiFi/NTP as needed, services the web server and OTA, and once per second rebuilds `matrix[16]` (the 16-row bitmask framebuffer) according to `mode` and pushes it to the LED driver. `mode` selects between normal time display, the same with a WiFi status pixel, dark, a seconds counter and an LED test pattern (the `STD_MODE_*` / `EXT_MODE_*` defines are in [src/DisplayModes.h](src/DisplayModes.h)).
+
+`loop()` **returns early while a restart is pending** — after an update or a rename — because a filesystem update unmounts LittleFS underneath it. The deferred settings write is the one exception and is flushed first; see "Settings persistence".
+
+Once a minute the render path logs what is actually on the face, read back out of the framebuffer rather than out of the renderer's intentions:
+
+```
+Display 00:21 CEST (UTC 22:21) [EN] | ES IS DREIVI HALB NZWOLF | corners +1
+```
+
+That line looks broken and is not. `displayedWords()` walks the lit bits over the **German** panel letters in `PANEL[10][12]`, so an English face spells its words out of whatever letters happen to sit under them. Reading it needs the language tag — hence `[EN]`. It cost a while to establish that the renderer was right and the log was merely honest.
 
 `mode` is stored, so it has to be read back — `isKnownMode()` guards both the boot path and `POST /display`, and anything else falls back to normal display. That matters on an update: 4 and 5 used to be an uptime counter and a DCF-sync-age display, left from the AVR and DCF77 days, and a clock updating from 2.0.1 can still have 4 in NVS. The numbers are deliberately not reused. Note also that persisting a mode is only half of it: `getMode()` was never read at first, so the web UI showed one mode selected while the face ran another.
 
@@ -60,11 +88,12 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 
 ### REST API (firmware and mock server share the same contract)
 
-Both [src/main .cpp](src/main%20.cpp) and [server.js](server.js) implement the same endpoints, consumed by [web/src/lib/api.js](web/src/lib/api.js):
+[src/WebRoutes.cpp](src/WebRoutes.cpp) (and [src/OtaUpdate.cpp](src/OtaUpdate.cpp) for `/ota/*`) and [server.js](server.js) implement the same endpoints, consumed by [web/src/lib/api.js](web/src/lib/api.js):
 - `GET /currentState` — returns the full current settings object as JSON.
 - `POST /display` — display mode.
 - `POST /color` — hue/saturation/luminance.
-- `POST /autoluminance` — toggle LDR-based auto brightness.
+- `POST /autoluminance` — toggle automatic brightness.
+- `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor. Not part of `/currentState`: it is a measurement, not a setting, and the colour tab polls it.
 - `POST /configuration` — language, corner LED direction/color.
 - `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
 - `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
@@ -77,7 +106,7 @@ Both [src/main .cpp](src/main%20.cpp) and [server.js](server.js) implement the s
 - `POST /ota/install` — starts the download in a task; answers immediately.
 - `POST /ota/config` — `{channel, autoUpdate, checkInterval}`.
 
-Changing the API means touching three places: the firmware handler, `server.js`, and `web/src/lib/api.js`.
+Changing the API means touching **four** places: the firmware handler, `server.js`, `web/src/lib/api.js`, and the route list in [vite.config.js](vite.config.js) — a new endpoint that is not in `API_ROUTES` is not proxied, so it works on the device and 404s in `npm run dev`.
 
 **Errors are codes, not sentences.** The firmware answers with `{"error": "otaChecksum", "errorDetail": "HTTP 404"}` — a stable code plus an untranslated technical detail — and [web/src/lib/errors.js](web/src/lib/errors.js) turns it into text in the current language from the `err_*` keys in the locale files. It used to send German sentences, which was fine while the UI was German too. An unknown code is displayed as-is rather than swallowed, so a clock running newer firmware than its web UI still says something useful.
 
@@ -85,7 +114,7 @@ Changing the API means touching three places: the firmware handler, `server.js`,
 
 ### Web UI architecture
 
-[web/src/App.svelte](web/src/App.svelte) loads `/currentState` once on mount into a single `$state` object and passes it to the section of the selected tab — [Display](web/src/sections/Display.svelte), [Color](web/src/sections/Color.svelte), [Timezone](web/src/sections/Timezone.svelte); [Wifi](web/src/sections/Wifi.svelte) and [Ota](web/src/sections/Ota.svelte) fetch their own state instead, since neither is part of `/currentState`. Sections mutate that object through `bind:` and POST the affected endpoint on change; there is no save button, matching the old UI. `Timezone` always posts all fourteen fields at once because the firmware rebuilds both `TimeChangeRule`s from a single request.
+[web/src/App.svelte](web/src/App.svelte) loads `/currentState` once on mount into a single `$state` object and passes it to the section of the selected tab — [Display](web/src/sections/Display.svelte), [Color](web/src/sections/Color.svelte), [Timezone](web/src/sections/Timezone.svelte); [Wifi](web/src/sections/Wifi.svelte) and [Ota](web/src/sections/Ota.svelte) fetch their own state instead, since neither is part of `/currentState`. `Color` does both: the colour itself comes from `/currentState`, the sensor reading beside it from `/light`. Sections mutate that object through `bind:` and POST the affected endpoint on change; there is no save button, matching the old UI. `Timezone` always posts all fourteen fields at once because the firmware rebuilds both `TimeChangeRule`s from a single request.
 
 ### Timezone picker
 
@@ -101,13 +130,13 @@ The data is the last line of every compiled IANA zone file, the **POSIX TZ strin
 - The first rule in a POSIX string *starts* daylight saving and the second *ends* it, so they map onto `tzDs*` and `tz*` respectively — not in reading order. `Europe/Berlin` parses to exactly the defaults written by hand in `Settings.cpp`, which is the cheapest available check that the mapping is right.
 
 Points worth knowing:
-- The mode/language/corner values in the UI are the firmware's own numbers (`STD_MODE_*`/`EXT_MODE_*` in `main .cpp`, `LANGUAGE_*` in `Renderer.h`). Bindings keep them as numbers rather than the strings jQuery's `.val()` used to send.
+- The mode/language/corner values in the UI are the firmware's own numbers (`STD_MODE_*`/`EXT_MODE_*` in [src/DisplayModes.h](src/DisplayModes.h), `LANGUAGE_*` in `Renderer.h`). `MODE_VALUES` in `Display.svelte` has to agree with that header. Bindings keep them as numbers rather than the strings jQuery's `.val()` used to send.
 - Colour changes are throttled ([web/src/lib/throttle.js](web/src/lib/throttle.js)); dragging the wheel would otherwise fire one POST per pointer move at the ESP32's single-threaded web server.
 - With "Sommerzeit" off, the changeover fields of both rules are disabled but the standard rule's abbreviation and offset stay editable — the same rule the old `setDst()` implemented.
 - Everything is bundled locally. The old page pulled Bootstrap, FontAwesome, jQuery and iro.js from CDNs, so it rendered broken on a LAN without internet access. The colour wheel is still iro.js, now bundled. The built page requests exactly three files on load, all from the clock: the JS bundle, the CSS and the favicon — no webfonts, no `url()` in the CSS, no `@import`. Opening the timezone tab adds a fourth, `/zones.json`, also from the clock. Keep it that way; the clock has to work on a network with no internet at all.
 - **Never name a local `$state` in a component that takes the `state` prop.** `let { state } = $props()` makes `$state(...)` parse as a store subscription on that local binding rather than as the rune (`store_rune_conflict`). It is a warning, not an error, so the build succeeds and the variable silently never triggers a re-render. [Timezone.svelte](web/src/sections/Timezone.svelte) therefore destructures as `let { state: clock } = $props()`.
 - Failed writes surface as a banner via [web/src/lib/status.svelte.js](web/src/lib/status.svelte.js), instead of being dropped as they were by the old `.done()`-only handlers.
-- **The UI language is not a setting of its own**: it follows the clock's language. [web/src/lib/i18n.svelte.js](web/src/lib/i18n.svelte.js) maps the `LANGUAGE_*` number onto one of six locales in [web/src/lib/locales/](web/src/lib/locales/) — the four German dialects and Swiss German all share `de.js`. `App.svelte` drives it from a single `$effect` on `clock.language`, so no section has to know about it. Components read texts with `const t = $derived(dict())`; that `$derived` is what makes the page re-render on a change. `de.js` is the reference: same keys, same order, same array lengths in every locale — nothing falls back per key, a missing key renders as `undefined`.
+- **The UI language is not a setting of its own**: it follows the clock's language. [web/src/lib/i18n.svelte.js](web/src/lib/i18n.svelte.js) maps the `LANGUAGE_*` number onto one of six locales in [web/src/lib/locales/](web/src/lib/locales/) — the four German dialects and Swiss German all share `de.js`. `App.svelte` drives it from a single `$effect` on `clock.language`, so no section has to know about it. Components read texts with `const t = $derived(dict())`; that `$derived` is what makes the page re-render on a change. `de.js` is the reference: same keys, same order, same array lengths in every locale — nothing falls back per key, a missing key renders as `undefined`. **Check for duplicate keys, not just for equal counts.** Adding an `err_*` code that already existed silently shadowed the original in all six files at once; a count comparison across locales saw six consistent numbers and reported nothing, because the mistake had been made six times identically. In an object literal the last entry simply wins, with no warning from Vite or Svelte.
 
 ### The clock's name
 
@@ -138,9 +167,9 @@ Two platform rules drive that table. iOS masks with a squircle that bites ~22 % 
 Which one applies depends on whether the clock is on the network at all:
 
 - **Connected** — the "WLAN" tab ([web/src/sections/Wifi.svelte](web/src/sections/Wifi.svelte)) shows status, scans, and switches networks through the `/wifi` endpoints above. The scan result is reduced to one entry per SSID, strongest first: a mesh or dual-band router answers once per radio, and the list is keyed by SSID — Svelte throws `each_key_duplicate` on a repeat, in production too, which took the whole list down rather than one row. `server.js` returns a duplicated SSID and a nameless one so the case shows up in development.
-- **Not connected** — the SPA is unreachable, because it is served from LittleFS only once WiFi is up. `WiFiManager` takes over in `setup()` with its own AP (`QlockThreeW32`) and its own web server on 192.168.4.1. A tab can never cover this case, so the portal is instead restyled to match: `PORTAL_STYLE` in `main .cpp` is injected via `setCustomHeadElement()` and mirrors the SPA's colour tokens, including the dark-mode media query. When the SPA's palette changes, change that string too.
+- **Not connected** — the SPA is unreachable, because it is served from LittleFS only once WiFi is up. `WiFiManager` takes over in `setup()` with its own AP (`QlockThreeW32`) and its own web server on 192.168.4.1. A tab can never cover this case, so the portal is instead restyled to match: `PORTAL_STYLE` in `WebRoutes.cpp` (reached through `Web::portalStyle()`, since `setup()` does the injecting) is passed to `setCustomHeadElement()` and mirrors the SPA's colour tokens, including the dark-mode media query. When the SPA's palette changes, change that string too.
 
-Switching networks is deliberately not a plain `WiFi.begin()`: a wrong password would leave the clock unreachable until someone power-cycles it and uses the AP portal. `POST /wifi` therefore only records the request and answers straight away (the response would never leave the old network otherwise), and `handleWifiSwitch()` runs a small state machine in `loop()`: try the new credentials, and on timeout fall back to the previous SSID/PSK — captured via `WiFi.psk()` before the attempt — leaving an explanatory message in `wifiLastError` for the UI. The normal reconnect block in `loop()` is skipped while a switch is in flight so the two don't fight over the connection.
+Switching networks is deliberately not a plain `WiFi.begin()`: a wrong password would leave the clock unreachable until someone power-cycles it and uses the AP portal. `POST /wifi` therefore only records the request and answers straight away (the response would never leave the old network otherwise), and a small state machine driven from `loop()` by `Web::poll()` does the rest: try the new credentials, and on timeout fall back to the previous SSID/PSK — captured via `WiFi.psk()` before the attempt — leaving an explanatory message in `wifiLastError` for the UI. The normal reconnect block in `loop()` is skipped while a switch is in flight so the two don't fight over the connection.
 
 The mock server implements the same endpoints, including a simulated scan delay and fallback: connect with the password `wrong` to exercise the failure path.
 
@@ -168,7 +197,9 @@ Details that are easy to get wrong:
 - `Update.end(true)` verifies the image before switching the boot partition, so a truncated upload is harmless — the clock keeps booting the old one. There is **no** rollback for an image that flashes fine but then crashes: the Arduino bootloader is built without `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, so that case needs USB.
 - **`uploadfs` over USB fails with "chip stopped responding".** PlatformIO sends the image compressed, and a fresh LittleFS is almost empty — 3538944 bytes become 170865. The last blocks expand to megabytes of empty space on the chip, which takes longer than esptool's reply timeout. Write it uncompressed instead: `python esptool.py --chip esp32s3 --port COMx --baud 460800 write_flash --no-compress 0xc90000 .pio/build/seeed_xiao_esp32s3/littlefs.bin`.
 - Before writing a filesystem image the firmware calls `LittleFS.end()`, otherwise cached writes would be flushed over the freshly written image.
-- The reboot happens in `loop()` via `otaRebootAt`, not in the handler, so the HTTP response makes it onto the wire. While that is pending `loop()` returns early — the deferred settings write must not run against an unmounted or just-overwritten filesystem.
+- **`Client::setTimeout()` is milliseconds, and that is not obvious.** `client.setTimeout(20)` — written in the belief it meant 20 seconds, because `NetworkServer::setTimeout()` in the same framework *does* take seconds — gave the download 20 ms of patience and failed every release-channel install with `otaSize`, a short read that looked like a truncated image. `NetworkClientSecure` derives from `NetworkClient` and neither overrides the method, so the `Stream` contract applies: milliseconds. Both timeouts are now `OTA_STREAM_TIMEOUT_MS`.
+- The download loop treats **a zero-length read as "nothing yet", not as the end**. It only gives up once `http.connected()` goes false or nothing has arrived for `OTA_STREAM_TIMEOUT_MS`, and reports `otaConnectionLost` — distinguishable in the UI from a checksum failure, which means something quite different.
+- The reboot happens in `loop()` via `Ota::restartDue()`, not in the handler, so the HTTP response makes it onto the wire. While that is pending `loop()` returns early — the deferred settings write must not run against an unmounted or just-overwritten filesystem. The rename in the WLAN tab uses the same `Ota::scheduleRestart()`; it is not an update, but it needs exactly the same delay.
 - A filesystem update overwrites the whole partition. That used to take `qlockconf.json` with it, which is why the settings now live in NVS instead — see "Settings persistence". Nothing has to be backed up or restored around an update.
 - The `/ota/*` endpoints have **no authentication**, deliberately: anyone on the LAN can flash the clock through the browser. A `server.authenticate()` at the top of both handlers is the whole fix if that changes. Note that espota *is* password-protected, so the two paths do not offer the same protection.
 
@@ -219,6 +250,8 @@ Fixed along the way: `loop()` used to call `NTP.begin("pool.ntp.org", …)` with
 
 `LedDriverWS2812FastLED` ([src/LedDriverWS2812FastLED.cpp](src/LedDriverWS2812FastLED.cpp)/[.h](src/LedDriverWS2812FastLED.h)) is the sole, concrete LED driver (an earlier `LedDriver` abstract base for swapping in other drivers was folded into this class — there is no longer an interface to implement). It drives a 114-pixel WS2812B strip via FastLED, wired serpentine with the corner LEDs fed separately (see the wiring diagram in the header's comment). It owns HSV color, brightness scaling, and corner-color/animation state, and converts the `matrix[16]` bitmap to physical pixel writes in `writeScreenBufferToMatrix`.
 
+**Brightness goes through gamma 2.2** (`_gammaScale()`, computed once in `setBrightness()` into `_brightnessScaled`, not per pixel). Perception follows roughly a power law, so driving the LEDs proportionally to the slider does not feel proportional — everything interesting used to happen in the bottom third, and half way up looked far brighter than half. The curve now gives 25 %→12, 50 %→55, 75 %→135. Two details are load-bearing: **the floor of 1**, because 1–3 % otherwise rounds to zero and the clock goes dark while the UI says it is on, and **the corner LEDs use `_brightnessScaled` too** — they were on the raw percentage and drifted visibly brighter than the letters at low settings.
+
 ### Settings persistence
 
 `Settings` ([src/Settings.h](src/Settings.h)/[src/Settings.cpp](src/Settings.cpp)) holds all user-configurable state (language, corner rendering, brightness, color, LDR use, mode, NTP server, and both standard/DST timezone rules) and (de)serializes it as JSON, plus exposes `getJSONSettings()` for the REST API response — a different shape, keyed the way the web UI wants it.
@@ -238,13 +271,30 @@ It is stored in **NVS**, not in the filesystem, because the filesystem partition
 - `migrateLegacyFile()` takes over a `qlockconf.json` from a pre-2.1 firmware on the first boot and deletes it afterwards. Harmless to keep; it costs one `LittleFS.exists()` per boot.
 - Clearing NVS therefore resets the clock to defaults — reflashing the filesystem no longer does.
 
-### Light sensor (currently unused, kept for potential future wiring)
+### Light sensor
 
-`LDR`/`BH1750` ([src/LDR.h](src/LDR.h)/[src/LDR.cpp](src/LDR.cpp)) supports an optional BH1750 light sensor for automatic brightness. It is intentionally not instantiated: the `LDR ldr;` declaration and the brightness-adjustment block in `main .cpp`'s `loop()` are commented out. The `automaticLum`/`UseLdr` setting still exists end-to-end (UI checkbox, `/autoluminance` REST endpoint, `Settings`), but currently has no effect — toggling it doesn't do anything until the LDR is wired back in.
+[src/LightSensor.h](src/LightSensor.h)/[.cpp](src/LightSensor.cpp) replaced the old `LDR`/BH1750 pair, which had been commented out rather than used for a long time. Three parts:
+
+- **`LightSensor`** — an interface of one meaningful method, `readLux()`. A TSL2591 or OPT3001 would be another class beside `Veml7700Sensor` and one changed line in `AmbientLight::begin()`.
+- **`Veml7700Sensor`** — Vishay VEML7700 on I²C at the fixed address 0x10, read through the library's `VEML_LUX_AUTO` mode. **The BH1750 was dropped because it resolves 1 lx** and behind a dark front panel a lit living room arrives as a handful of lux — the interesting range is fractions of one. The `Adafruit_VEML7700` object is held as a `void *` so the header does not drag the library into every translation unit.
+- **`AmbientLight`** — owns the sensor and samples it **in a FreeRTOS task pinned to core 0**, every 2 s, smoothed with an EMA over 30 s (`dt/(tau+dt)`, seeded from the first reading so it does not crawl up from zero).
+
+**The task is not optional.** Auto-ranging walks gain and integration time and waits for a fresh measurement at each step, which can block well over a second, and the web server here is synchronous — a blocked `loop()` is a clock that stops answering. `smoothed`/`lastRaw`/`sampleCount` are `volatile` 32-bit values written on core 0 and read on core 1; a torn read is not possible for those, so they carry no lock.
+
+`I2C_SDA_PIN` / `I2C_SCL_PIN` default to 5/6 (D4/D5 on the XIAO) and are overridable, because one firmware serves every build of the clock and the sensor is not in the same place in all of them.
+
+**Nothing regulates on the reading yet.** It is measured, smoothed and served to the web UI so the placement behind the panel can be judged first — how much light the acrylic passes is a property of each individual clock. `present()` distinguishes "no sensor on this clock" from "sensor found, no reading yet" (`available()`), and both the UI and the boot path depend on that distinction:
+
+- The colour tab **hides the whole "Automatik" section** when `present` is false, rather than showing a switch that does nothing.
+- `setup()` **clears `UseLdr` when no sensor answers**, writing straight to NVS rather than through the deferred write (which is armed later in `setup()` and would drop it). Without that, a clock whose sensor is removed keeps a stored "on" for a switch nobody can see, and therefore nobody can turn off.
+
+The roadmap agreed for this: (1) interface and sensor, (2) measure and display — both done — then (3) a conservative default log-lux curve plus two-point calibration, and (4) passive learning with a "geek" tab showing the curves and allowing backup/restore.
 
 ### Debugging
 
-`RemoteDebug` (telnet-style remote log console, `debugI`/`debugW`/`debugE`/`debugA` macros used throughout `main .cpp`) is the only debug facility in the project. Its companion GUI library, `RemoteDebugger` (variable watch/manipulation via a web console), was already inert before consolidation — the include and its init calls were commented out in `main .cpp` — and has been removed from `lib_deps` entirely, since it no longer compiles against the current ESP32 Arduino core (`std::byte` ambiguity in its vendored source). Its vendored web client, `RemoteDebugApp/`, was removed with it. A browser-based log console (e.g. the WebSerial library) was considered as a replacement but rejected: it requires migrating the whole web server from the synchronous `WebServer` used here to `ESPAsyncWebServer`/`AsyncTCP`, and current WebSerial releases are AGPL-3.0-licensed.
+`RemoteDebug` (telnet-style remote log console, `debugI`/`debugW`/`debugE`/`debugA` macros used throughout the firmware) is the only debug facility in the project. The `RemoteDebug Debug` instance lives in `main .cpp`; every other translation unit that logs repeats `extern RemoteDebug Debug;` for itself, since the library's macros expand to that name.
+
+Do not confuse it with [src/Debug.h](src/Debug.h), which despite the name has nothing to do with RemoteDebug: it is a leftover set of `DEBUG_PRINT*` macros around `Serial.print`, compiled to nothing unless `DEBUG` is defined, and included only by `Renderer.cpp`. Its companion GUI library, `RemoteDebugger` (variable watch/manipulation via a web console), was already inert before consolidation — the include and its init calls were commented out in `main .cpp` — and has been removed from `lib_deps` entirely, since it no longer compiles against the current ESP32 Arduino core (`std::byte` ambiguity in its vendored source). Its vendored web client, `RemoteDebugApp/`, was removed with it. A browser-based log console (e.g. the WebSerial library) was considered as a replacement but rejected: it requires migrating the whole web server from the synchronous `WebServer` used here to `ESPAsyncWebServer`/`AsyncTCP`, and current WebSerial releases are AGPL-3.0-licensed.
 
 ### Vendored/generated content (not project source)
 
@@ -257,5 +307,4 @@ This project originally targeted several boards and LED drivers. It has been con
 - `src/Configuration.h`, a large block of compile-time `#define` toggles for the original AVR/DCF77/multi-driver-era hardware (alarm, DCF77 receiver, alternate LED drivers, RTC chip selection, IR remote variants). It was already unreferenced by any active code path before removal.
 - The `LedDriver` abstract base class, merged into `LedDriverWS2812FastLED` since it was the only implementation.
 - The `RemoteDebugger` lib_dep and vendored `RemoteDebugApp/` web client (see "Debugging" above).
-
-The BH1750 light sensor support (see above) was deliberately left in place, unlike the rest of the legacy hardware options.
+- `src/LDR.h`/`.cpp` and the `BH1750` lib_dep, replaced by the VEML7700 behind an interface (see "Light sensor"). This one was kept through the first consolidation and only went when something took its place.
