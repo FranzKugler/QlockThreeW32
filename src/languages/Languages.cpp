@@ -22,6 +22,7 @@
  */
 #include "Language.h"
 #include "../Renderer.h"
+#include <string.h>
 
 extern const Language LANGUAGE_GERMAN;
 extern const Language LANGUAGE_SWABIAN;
@@ -50,6 +51,20 @@ namespace
         &LANGUAGE_DUTCH,      // LANGUAGE_NL    8
         &LANGUAGE_SPANISH     // LANGUAGE_ES    9
     };
+}
+
+bool Languages::samePanel(const Language *a, const Language *b)
+{
+    if (a == nullptr || b == nullptr) return false;
+    if (a == b) return true;
+
+    // The German dialects point at one shared array, so this usually settles
+    // on the first comparison; ten short strings is cheap either way.
+    for (uint8_t row = 0; row < PANEL_ROWS; row++)
+    {
+        if (strcmp(a->rows[row], b->rows[row]) != 0) return false;
+    }
+    return true;
 }
 
 const Language *Languages::find(byte language)

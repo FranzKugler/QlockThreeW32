@@ -272,6 +272,7 @@ export default {
   err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
   err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,
 
+  err_languageNotOnPanel: 'Ese idioma no encaja con el panel de letras del reloj — se cambia en modo experto',
   err_expertLocked: 'El modo experto está bloqueado',
   err_expertLockedOut: 'Demasiados intentos — inténtalo más tarde',
   err_expertWrongPassword: 'Contraseña incorrecta',

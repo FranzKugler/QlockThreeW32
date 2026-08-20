@@ -269,6 +269,7 @@ export default {
   err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
   err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,
 
+  err_languageNotOnPanel: 'That language does not fit this clock’s letter panel — change it in expert mode',
   err_expertLocked: 'Expert mode is locked',
   err_expertLockedOut: 'Too many attempts — try again later',
   err_expertWrongPassword: 'Wrong password',

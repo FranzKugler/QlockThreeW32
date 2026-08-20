@@ -124,6 +124,21 @@ namespace Languages
      */
     int selfCheck();
 
+    /**
+     * Whether two languages are cut into the same sheet of letters.
+     *
+     * A clock has one panel, milled once, and no firmware setting changes it.
+     * German, Swabian, Bavarian and Saxon share theirs and can be swapped on a
+     * built clock; Italian and Dutch cannot, and offering the swap only gets
+     * somebody a wall of letters that no longer spells anything.
+     *
+     * Compared by the letters rather than by a group number stored next to
+     * them: a number would be a second statement of the same fact, and the two
+     * would eventually disagree. nullptr is not the same panel as anything,
+     * itself included - "unknown" must not read as "fits".
+     */
+    bool samePanel(const Language *a, const Language *b);
+
     /** Characters - not bytes - in a UTF-8 string. "FÜNF" is 4. */
     uint8_t characters(const char *utf8);
 

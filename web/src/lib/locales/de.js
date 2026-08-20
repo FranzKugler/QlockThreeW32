@@ -271,6 +271,7 @@ export default {
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,
 
+  err_languageNotOnPanel: 'Diese Sprache passt nicht zum Buchstabenpanel der Uhr — im Expertenmodus änderbar',
   err_expertLocked: 'Der Expertenmodus ist gesperrt',
   err_expertLockedOut: 'Zu viele Fehlversuche — bitte später erneut',
   err_expertWrongPassword: 'Falsches Kennwort',

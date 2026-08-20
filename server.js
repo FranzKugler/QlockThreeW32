@@ -168,7 +168,26 @@ app.post('/autoluminance', (req, res) => {
 });
 // Note: like the firmware, /color does not touch automaticLum.
 app.post('/color', accept(['hue', 'sat', 'lum']));
-app.post('/configuration', accept(['language', 'cornerColor', 'cornerDirection']));
+/*
+ * Language and the corner options.
+ *
+ * Outside expert mode the language may only move within the panel the clock
+ * already has - the letters are milled once and no setting changes them. The
+ * mock enforces it too, or the dev UI would let through what the device
+ * refuses, which is the one thing a mock must not do. LANGUAGES is defined
+ * further down; the handler only runs long after that.
+ */
+app.post('/configuration', (req, res, next) => {
+  const wanted = req.body.language;
+  if (!expert.on && wanted !== undefined && wanted !== state.language) {
+    const have = LANGUAGES.find((l) => l.value === state.language);
+    const to = LANGUAGES.find((l) => l.value === wanted);
+    if (have && (!to || to.panel !== have.panel)) {
+      return res.status(403).json({ error: 'languageNotOnPanel' });
+    }
+  }
+  return accept(['language', 'cornerColor', 'cornerDirection'])(req, res, next);
+});
 app.post(
   '/timezone',
   accept([
@@ -452,17 +471,24 @@ function panelState() {
  * web UI no longer has any such place at all, which was the point.
  */
 const LANGUAGES = [
-  { value: 0, code: 'de-DE', name: 'Deutsch', uiLocale: 'de' },
-  { value: 1, code: 'de-SW', name: 'Schwäbisch', uiLocale: 'de' },
-  { value: 2, code: 'de-BA', name: 'Bayrisch', uiLocale: 'de' },
-  { value: 3, code: 'de-SA', name: 'Sächsisch', uiLocale: 'de' },
-  { value: 4, code: 'de-CH', name: 'Schwiizerdütsch', uiLocale: 'de' },
-  { value: 5, code: 'en', name: 'English', uiLocale: 'en' },
-  { value: 6, code: 'fr', name: 'Français', uiLocale: 'fr' },
-  { value: 7, code: 'it', name: 'Italiano', uiLocale: 'it' },
-  { value: 8, code: 'nl', name: 'Nederlands', uiLocale: 'nl' },
-  { value: 9, code: 'es', name: 'Español', uiLocale: 'es' }
+  { value: 0, code: 'de-DE', name: 'Deutsch', uiLocale: 'de', panel: 0 },
+  { value: 1, code: 'de-SW', name: 'Schwäbisch', uiLocale: 'de', panel: 0 },
+  { value: 2, code: 'de-BA', name: 'Bayrisch', uiLocale: 'de', panel: 0 },
+  { value: 3, code: 'de-SA', name: 'Sächsisch', uiLocale: 'de', panel: 0 },
+  { value: 4, code: 'de-CH', name: 'Schwiizerdütsch', uiLocale: 'de', panel: 4 },
+  { value: 5, code: 'en', name: 'English', uiLocale: 'en', panel: 5 },
+  { value: 6, code: 'fr', name: 'Français', uiLocale: 'fr', panel: 6 },
+  { value: 7, code: 'it', name: 'Italiano', uiLocale: 'it', panel: 7 },
+  { value: 8, code: 'nl', name: 'Nederlands', uiLocale: 'nl', panel: 8 },
+  { value: 9, code: 'es', name: 'Español', uiLocale: 'es', panel: 9 }
 ];
+
+/*
+ * `panel` groups the languages cut into the same sheet of letters - the number
+ * of the first language using it. The firmware works this out by comparing the
+ * panels themselves; the mock has no panels but the German one, so the groups
+ * are written out. Only the German four share.
+ */
 
 app.get('/languages', (req, res) => res.json(LANGUAGES));
 

@@ -183,7 +183,7 @@
     {/if}
 
     {#if active === 'display'}
-      <Display state={clock} />
+      <Display state={clock} {expert} />
     {:else if active === 'color'}
       <Color state={clock} />
     {:else if active === 'timezone'}

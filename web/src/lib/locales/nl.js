@@ -270,6 +270,7 @@ export default {
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,
 
+  err_languageNotOnPanel: 'Deze taal past niet bij het letterpaneel van de klok — aan te passen in de expertmodus',
   err_expertLocked: 'De expertmodus is vergrendeld',
   err_expertLockedOut: 'Te veel pogingen — probeer het later opnieuw',
   err_expertWrongPassword: 'Verkeerd wachtwoord',

@@ -186,11 +186,40 @@ void updateColor()
     server.send(200, "application/json", "{msg: ''}");
 }
 
+/**
+ * Language and the corner LED options.
+ *
+ * Outside expert mode the language may only move within the panel the clock
+ * already has. The panel is a milled sheet of letters, not a setting: on an
+ * Italian clock every other language is a wall of letters that spells nothing,
+ * and the one that changes it by accident has no way of knowing what went
+ * wrong. Expert mode is where a clock is set up; normal mode is where it can
+ * no longer be set up wrongly.
+ *
+ * Guarded here rather than only in the browser, for the same reason the expert
+ * tabs are: the endpoint is reachable without the UI. And guarded by the
+ * *stored* language, not by anything the request says about it.
+ */
 void updateConfiguration()
 {
     JsonDocument doc;
     deserializeJson(doc, server.arg(0));
-    settings.setLanguage(doc["language"].as<int>());
+
+    byte wanted = (byte)doc["language"].as<int>();
+    if (!Expert::unlocked() && wanted != settings.getLanguage())
+    {
+        const Language *have = Languages::find(settings.getLanguage());
+
+        // A stored language this firmware does not know says nothing about
+        // which panel is on the wall, so it cannot be grounds for a refusal.
+        if (have != nullptr && !Languages::samePanel(have, Languages::find(wanted)))
+        {
+            server.send(403, "application/json", "{\"error\":\"languageNotOnPanel\"}");
+            return;
+        }
+    }
+
+    settings.setLanguage(wanted);
     settings.setRenderCornersCw(doc["cornerDirection"].as<int>());
     settings.setRenderColorCorner(doc["cornerColor"].as<int>());
     
@@ -923,8 +952,20 @@ void updateExpert()
  * there. It costs one file here now: `name` and `uiLocale` have always been
  * part of a Language, this is only the endpoint that hands them over.
  *
- * Static for a given firmware, so the browser asks once and does not poll. It
- * is deliberately not part of /currentState, which is settings.
+ * `panel` groups the ones cut into the same sheet of letters: it is the number
+ * of the first language using that panel, so German, Swabian, Bavarian and
+ * Saxon all report 0 and Italian reports itself. A clock has exactly one panel
+ * and no setting changes that, so outside expert mode the picker offers only
+ * the group the clock is already in - see updateConfiguration(), which is
+ * where it is actually enforced.
+ *
+ * The grouping is worked out from the letters every time rather than stored
+ * beside them, because a stored group number would be the same fact written
+ * twice and the two would drift.
+ *
+ * Static for a given firmware - the lock state is deliberately *not* folded in
+ * here - so the browser asks once and does not poll. It is deliberately not
+ * part of /currentState, which is settings.
  */
 void sendLanguages()
 {
@@ -936,11 +977,18 @@ void sendLanguages()
         const Language *language = Languages::find(i);
         if (language == nullptr) continue;   // a gap in the table, not an error
 
+        byte panel = i;
+        for (byte j = 0; j < i; j++)
+        {
+            if (Languages::samePanel(Languages::find(j), language)) { panel = j; break; }
+        }
+
         JsonObject entry = list.add<JsonObject>();
         entry["value"]    = i;
         entry["code"]     = language->code;
         entry["name"]     = language->name;
         entry["uiLocale"] = language->uiLocale;
+        entry["panel"]    = panel;
     }
 
     String out;

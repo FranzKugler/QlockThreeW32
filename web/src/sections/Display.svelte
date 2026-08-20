@@ -11,7 +11,7 @@
   import * as api from '../lib/api.js';
   import { dict, languages } from '../lib/i18n.svelte.js';
 
-  let { state } = $props();
+  let { state, expert } = $props();
 
   const t = $derived(dict());
 
@@ -20,6 +20,30 @@
   // from the AVR and DCF77 days and is gone; the firmware falls back to normal
   // display if it still finds it stored.
   const MODE_VALUES = [1, 6, 0, 2, 3];
+
+  /**
+   * The languages this clock can actually show.
+   *
+   * A clock has one panel of milled letters and no setting changes that, so
+   * outside expert mode only the languages cut into the same sheet are on
+   * offer - the four German dialects share one, every other language is alone
+   * on its own. Where that leaves a single choice there is nothing to choose,
+   * and the field goes away rather than sitting there disabled.
+   *
+   * The firmware refuses the others as well (POST /configuration); this only
+   * keeps the UI from offering what it would refuse.
+   */
+  const offered = $derived.by(() => {
+    const all = languages();
+    if (expert?.unlocked) return all;
+
+    const current = all.find((l) => l.value === state.language);
+    // An unknown language, or a firmware that does not report panels: say
+    // nothing about what fits and offer everything, as before.
+    if (!current || current.panel === undefined) return all;
+
+    return all.filter((l) => l.panel === current.panel);
+  });
 
   const pushConfiguration = () =>
     api.setConfiguration({
@@ -48,17 +72,19 @@
 <section class="card">
   <h2>{t.appearance}</h2>
 
+  {#if offered.length > 1}
   <div class="field">
     <label for="language">{t.language}</label>
     <select id="language" bind:value={state.language} onchange={pushConfiguration}>
       <!-- The clock says which languages it has and what they are called,
            in their own language. Keyed by the stored number, which is what
            makes it safe that the names are not translated. -->
-      {#each languages() as language (language.value)}
+      {#each offered as language (language.value)}
         <option value={language.value}>{language.name}</option>
       {/each}
     </select>
   </div>
+  {/if}
 
   <div class="field">
     <label for="cornerDirection">{t.corners}</label>

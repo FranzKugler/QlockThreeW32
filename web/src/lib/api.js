@@ -10,6 +10,7 @@
  */
 import { status } from './status.svelte.js';
 import { dict } from './i18n.svelte.js';
+import { errorText } from './errors.js';
 
 async function post(path, body) {
   try {
@@ -18,7 +19,19 @@ async function post(path, body) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      // The firmware answers a refusal with a code, and a banner reading
+      // "HTTP 403" tells nobody what to do about it. A body that is not the
+      // expected shape leaves the status, which is better than nothing.
+      let said = null;
+      try {
+        const err = await res.json();
+        said = errorText(dict(), err.error, err.errorDetail);
+      } catch {
+        /* not JSON, or no body at all */
+      }
+      throw new Error(said || `HTTP ${res.status}`);
+    }
     status.error = null;
     return true;
   } catch (err) {
