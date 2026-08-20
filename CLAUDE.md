@@ -388,6 +388,18 @@ Do not confuse it with [src/Debug.h](src/Debug.h), which despite the name has no
 
 The update and debug tabs are locked behind a password. One flag in NVS says whether the clock is unlocked; while it is 0, `/ota/*` and `/log` answer `403 {"error":"expertLocked"}` and the web UI does not offer the tabs. [src/Expert.cpp](src/Expert.cpp) owns all of it, and `Expert::guard()` is the single line at the top of every covered handler — six of them, listed in the header so the list cannot quietly grow.
 
+**How to get in: `http://<clock>/#expert`** — the address bar, since the screen has no chip in the tab row. That is the whole entrance; there is no other. What it offers depends on the state the clock reports through `GET /expert`:
+
+| State | The screen shows | Effect |
+|---|---|---|
+| no password yet | one password field, minimum six characters | enrols it **and** unlocks — first come, first served |
+| enrolled, locked | the same field | unlocks; the update and debug tabs appear |
+| unlocked | a "lock again" button | locks, no password needed |
+| five wrong answers | the field, disabled for five minutes | nothing gets through, right answer included |
+| enrolled, within 5 min of a **power-on** | a second card, "forgotten", with a countdown | clears the enrolment — see the recovery bullet |
+
+`#expert` is left behind on the way out, so reloading does not land back on it. Being unlocked survives a reboot; it is a flag in NVS, not a session.
+
 - **It is a mode, not a login.** Setting the flag needs the password; clearing it does not, since someone locking the clock out of spite has gained nothing. HTTP Basic authentication was the first idea and is worse here for a concrete reason: the debug tab polls `/log` every two seconds, so Basic would put the password on the wire some 1800 times an hour with the tab open. One unlock puts it there once. The price is that while unlocked, nothing is protected — hence the visible "lock again" button.
 - **The hash is made on the clock, never at build time.** A hash compiled into the image would be published with every release *and* would come back with every OTA update to overwrite the owner's own. This was the design's first version and its own author found the hole. NVS is the one store an update does not touch — the same reason the settings live there.
 - **Its own NVS namespace (`qlockexpert`), not a field in the settings record.** Two reasons that both bite: that record is rewritten whole from `fillDocument()` on every settings change, so a field forgotten there is a field lost; and `getJSONSettings()` publishes exactly that shape through `/currentState`, where a password hash has no business being.
@@ -395,7 +407,7 @@ The update and debug tabs are locked behind a password. One flag in NVS says whe
 - **The way back from a forgotten password is the plug.** `POST /expert {reset: true}` clears the enrolment, but only within `EXPERT_GRACE_MS` of a **power-on** reset. `esp_reset_reason()` tells that apart from the software restart the update tab triggers, so rebooting the clock from its own web UI does not open the window — and neither does a USB flash, which reports `ESP_RST_USB`. That this hands the clock to anyone who can pull the plug is not a weakness: without flash encryption, the same person reads the NVS out over USB anyway. Physical access already wins, and a recovery path that admits it beats one that pretends otherwise.
 - Five wrong answers stop the endpoint taking any for five minutes, or a short password over HTTP is guessed in seconds. The comparison is constant-time. The password itself is never logged — the ring is what it guards.
 - **What it is worth**: it keeps out someone who joins the network and goes looking. It does not keep out someone watching the traffic, since enrolment and unlock cross the wire in the clear, and there is no TLS on the clock.
-- The tab row is built from `ALL_TABS` in `App.svelte` with the last two sliced off while locked, so `t.tabs` keeps all six entries in every locale either way. The expert screen has **no chip in the row** and is reached through `#expert` in the address; there is nothing there for someone who has not gone looking. `App.svelte` treats a clock that cannot answer `/expert` as locked, which is what an older firmware under a newer web UI looks like.
+- The tab row is built from `ALL_TABS` in `App.svelte` with the last two sliced off while locked, so `t.tabs` keeps all six entries in every locale either way. The expert screen deliberately has **no chip in the row** — there is nothing there for someone who has not gone looking, and a visible one would only invite guessing. Hence `#expert` above. `App.svelte` treats a clock that cannot answer `/expert` as locked, which is what an older firmware under a newer web UI looks like.
 - The mock registers its guard as Express middleware **before** the routes it covers. Added at the end it would let every `/ota` and `/log` request through and the dev UI would behave nothing like the device.
 
 ### The log ring and the debug tab
