@@ -38,6 +38,30 @@
 #include "LogBuffer.h"
 
 #define NUM_PIXEL 114
+
+/*
+ * The four corner LEDs, named by where they are on the face rather than by
+ * where they sit on the strip. Which frame buffer row is which corner is
+ * written down at Renderer::setCorners and comes from the clock; these are
+ * that mapping followed through _setPixel(), which swaps 110 with 112:
+ *
+ *     matrix[1] top left      -> _setPixel(110) -> _leds[112]
+ *     matrix[0] top right     -> _setPixel(111) -> _leds[111]
+ *     matrix[3] bottom right  -> _setPixel(112) -> _leds[110]
+ *     matrix[2] bottom left   -> _setPixel(113) -> _leds[113]
+ *
+ * Only the coloured corners need them: that mode writes the pixels itself
+ * instead of going through the frame buffer, so it has no rows to read.
+ */
+#define CORNER_TOP_LEFT     112
+#define CORNER_TOP_RIGHT    111
+#define CORNER_BOTTOM_RIGHT 110
+#define CORNER_BOTTOM_LEFT  113
+
+// The colour a corner settles on once the next one has lit; the newest one
+// is the one that moves. Cyan on FastLED's wheel.
+#define CORNER_SETTLED_HUE 180
+
 #ifndef LED_OUTPUT_PIN
 	#define LED_OUTPUT_PIN 2
 #endif
@@ -106,72 +130,70 @@ void LedDriverWS2812FastLED::writeScreenBufferToMatrix(word matrix[16], boolean 
 
 		if (!_colorCorners)
 		{
-			// we have to remap the corner LEDs...
+			// The corner rows carry no letters, so they are handed to _setPixel
+			// whole rather than column by column. Which row is which corner is
+			// stated at Renderer::setCorners; the numbers below only have to
+			// agree with it, and were checked against the clock.
 			if ((matrix[1] & 0b0000000000011111) == 0b0000000000011111)
 			{
-				//_setPixel(110, color); // 1
-				_setPixel(110, color); // 1
+				_setPixel(110, color); // top left
 			}
 			if ((matrix[0] & 0b0000000000011111) == 0b0000000000011111)
 			{
-				//_setPixel(111, color); // 2
-				_setPixel(111, color); // 2
+				_setPixel(111, color); // top right
 			}
 			if ((matrix[3] & 0b0000000000011111) == 0b0000000000011111)
 			{
-				//_setPixel(112, color); // 3
-				_setPixel(112, color); // 3
+				_setPixel(112, color); // bottom right
 			}
 			if ((matrix[2] & 0b0000000000011111) == 0b0000000000011111)
 			{
-				//_setPixel(113, color); // 4
-				_setPixel(113, color); // 4
+				_setPixel(113, color); // bottom left
 			}
 		}
 		else
 		{
+			/*
+			 * The coloured corners: the same count of minutes the plain corners
+			 * show, but with the newest one cycling through the hues once a
+			 * minute and the ones before it held at a fixed colour.
+			 *
+			 * It has to count the same as Renderer::setCorners does, and used
+			 * to count one too many - a remainder of 0 lit a corner, so every
+			 * corner came on a minute early and the fourth never went out. It
+			 * also ignored the direction: the only branch that asked about it
+			 * had an empty else, so counter-clockwise ran clockwise. Both are
+			 * gone now that the order is a table rather than a switch.
+			 *
+			 * This is the one place that writes corner pixels directly. It
+			 * cannot go through the frame buffer, because the hue differs per
+			 * corner and a row is one bit.
+			 */
+			const byte clockwise[4] = {
+				CORNER_TOP_LEFT, CORNER_TOP_RIGHT, CORNER_BOTTOM_RIGHT, CORNER_BOTTOM_LEFT
+			};
+			const byte counterClockwise[4] = {
+				CORNER_TOP_RIGHT, CORNER_TOP_LEFT, CORNER_BOTTOM_LEFT, CORNER_BOTTOM_RIGHT
+			};
+			const byte *order = _cw ? clockwise : counterClockwise;
+
 			int brightness = _brightnessScaled;  // same gamma as the letters
-			switch (_minute % 5)
+			byte lit = _minute % 5;
+
+			for (byte i = 0; i < 4; i++)
 			{
-			case 0:
-				if (_cw)
+				if (i + 1 < lit)
 				{
-					_leds[110] = CHSV(0, 0, 0);
-					_leds[111] = CHSV(0, 0, 0);
-					_leds[112] = CHSV(3 * _second, 255, brightness);
-					_leds[113] = CHSV(0, 0, 0);
+					_leds[order[i]] = CHSV(CORNER_SETTLED_HUE, 255, brightness);
+				}
+				else if (i + 1 == lit)
+				{
+					_leds[order[i]] = CHSV(3 * _second, 255, brightness);
 				}
 				else
 				{
-
+					_leds[order[i]] = CHSV(0, 0, 0);
 				}
-				break;
-			case 1:
-				_leds[110] = CHSV(0, 0, 0);
-				_leds[111] = CHSV(3 * _second, 255, brightness);
-				_leds[112] = CHSV(180, 255, brightness);
-				_leds[113] = CHSV(0, 0, 0);
-				break;
-			case 2:
-				_leds[110] = CHSV(3 * _second, 255, brightness);
-				_leds[111] = CHSV(180, 255, brightness);
-				_leds[112] = CHSV(180, 255, brightness);
-				_leds[113] = CHSV(0, 0, 0);
-				break;
-			case 3:
-				_leds[110] = CHSV(180, 255, brightness);
-				_leds[111] = CHSV(180, 255, brightness);
-				_leds[112] = CHSV(180, 255, brightness);
-				_leds[113] = CHSV(3 * _second, 255, brightness);
-				break;
-			case 4:
-				_leds[110] = CHSV(3 * _second, 255, brightness);
-				_leds[111] = CHSV(3 * _second, 255, brightness);
-				_leds[112] = CHSV(3 * _second, 255, brightness);
-				_leds[113] = CHSV(3 * _second, 255, brightness);
-				break;
-			default:
-				break;
 			}
 		}
 
