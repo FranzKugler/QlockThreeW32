@@ -115,7 +115,22 @@ AmbientLight ambientLight;
 Renderer renderer;
 
 // LED driver. A value here has no effect - it has to be a constant in LedDriverWS2812FastLED.
-LedDriverWS2812FastLED ledDriver; 
+LedDriverWS2812FastLED ledDriver;
+
+// WiFiManager. It lives here rather than as a local in setup(), which is what
+// the library's own example shows and what this used to do, with the comment
+// "once its business is done, there is no need to keep it around".
+//
+// That is true on the ESP8266 and false here. On the ESP32, WiFi_autoReconnect()
+// hands the Arduino core a callback bound to this object:
+//
+//     wm_event_id = WiFi.onEvent(std::bind(&WiFiManager::WiFiEvent,this,_1,_2));
+//
+// A std::bind of a member function with two placeholders does not fit in
+// std::function's small buffer, so the target is on the heap, and the core keeps
+// it in its event list. The object therefore has to outlive every WiFi event -
+// which means the whole run of the program, not the run of setup().
+WiFiManager wifiManager;
 
 // The light sensor
 
@@ -488,9 +503,6 @@ void setup()
 	// we only need 10 rows...
 	ledDriver.setLinesToWrite(10);
 
-    //WiFiManager
-    //Local intialization. Once its business is done, there is no need to keep it around
-    WiFiManager wifiManager;
 
     // Feed TimeLib from the system clock, and let SNTP tell us when it has set
     // it. The interval is how often TimeLib re-reads the system clock, not how
