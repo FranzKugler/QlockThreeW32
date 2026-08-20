@@ -454,18 +454,29 @@ select:disabled {
   background: rgb(244 245 247);
 }
 
-.preview .grid {
+/* Not called .grid: that name already belongs to the timezone tab's rule
+   editor, which brings a gap of 0.6rem with it. `.preview .grid` overrode the
+   columns but not the gap, and ten column gaps plus nine row gaps came to more
+   than half the width of the face - so the letters were pushed outside their
+   own frame, with the corner LEDs then sitting among them. */
+.preview .letters {
   display: grid;
-  grid-template-columns: repeat(11, 1fr);
-  grid-template-rows: repeat(10, 1fr);
+  /* minmax(0, 1fr) rather than 1fr: a plain fr has the content as its minimum,
+     so one wide letter in one cell can push the whole grid past its box. The
+     face has a fixed size and the letters have to fit inside it, not the other
+     way round. */
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  grid-template-rows: repeat(10, minmax(0, 1fr));
+  gap: 0;
   width: 100%;
   height: 100%;
-  /* Letters are wider than they are tall, so the cells are not square; the
-     panel is read row by row and the rows want to stay apart. */
+  /* A cell is wider than it is tall by 10:11, which is exactly the ratio the
+     real panel has: body.scad stretches the row pitch by 11/10 so that eleven
+     columns and ten rows come out square. */
   place-items: center;
 }
 
-.preview .grid span {
+.preview .letters span {
   /* Unlit letters are still there on a real panel - milled or printed - so
      they are drawn faintly rather than hidden. A blank grid then means "no
      panel data", which is a different thing from a clock that is switched
@@ -482,7 +493,7 @@ select:disabled {
   transition: color 0.08s linear, text-shadow 0.08s linear;
 }
 
-.preview .grid span.on {
+.preview .letters span.on {
   color: var(--led);
   text-shadow: 0 0 8px var(--led);
 }

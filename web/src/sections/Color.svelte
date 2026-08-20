@@ -288,7 +288,7 @@
 
       <!-- Keyed by position, not by letter: a panel carries the same letter
            many times over and a keyed each would throw on the repeat. -->
-      <div class="grid" aria-hidden="true">
+      <div class="letters" aria-hidden="true">
         {#each face as cell (cell.key)}
           <span class:on={cell.on}>{cell.letter}</span>
         {/each}
