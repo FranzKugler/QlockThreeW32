@@ -21,6 +21,7 @@
 #include <ArduinoJson.h>
 
 #include "OtaUpdate.h"
+#include "Expert.h"
 #include "Settings.h"
 #include "Version.h"
 
@@ -127,6 +128,8 @@ static const char *OTA_STATE_NAMES[] = {
 
 void sendOtaStatus()
 {
+    if (!Expert::guard()) return;
+
     JsonDocument doc;
     doc["firmwareVersion"] = FIRMWARE_VERSION;
     doc["fsVersion"] = otaFsVersion;
@@ -161,6 +164,8 @@ void sendOtaStatus()
 /** Asks the release channel what it has, then answers with the full status. */
 void handleOtaCheck()
 {
+    if (!Expert::guard()) return;
+
     otaFetchManifest();
     sendOtaStatus();
 }
@@ -168,6 +173,8 @@ void handleOtaCheck()
 /** Accepts the request and lets the task do the work; answers immediately. */
 void handleOtaInstall()
 {
+    if (!Expert::guard()) return;
+
     if (!otaUpdateAvailable())
     {
         server.send(409, "application/json", "{\"error\":\"otaNoUpdate\"}");
@@ -183,6 +190,8 @@ void handleOtaInstall()
 
 void handleOtaConfig()
 {
+    if (!Expert::guard()) return;
+
     JsonDocument doc;
     deserializeJson(doc, server.arg("plain"));
 
@@ -223,6 +232,17 @@ void handleOtaUploadData()
             otaError = "";
             otaErrorDetail = "";
             otaCommand = -1;    // decided below, from the first byte
+
+            // This half cannot answer - the body is still arriving and the
+            // response belongs to handleOtaUploadDone. Refusing by setting the
+            // error is what stops the write case below from reaching flash,
+            // which matters: a filesystem image erases the partition before
+            // the first byte is written.
+            if (!Expert::unlocked())
+            {
+                otaError = "expertLocked";
+                debugW("OTA upload refused: expert mode is locked");
+            }
             debugA("OTA upload started: %s", upload.filename.c_str());
             break;
         }
@@ -298,6 +318,8 @@ void handleOtaUploadData()
 // handleOtaUploadData(), and schedules the restart on success.
 void handleOtaUploadDone()
 {
+    if (!Expert::guard()) return;
+
     if (otaError.length())
     {
         JsonDocument doc;

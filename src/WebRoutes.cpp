@@ -35,6 +35,7 @@
 #include "OtaUpdate.h"   // a rename asks for a restart
 #include "Settings.h"
 #include "LightSensor.h"
+#include "Expert.h"
 #include "DisplayModes.h"
 #include "Renderer.h"
 
@@ -772,6 +773,10 @@ static void appendJsonString(String &out, const char *text)
  */
 void sendLog()
 {
+    // The log is behind the lock: it carries whatever the clock has said about
+    // itself, and that is not for everyone who can reach port 80.
+    if (!Expert::guard()) return;
+
     uint32_t since = 0;
     if (server.hasArg("since")) since = strtoul(server.arg("since").c_str(), nullptr, 10);
 
@@ -821,6 +826,87 @@ void sendLog()
 }
 
 
+/**
+ * Whether the clock is unlocked, and what it would take to unlock it.
+ *
+ * Carries no secret: the flag, whether a password has ever been set, and how
+ * long the reset window is still open. The web UI needs all three before it
+ * can decide between "enter your password", "choose one" and "you have five
+ * minutes to start over".
+ */
+void sendExpert()
+{
+    JsonDocument doc;
+    doc["enrolled"]  = Expert::enrolled();
+    doc["unlocked"]  = Expert::unlocked();
+    doc["grace"]     = Expert::graceRemaining();
+    doc["lockedOut"] = Expert::lockedOut();
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+/**
+ * Sets, checks or clears the password.
+ *
+ *   {password}       on a clock with none: stores it and unlocks
+ *                    otherwise: unlocks if it matches
+ *   {off: true}      locks again - no password needed, see Expert.h
+ *   {reset: true}    forgets the password, only inside the grace window
+ *
+ * Answers with the same shape GET does, so the UI has the new state without a
+ * second request, or with a code from the err_* set.
+ */
+void updateExpert()
+{
+    JsonDocument doc;
+    deserializeJson(doc, server.arg(0));
+
+    if (doc["off"] | false)
+    {
+        Expert::lock();
+        sendExpert();
+        return;
+    }
+
+    if (doc["reset"] | false)
+    {
+        if (!Expert::reset())
+        {
+            server.send(403, "application/json", "{\"error\":\"expertNoGrace\"}");
+            return;
+        }
+        sendExpert();
+        return;
+    }
+
+    const char *password = doc["password"] | "";
+
+    if (Expert::lockedOut())
+    {
+        server.send(429, "application/json", "{\"error\":\"expertLockedOut\"}");
+        return;
+    }
+
+    // Enrolling and unlocking are the same request on purpose. Which one it is
+    // depends on the clock, not on what the browser believes about it, and a
+    // browser holding a stale answer would otherwise ask for the wrong one.
+    bool ok = Expert::enrolled() ? Expert::unlock(password) : Expert::enroll(password);
+
+    if (!ok)
+    {
+        // "Too short" is only meaningful while enrolling; afterwards saying it
+        // would tell whoever is guessing how long the real one is.
+        const char *code = Expert::enrolled() ? "expertWrongPassword" : "expertPasswordShort";
+        server.send(403, "application/json", String("{\"error\":\"") + code + "\"}");
+        return;
+    }
+
+    sendExpert();
+}
+
+
 // ------ the interface the rest of the program sees ------
 
 void Web::begin()
@@ -852,6 +938,8 @@ void Web::begin()
     server.on("/wifi", HTTP_POST, updateWifi);
     server.on("/wifi/scan", HTTP_GET, sendWifiScan);
     server.on("/log", HTTP_GET, sendLog);
+    server.on("/expert", HTTP_GET, sendExpert);
+    server.on("/expert", HTTP_POST, updateExpert);
 }
 
 void Web::poll()

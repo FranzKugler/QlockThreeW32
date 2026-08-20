@@ -239,6 +239,31 @@ export default {
     "dell'avvio. Quello che il bootloader stampa prima del firmware si vede " +
     'solo sul cavo USB.',
 
+  // --- expert mode ---
+  expertTitle: 'Modalità esperto',
+  expertUnlocked:
+    'La modalità esperto è attiva. Le schede aggiornamento e debug sono ' +
+    'raggiungibili — da chiunque sia sulla stessa rete.',
+  expertLock: 'Blocca di nuovo',
+  expertEnterHint:
+    'Inserisci la password per aprire le schede aggiornamento e debug. Lo ' +
+    'sblocco resta anche dopo un riavvio.',
+  expertSetHint:
+    'Su questo orologio non è ancora impostata alcuna password. Vale la ' +
+    'prima inserita qui; fino ad allora aggiornamento e debug restano ' +
+    'bloccati.',
+  expertPassword: 'Password',
+  expertUnlock: 'Sblocca',
+  expertSet: 'Imposta la password',
+  expertMinLength: (count) => `Almeno ${count} caratteri.`,
+  expertLockedOut:
+    "Troppi tentativi errati. L'orologio non accetta password per qualche " +
+    'minuto.',
+  expertForgotten: 'Password dimenticata?',
+  expertResetHint: (time) =>
+    `Poco dopo l'accensione la password può essere cancellata. Restano ${time}. Dopo serve togliere la corrente — o il cavo USB.`,
+  expertReset: 'Cancella la password',
+
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Aggiornamento rifiutato',
   err_otaWrite: 'Errore di scrittura durante il flash',
@@ -259,6 +284,12 @@ export default {
   err_hostnameInvalid: 'Questo nome non contiene caratteri utilizzabili',
   err_wifiConnect: (ssid) => `Impossibile connettersi a «${ssid}»`,
   err_wifiFallback: (ssid) => `Anche il ritorno a «${ssid}» non è riuscito`,
+
+  err_expertLocked: 'La modalità esperto è bloccata',
+  err_expertLockedOut: 'Troppi tentativi — riprova più tardi',
+  err_expertWrongPassword: 'Password errata',
+  err_expertPasswordShort: 'La password è troppo corta',
+  err_expertNoGrace: 'La finestra per cancellare la password è chiusa',
 
   // --- api errors ---
   connectionLost: "Collegamento con l'orologio interrotto",

@@ -237,6 +237,30 @@ export default {
     'booting. What the bootloader prints before the firmware starts is only ' +
     'on the USB cable.',
 
+  // --- expert mode ---
+  expertTitle: 'Expert mode',
+  expertUnlocked:
+    'Expert mode is on. The update and debug tabs are reachable — by anyone ' +
+    'on the same network.',
+  expertLock: 'Lock again',
+  expertEnterHint:
+    'Enter the password to open the update and debug tabs. The clock stays ' +
+    'unlocked across restarts.',
+  expertSetHint:
+    'No password has been set on this clock yet. The first one given here ' +
+    'is the one that counts; until then update and debug stay locked.',
+  expertPassword: 'Password',
+  expertUnlock: 'Unlock',
+  expertSet: 'Set password',
+  expertMinLength: (count) => `At least ${count} characters.`,
+  expertLockedOut:
+    'Too many wrong answers. The clock will not take a password for a few ' +
+    'minutes.',
+  expertForgotten: 'Forgotten the password?',
+  expertResetHint: (time) =>
+    `For a short while after the clock is switched on at the plug, the password can be cleared. ${time} left. After that it takes a power cut — or the USB cable.`,
+  expertReset: 'Clear password',
+
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Update refused',
   err_otaWrite: 'Write error while flashing',
@@ -257,6 +281,12 @@ export default {
   err_hostnameInvalid: 'That name contains no usable characters',
   err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
   err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,
+
+  err_expertLocked: 'Expert mode is locked',
+  err_expertLockedOut: 'Too many attempts — try again later',
+  err_expertWrongPassword: 'Wrong password',
+  err_expertPasswordShort: 'That password is too short',
+  err_expertNoGrace: 'The window for clearing the password has closed',
 
   // --- api errors ---
   connectionLost: 'Connection to the clock was lost',

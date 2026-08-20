@@ -136,6 +136,45 @@ export async function setHostname(hostname) {
 }
 
 /**
+ * Whether the clock is unlocked, whether a password has ever been set, and how
+ * much of the reset window is left. Carries no secret.
+ *
+ * Throws: the shell asks for this before it can decide which tabs exist, and a
+ * clock that cannot answer has to be treated as locked rather than as open.
+ */
+export async function fetchExpert() {
+  const res = await fetch('/expert');
+  if (!res.ok) throw new Error(`/expert: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Sets, checks or clears the password: `{password}`, `{off: true}` or
+ * `{reset: true}`.
+ *
+ * Answers with the same shape `fetchExpert` does, so the caller has the new
+ * state without asking again - or with `{error}` naming why not. Not through
+ * post(), which only reports a boolean: which of the four refusals it was is
+ * the whole content of the answer here.
+ */
+export async function setExpert(body) {
+  try {
+    const res = await fetch('/expert', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const answer = await res.json();
+    if (!res.ok) return { error: answer.error || `HTTP ${res.status}` };
+    status.error = null;
+    return answer;
+  } catch (err) {
+    status.error = `/expert: ${err.message}`;
+    return { error: 'connectionLost' };
+  }
+}
+
+/**
  * The clock's log, everything after the sequence number last seen.
  *
  * `since` of 0 asks for the oldest the ring still holds, which is what fills a

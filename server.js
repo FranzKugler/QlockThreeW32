@@ -21,6 +21,91 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/*
+ * Expert mode, the same contract the firmware implements.
+ *
+ * Registered here rather than beside the other routes on purpose: the guard is
+ * middleware, and Express only runs middleware that was added before the route
+ * it should cover. Put at the end it would let every /ota and /log request
+ * straight through, and the dev UI would behave nothing like the device.
+ *
+ * The mock always has its reset window open - it "powers on" when node starts -
+ * so the way back is reachable without restarting anything.
+ */
+const EXPERT_GRACE_MS = 5 * 60 * 1000;
+const EXPERT_MIN_PASSWORD = 6;
+const EXPERT_MAX_FAILURES = 5;
+
+const expertBootAt = Date.now();
+const expert = { password: null, on: false, failures: 0, lockoutUntil: 0 };
+
+const expertGrace = () =>
+  Math.max(0, Math.round((EXPERT_GRACE_MS - (Date.now() - expertBootAt)) / 1000));
+
+const expertLockedOut = () => Date.now() < expert.lockoutUntil;
+
+const expertState = () => ({
+  enrolled: expert.password !== null,
+  unlocked: expert.on,
+  grace: expertGrace(),
+  lockedOut: expertLockedOut()
+});
+
+// Everything behind the lock, in one list.
+for (const prefix of ['/log', '/ota']) {
+  app.use(prefix, (req, res, next) => {
+    if (expert.on) return next();
+    res.status(403).json({ error: 'expertLocked' });
+  });
+}
+
+app.get('/expert', (req, res) => res.json(expertState()));
+
+app.post('/expert', (req, res) => {
+  const body = req.body || {};
+
+  if (body.off) {
+    expert.on = false;
+    return res.json(expertState());
+  }
+
+  if (body.reset) {
+    if (expertGrace() === 0) return res.status(403).json({ error: 'expertNoGrace' });
+    expert.password = null;
+    expert.on = false;
+    expert.failures = 0;
+    expert.lockoutUntil = 0;
+    return res.json(expertState());
+  }
+
+  if (expertLockedOut()) return res.status(429).json({ error: 'expertLockedOut' });
+
+  const password = String(body.password ?? '');
+
+  if (expert.password === null) {
+    if (password.length < EXPERT_MIN_PASSWORD) {
+      return res.status(403).json({ error: 'expertPasswordShort' });
+    }
+    expert.password = password;
+    expert.on = true;
+    console.log(`/expert password set (${password.length} characters)`);
+    return res.json(expertState());
+  }
+
+  if (password !== expert.password) {
+    if (++expert.failures >= EXPERT_MAX_FAILURES) {
+      expert.lockoutUntil = Date.now() + EXPERT_GRACE_MS;
+    }
+    return res.status(403).json({ error: 'expertWrongPassword' });
+  }
+
+  expert.failures = 0;
+  expert.lockoutUntil = 0;
+  expert.on = true;
+  res.json(expertState());
+});
+
 app.use(express.static('data'));
 
 const state = {

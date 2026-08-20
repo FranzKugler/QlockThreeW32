@@ -238,6 +238,30 @@ export default {
     'het opstarten. Wat de bootloader vóór de firmware toont, staat alleen ' +
     'op de USB-kabel.',
 
+  // --- expert mode ---
+  expertTitle: 'Expertmodus',
+  expertUnlocked:
+    'De expertmodus staat aan. De tabbladen Update en Debug zijn bereikbaar ' +
+    '— voor iedereen op hetzelfde netwerk.',
+  expertLock: 'Weer vergrendelen',
+  expertEnterHint:
+    'Voer het wachtwoord in om de tabbladen Update en Debug te openen. De ' +
+    'ontgrendeling blijft na een herstart bestaan.',
+  expertSetHint:
+    'Op deze klok is nog geen wachtwoord ingesteld. Het eerste dat hier ' +
+    'wordt opgegeven geldt; tot dan blijven Update en Debug vergrendeld.',
+  expertPassword: 'Wachtwoord',
+  expertUnlock: 'Ontgrendelen',
+  expertSet: 'Wachtwoord instellen',
+  expertMinLength: (count) => `Minstens ${count} tekens.`,
+  expertLockedOut:
+    'Te veel mislukte pogingen. De klok neemt een paar minuten geen ' +
+    'wachtwoord aan.',
+  expertForgotten: 'Wachtwoord vergeten?',
+  expertResetHint: (time) =>
+    `Kort na het inschakelen aan de stekker kan het wachtwoord worden gewist. Nog ${time}. Daarna helpt alleen de stroom eraf — of de USB-kabel.`,
+  expertReset: 'Wachtwoord wissen',
+
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Update geweigerd',
   err_otaWrite: 'Schrijffout tijdens het flashen',
@@ -258,6 +282,12 @@ export default {
   err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,
+
+  err_expertLocked: 'De expertmodus is vergrendeld',
+  err_expertLockedOut: 'Te veel pogingen — probeer het later opnieuw',
+  err_expertWrongPassword: 'Verkeerd wachtwoord',
+  err_expertPasswordShort: 'Dat wachtwoord is te kort',
+  err_expertNoGrace: 'Het venster om het wachtwoord te wissen is gesloten',
 
   // --- api errors ---
   connectionLost: 'Verbinding met de klok verbroken',

@@ -239,6 +239,31 @@ export default {
     'arranque. Lo que el gestor de arranque imprime antes del firmware solo ' +
     'se ve por el cable USB.',
 
+  // --- expert mode ---
+  expertTitle: 'Modo experto',
+  expertUnlocked:
+    'El modo experto está activo. Las pestañas de actualización y ' +
+    'depuración están accesibles — para cualquiera en la misma red.',
+  expertLock: 'Bloquear de nuevo',
+  expertEnterHint:
+    'Introduce la contraseña para abrir las pestañas de actualización y ' +
+    'depuración. El desbloqueo se mantiene tras reiniciar.',
+  expertSetHint:
+    'En este reloj todavía no hay contraseña. Vale la primera que se ' +
+    'indique aquí; hasta entonces, actualización y depuración quedan ' +
+    'bloqueadas.',
+  expertPassword: 'Contraseña',
+  expertUnlock: 'Desbloquear',
+  expertSet: 'Establecer contraseña',
+  expertMinLength: (count) => `Al menos ${count} caracteres.`,
+  expertLockedOut:
+    'Demasiados intentos fallidos. El reloj no aceptará contraseñas durante ' +
+    'unos minutos.',
+  expertForgotten: '¿Has olvidado la contraseña?',
+  expertResetHint: (time) =>
+    `Poco después de encender el reloj se puede borrar la contraseña. Quedan ${time}. Después solo ayuda cortar la corriente — o el cable USB.`,
+  expertReset: 'Borrar la contraseña',
+
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Actualización rechazada',
   err_otaWrite: 'Error de escritura al grabar',
@@ -259,6 +284,12 @@ export default {
   err_hostnameInvalid: 'Ese nombre no contiene caracteres utilizables',
   err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
   err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,
+
+  err_expertLocked: 'El modo experto está bloqueado',
+  err_expertLockedOut: 'Demasiados intentos — inténtalo más tarde',
+  err_expertWrongPassword: 'Contraseña incorrecta',
+  err_expertPasswordShort: 'Esa contraseña es demasiado corta',
+  err_expertNoGrace: 'La ventana para borrar la contraseña se ha cerrado',
 
   // --- api errors ---
   connectionLost: 'Se ha perdido la conexión con el reloj',

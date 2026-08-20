@@ -53,6 +53,7 @@
 #include "OtaUpdate.h"
 #include "DisplayModes.h"
 #include "WebRoutes.h"
+#include "Expert.h"
 // Credentials of this particular clock, not in version control. Without it the
 // build still works; see Secrets.example.h.
 #if __has_include("Secrets.h")
@@ -625,6 +626,11 @@ void setup()
     // The settings, WLAN and light endpoints, plus the fallback that serves
     // the web UI out of the filesystem. The /ota routes came earlier, with
     // Ota::begin().
+    // Reads the stored lock state and opens the reset window if this run
+    // started at the plug. Before the server, so no request can arrive while
+    // the answer to "is this clock unlocked" is still the default.
+    Expert::begin();
+
     Web::begin();
     server.begin();
 

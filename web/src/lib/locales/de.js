@@ -240,6 +240,30 @@ export default {
     'Hochfahren. Was der Bootloader vor der Firmware ausgibt, steht nur am ' +
     'USB-Kabel.',
 
+  // --- expert mode ---
+  expertTitle: 'Expertenmodus',
+  expertUnlocked:
+    'Der Expertenmodus ist eingeschaltet. Update- und Debug-Reiter sind ' +
+    'erreichbar — für jeden, der im selben Netz ist.',
+  expertLock: 'Wieder sperren',
+  expertEnterHint:
+    'Kennwort eingeben, um Update- und Debug-Reiter freizuschalten. Die ' +
+    'Freischaltung bleibt über Neustarts hinweg bestehen.',
+  expertSetHint:
+    'Auf dieser Uhr ist noch kein Kennwort gesetzt. Das erste hier ' +
+    'vergebene gilt; bis dahin bleiben Update und Debug gesperrt.',
+  expertPassword: 'Kennwort',
+  expertUnlock: 'Freischalten',
+  expertSet: 'Kennwort festlegen',
+  expertMinLength: (count) => `Mindestens ${count} Zeichen.`,
+  expertLockedOut:
+    'Zu viele Fehlversuche. Die Uhr nimmt für einige Minuten kein Kennwort ' +
+    'mehr an.',
+  expertForgotten: 'Kennwort vergessen?',
+  expertResetHint: (time) =>
+    `Kurz nach dem Einschalten am Stecker lässt sich das Kennwort löschen. Noch ${time}. Danach hilft nur, den Strom zu nehmen — oder das USB-Kabel.`,
+  expertReset: 'Kennwort löschen',
+
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Update abgelehnt',
   err_otaWrite: 'Schreibfehler beim Flashen',
@@ -260,6 +284,12 @@ export default {
   err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,
+
+  err_expertLocked: 'Der Expertenmodus ist gesperrt',
+  err_expertLockedOut: 'Zu viele Fehlversuche — bitte später erneut',
+  err_expertWrongPassword: 'Falsches Kennwort',
+  err_expertPasswordShort: 'Das Kennwort ist zu kurz',
+  err_expertNoGrace: 'Das Zeitfenster zum Zurücksetzen ist geschlossen',
 
   // --- api errors ---
   connectionLost: 'Verbindung zur Uhr unterbrochen',

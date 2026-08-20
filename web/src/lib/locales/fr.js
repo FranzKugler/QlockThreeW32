@@ -239,6 +239,31 @@ export default {
     "du démarrage. Ce que le bootloader affiche avant le micrologiciel n'est " +
     'visible que sur le câble USB.',
 
+  // --- expert mode ---
+  expertTitle: 'Mode expert',
+  expertUnlocked:
+    'Le mode expert est actif. Les onglets mise à jour et débogage sont ' +
+    'accessibles — à toute personne sur le même réseau.',
+  expertLock: 'Verrouiller à nouveau',
+  expertEnterHint:
+    'Saisissez le mot de passe pour ouvrir les onglets mise à jour et ' +
+    'débogage. Le déverrouillage survit aux redémarrages.',
+  expertSetHint:
+    "Aucun mot de passe n'est encore défini sur cette horloge. Le premier " +
+    'saisi ici fera foi ; jusque-là, mise à jour et débogage restent ' +
+    'verrouillés.',
+  expertPassword: 'Mot de passe',
+  expertUnlock: 'Déverrouiller',
+  expertSet: 'Définir le mot de passe',
+  expertMinLength: (count) => `Au moins ${count} caractères.`,
+  expertLockedOut:
+    "Trop d'essais infructueux. L'horloge n'accepte plus de mot de passe " +
+    'pendant quelques minutes.',
+  expertForgotten: 'Mot de passe oublié ?',
+  expertResetHint: (time) =>
+    `Peu après la mise sous tension, le mot de passe peut être effacé. Il reste ${time}. Ensuite, il faudra couper le courant — ou le câble USB.`,
+  expertReset: 'Effacer le mot de passe',
+
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Mise à jour refusée',
   err_otaWrite: "Erreur d'écriture pendant le flash",
@@ -259,6 +284,12 @@ export default {
   err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,
+
+  err_expertLocked: 'Le mode expert est verrouillé',
+  err_expertLockedOut: 'Trop de tentatives — réessayez plus tard',
+  err_expertWrongPassword: 'Mot de passe incorrect',
+  err_expertPasswordShort: 'Ce mot de passe est trop court',
+  err_expertNoGrace: 'La fenêtre pour effacer le mot de passe est fermée',
 
   // --- api errors ---
   connectionLost: "Connexion à l'horloge interrompue",
