@@ -25,6 +25,7 @@ const API_ROUTES = [
   '/light',
   '/log',
   '/panel',
+  '/languages',
   '/expert',
   // Built by the clock, not shipped in the image: it carries the clock's name.
   '/manifest.webmanifest',

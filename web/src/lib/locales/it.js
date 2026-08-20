@@ -27,18 +27,6 @@ export default {
   ],
   appearance: 'Aspetto',
   language: 'Lingua',
-  languages: [
-    'Tedesco',
-    'Svevo',
-    'Bavarese',
-    'Sassone',
-    'Svizzero tedesco',
-    'Inglese',
-    'Francese',
-    'Italiano',
-    'Olandese',
-    'Spagnolo'
-  ],
   corners: 'Angoli',
   clockwise: 'in senso orario',
   counterClockwise: 'in senso antiorario',

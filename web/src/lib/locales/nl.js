@@ -27,18 +27,6 @@ export default {
   ],
   appearance: 'Vormgeving',
   language: 'Taal',
-  languages: [
-    'Duits',
-    'Zwabisch',
-    'Beiers',
-    'Saksisch',
-    'Zwitserduits',
-    'Engels',
-    'Frans',
-    'Italiaans',
-    'Nederlands',
-    'Spaans'
-  ],
   corners: 'Hoeken',
   clockwise: 'met de klok mee',
   counterClockwise: 'tegen de klok in',

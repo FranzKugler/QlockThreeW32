@@ -443,6 +443,29 @@ function panelState() {
   };
 }
 
+/*
+ * The languages the clock can render.
+ *
+ * The firmware builds this out of src/languages/, where the names live; the
+ * mock repeats them, because it has no language files to read. It is the one
+ * place in this file that has to be updated when a language is added - the
+ * web UI no longer has any such place at all, which was the point.
+ */
+const LANGUAGES = [
+  { value: 0, code: 'de-DE', name: 'Deutsch', uiLocale: 'de' },
+  { value: 1, code: 'de-SW', name: 'Schwäbisch', uiLocale: 'de' },
+  { value: 2, code: 'de-BA', name: 'Bayrisch', uiLocale: 'de' },
+  { value: 3, code: 'de-SA', name: 'Sächsisch', uiLocale: 'de' },
+  { value: 4, code: 'de-CH', name: 'Schwiizerdütsch', uiLocale: 'de' },
+  { value: 5, code: 'en', name: 'English', uiLocale: 'en' },
+  { value: 6, code: 'fr', name: 'Français', uiLocale: 'fr' },
+  { value: 7, code: 'it', name: 'Italiano', uiLocale: 'it' },
+  { value: 8, code: 'nl', name: 'Nederlands', uiLocale: 'nl' },
+  { value: 9, code: 'es', name: 'Español', uiLocale: 'es' }
+];
+
+app.get('/languages', (req, res) => res.json(LANGUAGES));
+
 app.get('/panel', (req, res) => res.json(panelState()));
 
 app.get('/wifi', (req, res) => res.json({ ...wifi, hostname: state.hostname }));

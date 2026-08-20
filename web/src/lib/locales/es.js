@@ -27,18 +27,6 @@ export default {
   ],
   appearance: 'Aspecto',
   language: 'Idioma',
-  languages: [
-    'Alemán',
-    'Suabo',
-    'Bávaro',
-    'Sajón',
-    'Suizo alemán',
-    'Inglés',
-    'Francés',
-    'Italiano',
-    'Neerlandés',
-    'Español'
-  ],
   corners: 'Esquinas',
   clockwise: 'en sentido horario',
   counterClockwise: 'en sentido antihorario',

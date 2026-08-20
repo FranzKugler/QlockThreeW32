@@ -136,6 +136,20 @@ export async function setHostname(hostname) {
 }
 
 /**
+ * The languages this clock can render, in the order of the numbers it stores -
+ * so `value` is what POST /configuration wants. Static for a given firmware,
+ * asked once.
+ *
+ * Throws, so the caller can fall back to the built-in list rather than end up
+ * with an empty picker on a firmware that predates the endpoint.
+ */
+export async function fetchLanguages() {
+  const res = await fetch('/languages');
+  if (!res.ok) throw new Error(`/languages: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
  * The face as it is at this moment: the panel of the language that is running,
  * and which of its letters are lit, read off the frame buffer itself.
  *

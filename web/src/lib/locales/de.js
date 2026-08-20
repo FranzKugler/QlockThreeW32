@@ -28,18 +28,6 @@ export default {
   ],
   appearance: 'Darstellung',
   language: 'Sprache',
-  languages: [
-    'Deutsch',
-    'Schwäbisch',
-    'Bayrisch',
-    'Sächsisch',
-    'Schweizerisch',
-    'Englisch',
-    'Französisch',
-    'Italienisch',
-    'Niederländisch',
-    'Spanisch'
-  ],
   corners: 'Ecken',
   clockwise: 'im Uhrzeigersinn',
   counterClockwise: 'gegen den Uhrzeigersinn',

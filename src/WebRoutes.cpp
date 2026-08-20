@@ -914,6 +914,42 @@ void updateExpert()
 
 
 /**
+ * Every language this firmware can render, in the order of the numbers stored
+ * in NVS - so the index in the array is the value to POST to /configuration.
+ *
+ * The names used to live in the web UI, ten of them in each of six locale
+ * files, in an order that had to agree with the LANGUAGE_* defines without
+ * anything checking that it did. Adding a language cost one file here and six
+ * there. It costs one file here now: `name` and `uiLocale` have always been
+ * part of a Language, this is only the endpoint that hands them over.
+ *
+ * Static for a given firmware, so the browser asks once and does not poll. It
+ * is deliberately not part of /currentState, which is settings.
+ */
+void sendLanguages()
+{
+    JsonDocument doc;
+    JsonArray list = doc.to<JsonArray>();
+
+    for (byte i = 0; i < LANGUAGE_COUNT; i++)
+    {
+        const Language *language = Languages::find(i);
+        if (language == nullptr) continue;   // a gap in the table, not an error
+
+        JsonObject entry = list.add<JsonObject>();
+        entry["value"]    = i;
+        entry["code"]     = language->code;
+        entry["name"]     = language->name;
+        entry["uiLocale"] = language->uiLocale;
+    }
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+
+/**
  * The face, as it is at this moment.
  *
  * Both halves come out of the same place the LEDs do: `rows` is the panel of
@@ -1006,6 +1042,7 @@ void Web::begin()
     server.on("/timezone", updateTimezone);
     server.on("/light", HTTP_GET, sendLight);
     server.on("/panel", HTTP_GET, sendPanel);
+    server.on("/languages", HTTP_GET, sendLanguages);
     server.on("/light", HTTP_POST, updateLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);

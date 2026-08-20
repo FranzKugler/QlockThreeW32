@@ -10,9 +10,9 @@
    * @updated  15.8.2026
    */
   import { onMount } from 'svelte';
-  import { fetchState, fetchExpert } from './lib/api.js';
+  import { fetchState, fetchExpert, fetchLanguages } from './lib/api.js';
   import { status } from './lib/status.svelte.js';
-  import { dict, setLanguage } from './lib/i18n.svelte.js';
+  import { dict, setLanguage, setLanguageList } from './lib/i18n.svelte.js';
   import { appName, setAppName } from './lib/appname.svelte.js';
   import Display from './sections/Display.svelte';
   import Color from './sections/Color.svelte';
@@ -108,6 +108,16 @@
       clock = await fetchState();
     } catch (err) {
       loadError = err.message;
+    }
+
+    // Which languages the clock has, and what it calls them. Asked once:
+    // it cannot change without a firmware update, and a firmware update
+    // reloads this page anyway.
+    try {
+      setLanguageList(await fetchLanguages());
+    } catch {
+      // Firmware from before /languages existed. The built-in list is that
+      // firmware's list, so the picker is right for it.
     }
 
     try {

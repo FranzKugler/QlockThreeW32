@@ -27,18 +27,6 @@ export default {
   ],
   appearance: 'Présentation',
   language: 'Langue',
-  languages: [
-    'Allemand',
-    'Souabe',
-    'Bavarois',
-    'Saxon',
-    'Suisse allemand',
-    'Anglais',
-    'Français',
-    'Italien',
-    'Néerlandais',
-    'Espagnol'
-  ],
   corners: 'Coins',
   clockwise: 'sens horaire',
   counterClockwise: 'sens antihoraire',

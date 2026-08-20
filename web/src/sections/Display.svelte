@@ -9,7 +9,7 @@
    * @updated  15.8.2026
    */
   import * as api from '../lib/api.js';
-  import { dict } from '../lib/i18n.svelte.js';
+  import { dict, languages } from '../lib/i18n.svelte.js';
 
   let { state } = $props();
 
@@ -51,8 +51,11 @@
   <div class="field">
     <label for="language">{t.language}</label>
     <select id="language" bind:value={state.language} onchange={pushConfiguration}>
-      {#each t.languages as label, value (value)}
-        <option {value}>{label}</option>
+      <!-- The clock says which languages it has and what they are called,
+           in their own language. Keyed by the stored number, which is what
+           makes it safe that the names are not translated. -->
+      {#each languages() as language (language.value)}
+        <option value={language.value}>{language.name}</option>
       {/each}
     </select>
   </div>
