@@ -17,8 +17,16 @@
  * V 1.2:  - Removed support for the old Arduino IDE (up to 1.0.6).
  * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  *
- * Wiring: fed in at the top left, then serpentine downwards,
- * then the corners: bottom left, top left, top right, bottom right.
+ * Wiring: fed in at the top left, then serpentine downwards, then the four
+ * corner LEDs.
+ *
+ * The corner order in this comment used to read "bottom left, top left, top
+ * right, bottom right" and that is not what the clock does. It is also not
+ * worth restating here, because the path from a frame buffer row to a lit
+ * corner passes through _setPixel(), which swaps 110 with 112 on top of the
+ * mapping in writeScreenBufferToMatrix. The one place that says which row is
+ * which corner of the face is Renderer::setCorners, and it says so from
+ * having been checked against the clock.
  *
  */
 #include "LedDriverWS2812FastLED.h"

@@ -84,6 +84,25 @@ void Renderer::setMinutes(char hours, byte minutes, byte language, word matrix[1
     plugin->render(hours, minutes, face);
 }
 
+/**
+ * The four corner LEDs, for the minutes between two five-minute steps.
+ *
+ * Which row is which corner of the face, established from the clock itself
+ * rather than from the code - it cannot be read out of the code, and the
+ * driver's wiring comment disagrees:
+ *
+ *     matrix[1]  top left        matrix[0]  top right
+ *     matrix[2]  bottom left     matrix[3]  bottom right
+ *
+ * Clockwise therefore runs 1, 0, 3, 2 and counter-clockwise 0, 1, 2, 3, which
+ * is what the two branches below do. The path from a row to a pixel goes
+ * through two remappings that cancel out oddly - writeScreenBufferToMatrix
+ * sends matrix[1] to _setPixel(110), and _setPixel swaps 110 with 112 - so
+ * following it through is not a good way to check this. The clock is.
+ *
+ * The bits sit in the low five of each row, below the eleven columns of
+ * letters, which is why a whole row is not just a row of the panel.
+ */
 void Renderer::setCorners(byte minutes, boolean cw, word matrix[16]) {
     if (cw) {
         // clockwise

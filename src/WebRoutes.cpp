@@ -927,11 +927,10 @@ void updateExpert()
  * `on` is written as `#` and `.` rather than as a bit mask so that the answer
  * can be read with curl: two aligned grids, the letters and what is lit.
  *
- * The four corners are reported separately. They live in the low five bits of
- * rows 0..3, below the eleven columns, and the driver wires them
- * matrix[0] top left, matrix[3] top right, matrix[2] bottom right,
- * matrix[1] bottom left - so they are handed over in reading order rather than
- * in the order the strip is soldered.
+ * The four corners are reported separately, in reading order rather than in
+ * the order the strip is soldered. Which row is which corner is written down
+ * at Renderer::setCorners, and comes from the clock rather than from the code:
+ * following the pixel remapping through the driver gives the wrong answer.
  */
 void sendPanel()
 {
@@ -965,7 +964,7 @@ void sendPanel()
     }
 
     // Reading order: top left, top right, bottom right, bottom left.
-    const uint8_t CORNER_ROW[4] = { 0, 3, 2, 1 };
+    const uint8_t CORNER_ROW[4] = { 1, 0, 3, 2 };
     JsonArray corners = doc["corners"].to<JsonArray>();
     for (uint8_t i = 0; i < 4; i++)
     {
