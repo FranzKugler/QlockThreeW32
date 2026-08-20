@@ -54,6 +54,7 @@
 #include "DisplayModes.h"
 #include "WebRoutes.h"
 #include "Expert.h"
+#include "languages/Language.h"
 // Credentials of this particular clock, not in version control. Without it the
 // build still works; see Secrets.example.h.
 #if __has_include("Secrets.h")
@@ -61,7 +62,6 @@
 #endif
 #include "Version.h"
 #include "Zahlen.h"
-#include "Woerter_DE.h"
 
 #define WAIT_BEFORE_SETTINGS_WRITE 20
 
@@ -376,36 +376,21 @@ static const char *LANGUAGE_NAMES[] = {
  * Written without umlauts because it goes to a serial console. Matches the
  * listing in Woerter_DE.h.
  */
-static const char PANEL[10][12] = {
-    "ESKISTAFUNF",
-    "ZEHNZWANZIG",
-    "DREIVIERTEL",
-    "VORFUNKNACH",
-    "HALBAELFUNF",
-    "EINSXAMZWEI",
-    "DREIAUJVIER",
-    "SECHSNLACHT",
-    "SIEBENZWOLF",
-    "ZEHNEUNKUHR",
-};
-
-/**
- * The lit letters of the frame buffer, as words - read back out of `matrix`
- * rather than worked out again, so it cannot drift from what the renderer did.
- * Column 0 is the most significant bit of a row, and a gap ends a word.
- */
-String displayedWords()
+String displayedWords(byte language)
 {
+    const Language *panel = Languages::find(language);
+    if (panel == nullptr) return String();
+
     String out;
-    for (int row = 0; row < 10; row++)
+    for (uint8_t row = 0; row < PANEL_ROWS; row++)
     {
         bool inWord = false;
-        for (int col = 0; col < 11; col++)
+        for (uint8_t col = 0; col < PANEL_COLS; col++)
         {
             if (matrix[row] & (1 << (15 - col)))
             {
                 if (!inWord && out.length()) out += ' ';
-                out += PANEL[row][col];
+                Languages::appendCharacter(out, panel->rows[row], col);
                 inWord = true;
             }
             else
@@ -626,6 +611,11 @@ void setup()
     // The settings, WLAN and light endpoints, plus the fallback that serves
     // the web UI out of the filesystem. The /ota routes came earlier, with
     // Ota::begin().
+    // Confirms that the letters under every word really spell what the word
+    // says. Microseconds, and it catches the one mistake a new panel invites:
+    // a word one column out, which renders something plausible and wrong.
+    Languages::selfCheck();
+
     // Reads the stored lock state and opens the reset window if this run
     // started at the plug. Before the server, so no request can arrive while
     // the answer to "is this clock unlocked" is still the default.
@@ -834,7 +824,7 @@ void loop()
                            activeRule ? activeRule->abbrev : "?",
                            hour(now()), minute(now()),
                            lang < LANGUAGE_COUNT ? LANGUAGE_NAMES[lang] : "?",
-                           displayedWords().c_str(),
+                           displayedWords(lang).c_str(),
                            minute(actual) % 5);
                 }
                 if (mode == EXT_MODE_NORMAL_WIFISTATUS)

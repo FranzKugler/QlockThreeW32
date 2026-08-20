@@ -62,6 +62,7 @@ on :8080 directly, which serves `data/` statically.
 | [src/LightSensor.cpp](src/LightSensor.cpp) | the `LightSensor` interface, `Veml7700Sensor`, and `AmbientLight` with its sampling task |
 | [src/LogBuffer.cpp](src/LogBuffer.cpp) | the in-memory log ring, the `DebugLog` tee and the ESP-IDF capture hook |
 | [src/Expert.cpp](src/Expert.cpp) | the lock on `/log` and `/ota/*`: the password, the NVS flag, `Expert::guard()` |
+| [src/languages/](src/languages/) | one file per language: its panel letters, its words, and how it says the time |
 | [src/DisplayModes.h](src/DisplayModes.h) | the mode numbers, shared because `main .cpp` renders them and `WebRoutes.cpp` accepts them |
 
 Two things make this a split rather than a rearrangement. **The modules take what they need as parameters instead of reading globals**: `Ota::poll(online, localHour)` gets told whether the network is up and what the local hour is, so nothing in it knows about `WiFiManager` or `Timezone`. And **`scheduleSettingsSave()` is the one named seam** both modules use to arm the deferred write, rather than each reaching into `timeToSaveToFLASH`.
@@ -136,7 +137,7 @@ The data is the last line of every compiled IANA zone file, the **POSIX TZ strin
 - The first rule in a POSIX string *starts* daylight saving and the second *ends* it, so they map onto `tzDs*` and `tz*` respectively — not in reading order. `Europe/Berlin` parses to exactly the defaults written by hand in `Settings.cpp`, which is the cheapest available check that the mapping is right.
 
 Points worth knowing:
-- The mode/language/corner values in the UI are the firmware's own numbers (`STD_MODE_*`/`EXT_MODE_*` in [src/DisplayModes.h](src/DisplayModes.h), `LANGUAGE_*` in `Renderer.h`). `MODE_VALUES` in `Display.svelte` has to agree with that header. Bindings keep them as numbers rather than the strings jQuery's `.val()` used to send.
+- The mode/language/corner values in the UI are the firmware's own numbers (`STD_MODE_*`/`EXT_MODE_*` in [src/DisplayModes.h](src/DisplayModes.h), `LANGUAGE_*` in `Renderer.h` — the numbers are stored in NVS and must keep their values). `MODE_VALUES` in `Display.svelte` has to agree with that header. Bindings keep them as numbers rather than the strings jQuery's `.val()` used to send.
 - Colour changes are throttled ([web/src/lib/throttle.js](web/src/lib/throttle.js)); dragging the wheel would otherwise fire one POST per pointer move at the ESP32's single-threaded web server.
 - With "Sommerzeit" off, the changeover fields of both rules are disabled but the standard rule's abbreviation and offset stay editable — the same rule the old `setDst()` implemented.
 - Everything is bundled locally. The old page pulled Bootstrap, FontAwesome, jQuery and iro.js from CDNs, so it rendered broken on a LAN without internet access. The colour wheel is still iro.js, now bundled. The built page requests exactly three files on load, all from the clock: the JS bundle, the CSS and the favicon — no webfonts, no `url()` in the CSS, no `@import`. Opening the timezone tab adds a fourth, `/zones.json`, also from the clock. Keep it that way; the clock has to work on a network with no internet at all.
@@ -250,7 +251,36 @@ Fixed along the way: `loop()` used to call `NTP.begin("pool.ntp.org", …)` with
 
 ### Rendering pipeline (hardware-independent core)
 
-`Renderer` ([src/Renderer.cpp](src/Renderer.cpp)) is pure logic with no hardware dependency: given hour/minute/language it sets word bits in the `word matrix[16]` framebuffer. Per-language word-to-bitmask macros live in `Woerter_<LANG>.h` (`Woerter_DE.h`, `Woerter_CH.h`, `Woerter_EN.h`, `Woerter_FR.h`, `Woerter_IT.h`, `Woerter_NL.h`, `Woerter_ES.h`; `Woerter_DE_MKF.h` exists but is currently unused/commented out) — each language has its own irregular grammar handled as a switch on `minutes / 5` plus special-casing (e.g. French/Italian/Spanish hour agreement, Swabian/Bavarian/Swiss `viertel`/`dreiviertel` variants). `Renderer::setCorners` sets the four corner-LED bits for the sub-5-minute remainder, in clockwise or counter-clockwise order. `Zahlen.h` holds the digit bit patterns the seconds display draws with, rather than anything the word renderer uses. `Staben.h` holds letter patterns and a heart, is referenced by nothing, and is **kept on purpose** for a future use — it is not included anywhere, so it costs nothing.
+`Renderer` ([src/Renderer.cpp](src/Renderer.cpp)) is pure logic with no hardware dependency: given hour/minute/language it sets word bits in the `word matrix[16]` framebuffer. It is 140 lines and does almost nothing itself — it looks the language up in [src/languages/](src/languages/) and lets it render. `Renderer::setCorners` sets the four corner-LED bits for the sub-5-minute remainder, in clockwise or counter-clockwise order; those live in the **low five bits of rows 0..3**, below the eleven columns of letters, which is why the frame buffer is `word` and not `uint16_t` worth of panel. `Zahlen.h` holds the digit bit patterns the seconds display draws with, rather than anything the word renderer uses. `Staben.h` holds letter patterns and a heart, is referenced by nothing, and is **kept on purpose** for a future use — it is not included anywhere, so it costs nothing.
+
+### Languages
+
+One file per language in [src/languages/](src/languages/), plus [Language.h](src/languages/Language.h) for the shape of one and [Languages.cpp](src/languages/Languages.cpp) for the table that maps a stored language number onto it. A new language is a new file and one line in that table.
+
+**A word is a place and the text it spells**, and everything else follows from that:
+
+```c
+{ 0, 7, "FÜNF" }      // row 0, from column 7
+```
+
+The bit mask is arithmetic (column *c* is bit 15−*c*), so no macros are needed. The text is present, so the log names what is lit in the language that is lit. The geometry is present, so the browser can draw the real panel and a script can hand OpenSCAD something to cut. And because the panel letters and the word's own text are both here, `Languages::selfCheck()` confirms at every boot that the letters under a word really spell it — which is the mistake one makes when adding a panel, and which otherwise shows up as a plausible-looking wrong face.
+
+- **The grammar stays imperative, deliberately.** Swabian says "viertel sechs" and counts the hour up where standard German says "viertel nach fünf"; French has "moins le quart"; Italian and Spanish inflect the hour ("è l'una" against "sono le due"). Written as a rule table that becomes a small language of its own, harder to read than the switch it replaces and touched once a year. Each language keeps a `render()`; it just lives next to its panel now.
+- **German is four entries over one panel** — standard, Swabian, Bavarian, Saxon — differing in four of the twelve five-minute steps. `Language_DE.cpp` states the differences as a table in its header comment.
+- **Words with a gap are two entries.** German "ES IST" is ES at column 0 and IST at column 3 with a dark K between, which is also why the log reads "ES IST" and not "ESIST".
+- `name` is in the language itself ("Deutsch", "Français"), which is how language pickers are conventionally written and which saves translating ten names into six locales. `uiLocale` names which web locale to speak, so a language added here needs no edit on the web side.
+- **Registration is a table line, not a self-registering static object.** The order in which static constructors run across translation units is not defined in C++, and when that goes wrong it goes wrong before there is any way to see it.
+- `extern const` on the definitions, not only on the declarations: a `const` object at namespace scope has internal linkage in C++ unless it is spelled out, and the table will not find it. That is one link error, and it is the first one this refactor produced.
+
+**The English panel spells FIFE.** Row 2 reads `TWENTYFIFEX`, and the mask for "five past" has always lit columns 6..9 — F, I, F, E. Either the panel drawing is wrong or the mask is one column out; it cannot be told from the source, and `Language_EN.cpp` states what the panel says rather than what it ought to say. Nobody noticed because the letters had never been machine-readable before. **Check a physical English panel before changing it**: if the real panel says FIVE, the drawing is what needs fixing, and the mask is already right.
+
+#### How the switch was retired safely
+
+1300 lines of mechanical rewriting is the kind that breaks something quietly and is noticed in October when Swabian says the wrong thing at a quarter past. There is **no host C++ compiler on the development machine** (checked: no gcc, clang, MSVC or MinGW; the cpptools extension ships only clang-format and clang-tidy), so the offline golden-master run that would be the obvious first step was not available.
+
+The on-device comparison that replaced it turned out better: both implementations sat in the same image, on the same chip, so nothing was lost in a shim. `RenderCheck.cpp`, built only with `-DRENDER_CHECK`, rendered every language at every minute of the day through both paths and reported where they disagreed — 14,400 frames, and the answer was **0 differing frames and 0 panel problems** before the old switch, `Woerter_*.h` and the harness itself were deleted. If a language is ever rewritten again, that file is worth resurrecting from git rather than reinventing.
+
+`cleanWordsForAlarmSettingMode()` went with it: it was per-language, and nothing had called it since the alarm was removed.
 
 ### LED output
 

@@ -46,19 +46,10 @@ public:
     void setMinutes(char hours, byte minutes, byte language, word matrix[16]);
     void setCorners(byte minutes, boolean cw, word matrix[16]);
 
-    void cleanWordsForAlarmSettingMode(byte language, word matrix[16]);
-
     void scrambleScreenBuffer(word matrix[16]);
     void clearScreenBuffer(word matrix[16]);
     void setAllScreenBuffer(word matrix[16]);
 
-private:
-    void setHours(char hours, boolean glatt, byte language, word matrix[16]);
-
-    // Spezialfaelle
-    void FR_hours(byte hours, word matrix[16]);
-    void IT_hours(byte hours, word matrix[16]);
-    void ES_hours(byte hours, word matrix[16]);
 };
 
 #endif
