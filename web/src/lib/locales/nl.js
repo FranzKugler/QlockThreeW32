@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update'],
+  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update', 'Debug'],
   loading: 'Instellingen worden geladen …',
   loadingShort: 'wordt geladen …',
   clockUnreachable: 'Klok niet bereikbaar',
@@ -197,6 +197,46 @@ export default {
   installNow: 'Nu bijwerken',
   downloading: (percent) => `Wordt gedownload … ${percent} %`,
   runningFrom: 'Actieve slot',
+
+  // --- debug tab ---
+  clockState: 'Status',
+  uptime: 'Bedrijfstijd',
+  lastReset: 'Laatste herstart',
+  resetReasons: {
+    'power-on': 'Inschakelen',
+    external: 'Resetlijn',
+    software: 'Software (herstart gevraagd)',
+    panic: 'Crash (panic)',
+    'watchdog-int': 'Watchdog (interrupt)',
+    'watchdog-task': 'Watchdog (taak)',
+    watchdog: 'Watchdog',
+    brownout: 'Spanningsdip',
+    sdio: 'SDIO',
+    usb: 'Reset via USB',
+    jtag: 'Reset via JTAG',
+    efuse: 'eFuse-fout',
+    'power-glitch': 'Spanningspiek',
+    'cpu-lockup': 'CPU-blokkade (dubbele fout)',
+    'deep-sleep': 'Diepe slaap',
+    unknown: 'onbekend'
+  },
+  heapFree: 'Vrij geheugen',
+  heapMin: 'Laagste sinds start',
+  heapBlock: 'Grootste vrije blok',
+  heapHint:
+    'Wordt een update geweigerd met „firmware kon niet worden geactiveerd”, ' +
+    'dan is dit minimum het eerste getal om naar te kijken.',
+  logTitle: 'Logboek',
+  logPause: 'Pauzeren',
+  logResume: 'Hervatten',
+  logClear: 'Venster leegmaken',
+  logMissed: (count) =>
+    `${count} regels zijn uit het geheugen van de klok gelopen voordat ze hier aankwamen.`,
+  logEmpty: 'Nog niets gelogd.',
+  logHint:
+    'De klok bewaart de laatste 200 regels in het werkgeheugen, ook die van ' +
+    'het opstarten. Wat de bootloader vóór de firmware toont, staat alleen ' +
+    'op de USB-kabel.',
 
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Update geweigerd',

@@ -483,4 +483,79 @@ app.post('/ota/upload', (req, res) => {
   });
 });
 
+/*
+ * The log, as the debug tab sees it.
+ *
+ * A boot is written into the ring at startup so the tab has something with a
+ * shape to it - the point of the whole feature is that opening it shows the
+ * beginning, and a mock that starts empty would not exercise that at all.
+ * A line is added every few seconds afterwards, and the ring is deliberately
+ * short so the "lines were missed" path can be reached by leaving the tab
+ * closed for a while.
+ */
+const LOG_LINES = 200;
+const LOG_BATCH = 100;
+
+const log = [];
+let logSeq = 0;
+const bootAt = Date.now();
+
+/** RemoteDebug's levels: 2 debug, 3 info, 4 warning, 5 error. */
+function logLine(level, text, ms = Date.now() - bootAt) {
+  log.push({ s: logSeq++, t: ms, l: level, m: text });
+  if (log.length > LOG_LINES) log.shift();
+}
+
+// A boot, roughly as the firmware writes one, timestamps included.
+[
+  [12, 3, '(setup)(C1) LittleFS Mount succesfull'],
+  [31, 3, '(loadSettings)(C1) Settings read from NVS, schema 2'],
+  [44, 2, '(1) wifi: wifi driver task: 3fcaf3d4, prio:23, stack:6656'],
+  [212, 3, '(WiFiEvent)(C1) WiFi STA started'],
+  [230, 3, '(applyTxPower)(C1) STA: Sendeleistung auf 13.0 dBm gesetzt'],
+  [1893, 6, '(setup)(C1) Connected - Local IP: 172.22.102.219'],
+  [1894, 6, '(setup)(C1) Compiled: Aug 20 2026 / 16:04:11'],
+  [1895, 6, '(setup)(C1) Version: 2.0.2-9-gd1c3252'],
+  [1896, 6, '(setup)(C1) Sendeleistung: 13.00 dBm, RSSI -56 dBm'],
+  [1902, 6, '(begin)(C1) TSL2591 found, sampling every 2000 ms'],
+  [2140, 4, '(startNtp)(C1) NTP has not answered yet, time is not set'],
+  [3980, 3, '(onNtpSync)(C0) NTP sync, system clock set'],
+  [4001, 3, '(loop)(C1) Display 16:05 CEST (UTC 14:05) [DE] | ES IST FUENF NACH VIER | corners +0']
+].forEach(([ms, level, text]) => logLine(level, text, ms));
+
+// Once a minute the firmware logs what is on the face; the mock is quicker so
+// the window visibly moves while it is being looked at.
+setInterval(() => {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(Math.floor(now.getMinutes() / 5) * 5).padStart(2, '0');
+  logLine(3, `(loop)(C1) Display ${hh}:${mm} CEST [DE] | ES IST … | corners +${now.getMinutes() % 5}`);
+}, 5000);
+
+// Something to colour: a warning and an error every so often.
+setInterval(() => logLine(4, '(poll)(C1) NTP resync overdue, last sync 2 h ago'), 47000);
+setInterval(() => logLine(5, '(readLux)(C0) TSL2591 read failed, keeping last value'), 71000);
+
+app.get('/log', (req, res) => {
+  const since = Number(req.query.since ?? 0);
+  const oldest = log.length ? log[0].s : logSeq;
+  const from = Math.max(since, oldest);
+
+  const lines = log.filter((line) => line.s >= from).slice(0, LOG_BATCH);
+  const seq = lines.length ? lines[lines.length - 1].s + 1 : from;
+
+  res.json({
+    oldest,
+    seq,
+    more: seq < logSeq,
+    uptime: Date.now() - bootAt,
+    // Drifts a little, so the numbers are not obviously frozen.
+    heap: 208000 + Math.round(Math.sin(Date.now() / 30000) * 4000),
+    heapMin: 181240,
+    heapBlock: 106496,
+    reset: 'software',
+    lines
+  });
+});
+
 app.listen(8080, () => console.log('QlockThreeW32 mock API on http://localhost:8080'));

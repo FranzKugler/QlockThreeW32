@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Visualizzazione', 'Colore', 'Fuso orario', 'WiFi', 'Aggiornamento'],
+  tabs: ['Visualizzazione', 'Colore', 'Fuso orario', 'WiFi', 'Aggiornamento', 'Debug'],
   loading: 'Caricamento delle impostazioni …',
   loadingShort: 'caricamento …',
   clockUnreachable: 'Orologio non raggiungibile',
@@ -198,6 +198,46 @@ export default {
   installNow: 'Aggiorna ora',
   downloading: (percent) => `Download … ${percent} %`,
   runningFrom: 'Slot attivo',
+
+  // --- debug tab ---
+  clockState: 'Stato',
+  uptime: 'Tempo di funzionamento',
+  lastReset: 'Ultimo riavvio',
+  resetReasons: {
+    'power-on': 'Accensione',
+    external: 'Linea di reset',
+    software: 'Software (riavvio richiesto)',
+    panic: 'Crash (panic)',
+    'watchdog-int': 'Watchdog (interrupt)',
+    'watchdog-task': 'Watchdog (task)',
+    watchdog: 'Watchdog',
+    brownout: 'Calo di tensione',
+    sdio: 'SDIO',
+    usb: 'Riavvio da USB',
+    jtag: 'Riavvio da JTAG',
+    efuse: 'Errore eFuse',
+    'power-glitch': 'Picco di tensione',
+    'cpu-lockup': 'Blocco della CPU (doppia eccezione)',
+    'deep-sleep': 'Sonno profondo',
+    unknown: 'sconosciuto'
+  },
+  heapFree: 'Memoria libera',
+  heapMin: "Minimo dall'avvio",
+  heapBlock: 'Blocco libero più grande',
+  heapHint:
+    'Se un aggiornamento viene rifiutato con «impossibile attivare il ' +
+    'firmware», questo minimo è il primo numero da guardare.',
+  logTitle: 'Registro',
+  logPause: 'Pausa',
+  logResume: 'Riprendi',
+  logClear: 'Svuota la finestra',
+  logMissed: (count) =>
+    `${count} righe sono uscite dalla memoria dell'orologio prima di arrivare qui.`,
+  logEmpty: 'Ancora nulla nel registro.',
+  logHint:
+    "L'orologio tiene in memoria le ultime 200 righe, comprese quelle " +
+    "dell'avvio. Quello che il bootloader stampa prima del firmware si vede " +
+    'solo sul cavo USB.',
 
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Aggiornamento rifiutato',

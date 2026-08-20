@@ -35,8 +35,8 @@
 #include <mbedtls/sha256.h>       // checking a download against the manifest
 #include <esp_ota_ops.h>          // which slot we are running from
 
-// debug library
-#include <RemoteDebug.h>          //https://github.com/JoaoLopesF/RemoteDebug
+// debug library, and the in-memory ring the debug tab reads it out of
+#include "LogBuffer.h"           //RemoteDebug: https://github.com/JoaoLopesF/RemoteDebug
 
 // needed for NTP
 #include <TimeLib.h>
@@ -64,8 +64,9 @@
 
 #define WAIT_BEFORE_SETTINGS_WRITE 20
 
-// Remote Debug server
-RemoteDebug Debug;
+// Remote Debug server. A subclass, so that everything said through it lands
+// in the ring as well - see LogBuffer.h.
+DebugLog Debug;
 
 // NTP specific values (not needed anymore)
 int8_t timeZone = 0; //1
@@ -239,10 +240,10 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
             debugI("WiFi Protected Setup (WPS): succeeded in enrollee mode");
             break;
         case ARDUINO_EVENT_WPS_ER_FAILED:
-            Serial.println("WiFi Protected Setup (WPS): failed in enrollee mode");
+            debugI("WiFi Protected Setup (WPS): failed in enrollee mode");
             break;
         case ARDUINO_EVENT_WPS_ER_TIMEOUT:
-            Serial.println("WiFi Protected Setup (WPS): timeout in enrollee mode");
+            debugI("WiFi Protected Setup (WPS): timeout in enrollee mode");
             break;
         case ARDUINO_EVENT_WPS_ER_PIN:
             debugI("WiFi Protected Setup (WPS): pin code in enrollee mode");
@@ -261,13 +262,13 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
             debugI("Client disconnected");
             break;
         case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:
-            Serial.println("Assigned IP address to client");
+            debugI("Assigned IP address to client");
             break;
         case ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED:
-            Serial.println("Received probe request");
+            debugI("Received probe request");
             break;
         case ARDUINO_EVENT_WIFI_AP_GOT_IP6:
-            Serial.println("AP IPv6 is preferred");
+            debugI("AP IPv6 is preferred");
             break;
         case ARDUINO_EVENT_WIFI_STA_GOT_IP6:
             debugI("STA IPv6 is preferred");
@@ -285,7 +286,7 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
             debugI("Ethernet connected");
             break;
         case ARDUINO_EVENT_ETH_DISCONNECTED:
-            Serial.println("Ethernet disconnected");
+            debugI("Ethernet disconnected");
             break;
         case ARDUINO_EVENT_ETH_GOT_IP:
             debugI("Obtained IP address");
@@ -490,6 +491,17 @@ void setup()
     // setup serial
     Serial.begin(115200);
     Serial.println();
+
+    // Start capturing before anything has something to say. Two halves:
+    // Log::begin() takes over ESP-IDF's own logging, and setSerialEnabled()
+    // opens RemoteDebug's gate - isActive() answers false until either the
+    // serial echo is on or a telnet client has connected, so every debugX
+    // between here and Debug.begin() used to be discarded. That is the whole
+    // of the boot: mounting the filesystem, loading the settings, and
+    // WiFiManager deciding between the stored network and its own portal.
+    // None of it ever reached the cable either.
+    Log::begin();
+    Debug.setSerialEnabled(true);
 
     //reset settings - for testing
     //wifiManager.resetSettings();

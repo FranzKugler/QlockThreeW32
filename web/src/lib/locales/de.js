@@ -10,7 +10,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update'],
+  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update', 'Debug'],
   loading: 'Einstellungen werden geladen …',
   loadingShort: 'wird geladen …',
   clockUnreachable: 'Uhr nicht erreichbar',
@@ -199,6 +199,46 @@ export default {
   installNow: 'Jetzt aktualisieren',
   downloading: (percent) => `Wird geladen … ${percent} %`,
   runningFrom: 'Aktiver Slot',
+
+  // --- debug tab ---
+  clockState: 'Zustand',
+  uptime: 'Laufzeit',
+  lastReset: 'Letzter Neustart',
+  resetReasons: {
+    'power-on': 'Einschalten',
+    external: 'Reset-Leitung',
+    software: 'Software (Neustart angefordert)',
+    panic: 'Absturz (Panic)',
+    'watchdog-int': 'Watchdog (Interrupt)',
+    'watchdog-task': 'Watchdog (Task)',
+    watchdog: 'Watchdog',
+    brownout: 'Spannungseinbruch',
+    sdio: 'SDIO',
+    usb: 'Zurückgesetzt über USB',
+    jtag: 'Zurückgesetzt über JTAG',
+    efuse: 'eFuse-Fehler',
+    'power-glitch': 'Spannungsspitze',
+    'cpu-lockup': 'CPU-Blockade (Doppelfehler)',
+    'deep-sleep': 'Tiefschlaf',
+    unknown: 'unbekannt'
+  },
+  heapFree: 'Freier Speicher',
+  heapMin: 'Minimum seit Start',
+  heapBlock: 'Größter freier Block',
+  heapHint:
+    'Wird ein Update mit „Firmware konnte nicht aktiviert werden“ abgelehnt, ' +
+    'ist das Minimum die erste Zahl, die anzusehen sich lohnt.',
+  logTitle: 'Protokoll',
+  logPause: 'Anhalten',
+  logResume: 'Fortsetzen',
+  logClear: 'Fenster leeren',
+  logMissed: (count) =>
+    `${count} Zeilen sind aus dem Speicher gelaufen, bevor sie hier ankamen.`,
+  logEmpty: 'Noch nichts protokolliert.',
+  logHint:
+    'Die Uhr hält die letzten 200 Zeilen im Arbeitsspeicher, auch die vom ' +
+    'Hochfahren. Was der Bootloader vor der Firmware ausgibt, steht nur am ' +
+    'USB-Kabel.',
 
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Update abgelehnt',

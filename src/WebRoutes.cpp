@@ -29,6 +29,7 @@
 #include <TimeLib.h>
 #include <Timezone.h>
 #include <ArduinoJson.h>
+#include <esp_system.h>   // esp_reset_reason(), for the debug tab
 
 #include "WebRoutes.h"
 #include "OtaUpdate.h"   // a rename asks for a restart
@@ -37,8 +38,8 @@
 #include "DisplayModes.h"
 #include "Renderer.h"
 
-#include <RemoteDebug.h>
-extern RemoteDebug Debug;
+// Debug and the debugX macros, plus the ring the web UI reads them out of.
+#include "LogBuffer.h"
 
 extern WebServer server;
 extern Settings settings;
@@ -689,6 +690,137 @@ void handleWifiSwitch()
 
 
 
+/** Reset reasons, short enough to put in a table cell and specific enough to matter. */
+static const char *resetReasonName()
+{
+    switch (esp_reset_reason())
+    {
+        case ESP_RST_POWERON:  return "power-on";
+        case ESP_RST_EXT:      return "external";
+        case ESP_RST_SW:       return "software";    // our own ESP.restart()
+        case ESP_RST_PANIC:    return "panic";       // the interesting one
+        case ESP_RST_INT_WDT:  return "watchdog-int";
+        case ESP_RST_TASK_WDT: return "watchdog-task";
+        case ESP_RST_WDT:      return "watchdog";
+        case ESP_RST_BROWNOUT: return "brownout";    // the other interesting one
+        case ESP_RST_SDIO:     return "sdio";
+        case ESP_RST_DEEPSLEEP: return "deep-sleep";
+        // The five below are ESP32-S3 additions, and leaving them out is how
+        // this first reported "unknown" for the most ordinary restart there
+        // is: a XIAO has no USB-serial converter, so the reset that ends a
+        // flash comes from the chip's own USB peripheral and lands on
+        // ESP_RST_USB. CPU_LOCKUP is the double exception - worth telling
+        // apart from a plain panic, since it usually means the panic handler
+        // itself fell over.
+        case ESP_RST_USB:        return "usb";
+        case ESP_RST_JTAG:       return "jtag";
+        case ESP_RST_EFUSE:      return "efuse";
+        case ESP_RST_PWR_GLITCH: return "power-glitch";
+        case ESP_RST_CPU_LOCKUP: return "cpu-lockup";
+        default:               return "unknown";
+    }
+}
+
+/** Appends a string as a JSON string literal, quotes and all. */
+static void appendJsonString(String &out, const char *text)
+{
+    out += '"';
+    for (const char *at = text; *at; at++)
+    {
+        unsigned char c = (unsigned char)*at;
+        if (c == '"' || c == '\\')
+        {
+            out += '\\';
+            out += (char)c;
+        }
+        else if (c < 0x20)
+        {
+            // Should not occur - the ring stores whole lines with the control
+            // characters already taken out - but a JSON document with a raw
+            // control character in it is not JSON, and the tab would show
+            // nothing at all rather than one odd line.
+            char escaped[7];
+            snprintf(escaped, sizeof(escaped), "\\u%04x", c);
+            out += escaped;
+        }
+        else
+        {
+            out += (char)c;   // UTF-8 passes through; JSON is UTF-8
+        }
+    }
+    out += '"';
+}
+
+/**
+ * The clock's log, and enough of its state to know what it was doing.
+ *
+ * Polled by the debug tab with the sequence number it last saw, so the usual
+ * answer carries nothing but the handful of lines that have appeared since.
+ * A freshly opened tab asks with `since=0` and gets the oldest batch first;
+ * `more` then says whether another round is worth it, which is what fills the
+ * window with the boot in one go rather than one screen every two seconds.
+ *
+ * `oldest` is not decoration: it says which line the ring still starts at, so
+ * the browser can tell "nothing new" from "the ring wrapped and you missed
+ * 300 lines". Dropping that silently is exactly what makes a log window
+ * untrustworthy.
+ *
+ * Built into one String with the room reserved up front rather than through
+ * ArduinoJson: a hundred lines would put every one of them into a document
+ * first and serialise that into a second buffer, and this runs on the same
+ * heap an update wants.
+ */
+void sendLog()
+{
+    uint32_t since = 0;
+    if (server.hasArg("since")) since = strtoul(server.arg("since").c_str(), nullptr, 10);
+
+    static Log::Line batch[LOG_BATCH];
+    size_t count = Log::collect(since, batch, LOG_BATCH);
+
+    uint32_t oldest = Log::oldestSeq();
+    uint32_t next = Log::nextSeq();
+    // What the caller should ask for next time. With nothing to send that is
+    // where it already stood - clamped to the ring, so a restart hands back a
+    // smaller number than was asked for instead of one that never comes round.
+    uint32_t served = since;
+    if (count > 0)        served = batch[count - 1].seq + 1;
+    else if (served < oldest) served = oldest;
+    else if (served > next)   served = next;
+
+    String out;
+    out.reserve(count * (LOG_LINE_MAX + 40) + 400);
+
+    out += "{\"oldest\":";  out += oldest;
+    out += ",\"seq\":";     out += served;
+    out += ",\"more\":";    out += (served < next) ? "true" : "false";
+
+    // What to look at first when something has gone wrong, and cheap enough to
+    // send on every poll. The heap numbers are here because they are the ones
+    // the intermittent "could not activate the firmware" points at.
+    out += ",\"uptime\":";  out += millis();
+    out += ",\"heap\":";    out += ESP.getFreeHeap();
+    out += ",\"heapMin\":"; out += ESP.getMinFreeHeap();
+    out += ",\"heapBlock\":"; out += ESP.getMaxAllocHeap();
+    out += ",\"reset\":\""; out += resetReasonName(); out += '"';
+
+    out += ",\"lines\":[";
+    for (size_t i = 0; i < count; i++)
+    {
+        if (i > 0) out += ',';
+        out += "{\"s\":";  out += batch[i].seq;
+        out += ",\"t\":";  out += batch[i].ms;
+        out += ",\"l\":";  out += batch[i].level;
+        out += ",\"m\":";
+        appendJsonString(out, batch[i].text);
+        out += '}';
+    }
+    out += "]}";
+
+    server.send(200, "application/json", out);
+}
+
+
 // ------ the interface the rest of the program sees ------
 
 void Web::begin()
@@ -719,6 +851,7 @@ void Web::begin()
     server.on("/wifi", HTTP_GET, sendWifiStatus);
     server.on("/wifi", HTTP_POST, updateWifi);
     server.on("/wifi/scan", HTTP_GET, sendWifiScan);
+    server.on("/log", HTTP_GET, sendLog);
 }
 
 void Web::poll()

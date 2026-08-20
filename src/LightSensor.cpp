@@ -14,8 +14,8 @@
 
 #include "LightSensor.h"
 
-#include <RemoteDebug.h>
-extern RemoteDebug Debug;
+// Debug and the debugX macros, plus the ring the web UI reads them out of.
+#include "LogBuffer.h"
 
 // How often the sensor is asked. Ambient light does not change quickly and
 // every reading costs an auto-ranging round, so this is deliberately slow.

@@ -23,6 +23,7 @@ const API_ROUTES = [
   '/timezone',
   '/hostname',
   '/light',
+  '/log',
   // Built by the clock, not shipped in the image: it carries the clock's name.
   '/manifest.webmanifest',
   '/wifi',

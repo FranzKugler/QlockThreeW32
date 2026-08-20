@@ -19,13 +19,14 @@
   import Timezone from './sections/Timezone.svelte';
   import Wifi from './sections/Wifi.svelte';
   import Ota from './sections/Ota.svelte';
+  import Debug from './sections/Debug.svelte';
 
-  // Labels come from t.tabs, in this order.
-  const TAB_IDS = ['display', 'color', 'timezone', 'wifi', 'ota'];
+  const TAB_IDS = ['display', 'color', 'timezone', 'wifi', 'ota', 'debug'];
 
   let active = $state('display');
   let clock = $state(null);
   let loadError = $state(null);
+
 
   // Only relevant on narrow screens, where the tab row collapses into a menu.
   let menuOpen = $state(false);
@@ -34,10 +35,12 @@
   const t = $derived(dict());
   const activeLabel = $derived(t.tabs[TAB_IDS.indexOf(active)]);
 
+
   function select(id) {
     active = id;
     menuOpen = false;
   }
+
 
   // Close the menu the way a menu is expected to close.
   function onWindowKeydown(event) {
@@ -68,6 +71,7 @@
     } catch (err) {
       loadError = err.message;
     }
+
   }
 
   onMount(load);
@@ -125,8 +129,10 @@
       <Timezone state={clock} />
     {:else if active === 'wifi'}
       <Wifi />
-    {:else}
+    {:else if active === 'ota'}
       <Ota />
+    {:else}
+      <Debug />
     {/if}
   {:else if loadError}
     <p class="centered">

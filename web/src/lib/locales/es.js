@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización'],
+  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización', 'Depuración'],
   loading: 'Cargando los ajustes …',
   loadingShort: 'cargando …',
   clockUnreachable: 'Reloj no accesible',
@@ -198,6 +198,46 @@ export default {
   installNow: 'Actualizar ahora',
   downloading: (percent) => `Descargando … ${percent} %`,
   runningFrom: 'Ranura activa',
+
+  // --- debug tab ---
+  clockState: 'Estado',
+  uptime: 'Tiempo en marcha',
+  lastReset: 'Último reinicio',
+  resetReasons: {
+    'power-on': 'Encendido',
+    external: 'Línea de reinicio',
+    software: 'Software (reinicio solicitado)',
+    panic: 'Fallo (panic)',
+    'watchdog-int': 'Watchdog (interrupción)',
+    'watchdog-task': 'Watchdog (tarea)',
+    watchdog: 'Watchdog',
+    brownout: 'Caída de tensión',
+    sdio: 'SDIO',
+    usb: 'Reinicio por USB',
+    jtag: 'Reinicio por JTAG',
+    efuse: 'Error de eFuse',
+    'power-glitch': 'Pico de tensión',
+    'cpu-lockup': 'Bloqueo de la CPU (doble excepción)',
+    'deep-sleep': 'Sueño profundo',
+    unknown: 'desconocido'
+  },
+  heapFree: 'Memoria libre',
+  heapMin: 'Mínimo desde el arranque',
+  heapBlock: 'Mayor bloque libre',
+  heapHint:
+    'Si una actualización se rechaza con «no se pudo activar el firmware», ' +
+    'este mínimo es el primer número que conviene mirar.',
+  logTitle: 'Registro',
+  logPause: 'Pausar',
+  logResume: 'Reanudar',
+  logClear: 'Vaciar la ventana',
+  logMissed: (count) =>
+    `${count} líneas salieron de la memoria del reloj antes de llegar aquí.`,
+  logEmpty: 'Todavía no hay nada registrado.',
+  logHint:
+    'El reloj guarda las últimas 200 líneas en memoria, incluidas las del ' +
+    'arranque. Lo que el gestor de arranque imprime antes del firmware solo ' +
+    'se ve por el cable USB.',
 
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Actualización rechazada',

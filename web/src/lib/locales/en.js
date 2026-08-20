@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update'],
+  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update', 'Debug'],
   loading: 'Loading the settings …',
   loadingShort: 'loading …',
   clockUnreachable: 'Clock not reachable',
@@ -196,6 +196,46 @@ export default {
   installNow: 'Update now',
   downloading: (percent) => `Downloading … ${percent} %`,
   runningFrom: 'Active slot',
+
+  // --- debug tab ---
+  clockState: 'State',
+  uptime: 'Uptime',
+  lastReset: 'Last restart',
+  resetReasons: {
+    'power-on': 'Power-on',
+    external: 'Reset line',
+    software: 'Software (restart requested)',
+    panic: 'Crash (panic)',
+    'watchdog-int': 'Watchdog (interrupt)',
+    'watchdog-task': 'Watchdog (task)',
+    watchdog: 'Watchdog',
+    brownout: 'Brown-out',
+    sdio: 'SDIO',
+    usb: 'Reset over USB',
+    jtag: 'Reset over JTAG',
+    efuse: 'eFuse error',
+    'power-glitch': 'Power glitch',
+    'cpu-lockup': 'CPU lock-up (double exception)',
+    'deep-sleep': 'Deep sleep',
+    unknown: 'unknown'
+  },
+  heapFree: 'Free memory',
+  heapMin: 'Lowest since boot',
+  heapBlock: 'Largest free block',
+  heapHint:
+    'If an update is refused with "could not activate the firmware", this ' +
+    'low-water mark is the first number worth looking at.',
+  logTitle: 'Log',
+  logPause: 'Pause',
+  logResume: 'Resume',
+  logClear: 'Clear view',
+  logMissed: (count) =>
+    `${count} lines scrolled out of the clock's buffer before they got here.`,
+  logEmpty: 'Nothing logged yet.',
+  logHint:
+    'The clock keeps the last 200 lines in RAM, including the ones from ' +
+    'booting. What the bootloader prints before the firmware starts is only ' +
+    'on the USB cable.',
 
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Update refused',

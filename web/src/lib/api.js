@@ -136,6 +136,23 @@ export async function setHostname(hostname) {
 }
 
 /**
+ * The clock's log, everything after the sequence number last seen.
+ *
+ * `since` of 0 asks for the oldest the ring still holds, which is what fills a
+ * freshly opened tab with the boot rather than with "from now on". The answer
+ * carries `more` while further lines are waiting, so the caller keeps asking
+ * instead of collecting one batch every polling interval.
+ *
+ * Throws, because the caller polls this and a clock that is briefly busy or
+ * restarting must not turn into a permanent error banner.
+ */
+export async function fetchLog(since = 0) {
+  const res = await fetch(`/log?since=${since}`);
+  if (!res.ok) throw new Error(`/log: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
  * Installed firmware and web UI versions. Throws, because the caller polls this
  * while the clock reboots after an update and must tolerate it being briefly
  * unreachable without flagging that as an error.

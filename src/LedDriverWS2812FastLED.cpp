@@ -26,8 +26,8 @@
 // #define DEBUG
 // #include "Debug.h"
 
-#include <RemoteDebug.h>
-extern RemoteDebug Debug;
+// Debug and the debugX macros, plus the ring the web UI reads them out of.
+#include "LogBuffer.h"
 
 #define NUM_PIXEL 114
 #ifndef LED_OUTPUT_PIN

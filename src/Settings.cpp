@@ -18,8 +18,8 @@
 #include "Settings.h"
 #include "Renderer.h"
 
-#include <RemoteDebug.h>
-extern RemoteDebug Debug;
+// Debug and the debugX macros, plus the ring the web UI reads them out of.
+#include "LogBuffer.h"
 
 // The settings live in NVS, not in the filesystem: NVS has its own partition,
 // which neither a firmware nor a filesystem update touches. The whole record

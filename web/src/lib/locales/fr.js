@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour'],
+  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour', 'Débogage'],
   loading: 'Chargement des réglages …',
   loadingShort: 'chargement …',
   clockUnreachable: 'Horloge injoignable',
@@ -198,6 +198,46 @@ export default {
   installNow: 'Mettre à jour',
   downloading: (percent) => `Téléchargement … ${percent} %`,
   runningFrom: 'Emplacement actif',
+
+  // --- debug tab ---
+  clockState: 'État',
+  uptime: 'Durée de fonctionnement',
+  lastReset: 'Dernier redémarrage',
+  resetReasons: {
+    'power-on': 'Mise sous tension',
+    external: 'Ligne de reset',
+    software: 'Logiciel (redémarrage demandé)',
+    panic: 'Plantage (panic)',
+    'watchdog-int': 'Chien de garde (interruption)',
+    'watchdog-task': 'Chien de garde (tâche)',
+    watchdog: 'Chien de garde',
+    brownout: 'Chute de tension',
+    sdio: 'SDIO',
+    usb: 'Réinitialisé par USB',
+    jtag: 'Réinitialisé par JTAG',
+    efuse: 'Erreur eFuse',
+    'power-glitch': 'Pic de tension',
+    'cpu-lockup': 'Blocage du CPU (double exception)',
+    'deep-sleep': 'Sommeil profond',
+    unknown: 'inconnu'
+  },
+  heapFree: 'Mémoire libre',
+  heapMin: 'Minimum depuis le démarrage',
+  heapBlock: 'Plus grand bloc libre',
+  heapHint:
+    "Si une mise à jour est refusée avec « impossible d'activer le " +
+    "micrologiciel », ce minimum est le premier chiffre à regarder.",
+  logTitle: 'Journal',
+  logPause: 'Pause',
+  logResume: 'Reprendre',
+  logClear: 'Vider la fenêtre',
+  logMissed: (count) =>
+    `${count} lignes ont quitté la mémoire de l'horloge avant d'arriver ici.`,
+  logEmpty: 'Rien encore journalisé.',
+  logHint:
+    "L'horloge garde les 200 dernières lignes en mémoire, y compris celles " +
+    "du démarrage. Ce que le bootloader affiche avant le micrologiciel n'est " +
+    'visible que sur le câble USB.',
 
   // --- error codes reported by the clock (see lib/errors.js) ---
   err_otaBegin: 'Mise à jour refusée',

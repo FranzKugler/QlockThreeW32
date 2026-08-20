@@ -24,8 +24,8 @@
 #include "Settings.h"
 #include "Version.h"
 
-#include <RemoteDebug.h>
-extern RemoteDebug Debug;
+// Debug and the debugX macros, plus the ring the web UI reads them out of.
+#include "LogBuffer.h"
 
 // The two things this module uses but does not own.
 extern WebServer server;
