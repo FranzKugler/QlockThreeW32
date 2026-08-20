@@ -155,6 +155,33 @@ byte x=0;
 time_t lastTick;            // to trigger every second
 time_t timeToSaveToFLASH;   // time when we have to save settings to the eeprom
 
+// Transmit power. The part comes up at its maximum, 19.5 dBm, and a transmit
+// burst at that level pulls 350-500 mA for a moment. A board fed through a USB
+// cable, with a strip of 114 WS2812B on the same 5 V, does not always have that
+// to give: the 3.3 V rail dips, the radio drops out mid-burst, and what you see
+// is an access point that appears for a second and is gone again - a symptom
+// that looks like anything except a supply problem.
+//
+// 13 dBm is 6 dB down, a quarter of the power, and still far more than a room
+// needs. Raise it if the clock ends up somewhere with a weak signal; that is
+// the trade this number makes.
+#define WIFI_TX_POWER WIFI_POWER_13dBm
+
+/**
+ * Sets the transmit power on whichever interface has just come up.
+ *
+ * It has to be done per interface and after that interface has started, not
+ * once in setup(): the value lives in the driver and starting STA or AP puts it
+ * back to the maximum. Hence the call from the event handler, which is the only
+ * place that knows the radio is up.
+ */
+static void applyTxPower(const char *which)
+{
+    WiFi.setTxPower(WIFI_TX_POWER);
+    debugI("%s: Sendeleistung auf %.1f dBm gesetzt", which,
+           WiFi.getTxPower() * 0.25f);
+}
+
 /**
  * Asks for the deferred settings write.
  *
@@ -181,6 +208,7 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
             debugI("Completed scan for access points");
             break;
         case ARDUINO_EVENT_WIFI_STA_START:
+            applyTxPower("STA");
             debugI("WiFi client started");
             break;
         case ARDUINO_EVENT_WIFI_STA_STOP:
@@ -220,6 +248,7 @@ void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
             debugI("WiFi Protected Setup (WPS): pin code in enrollee mode");
             break;
         case ARDUINO_EVENT_WIFI_AP_START:
+            applyTxPower("AP");
             debugI("WiFi access point started");
             break;
         case ARDUINO_EVENT_WIFI_AP_STOP:
@@ -547,6 +576,12 @@ void setup()
 
 
     debugA("Version: %s", FIRMWARE_VERSION);
+    // Read back rather than repeat what was asked for: the value is set from
+    // the event handler, before RemoteDebug exists, so its own line is swallowed
+    // - and a transmit power that quietly stayed at the maximum is exactly the
+    // kind of thing worth seeing in the boot log.
+    debugA("Sendeleistung: %.2f dBm, RSSI %d dBm",
+           WiFi.getTxPower() * 0.25f, WiFi.RSSI());
 	ledDriver.printSignature();
 
     // Starts its own sampling task, and says so if no sensor answers.
