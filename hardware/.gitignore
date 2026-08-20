@@ -1,0 +1,33 @@
+# What KiCad and OpenSCAD produce, rather than what is drawn by hand.
+#
+# Without this the directory is 70 MB, of which 66 MB is regenerable: KiCad
+# writes a full project zip into *-backups/ on every save, and the 3D export of
+# the populated board is 37 MB on its own because it carries a copy of every
+# component model. The sources - schematic, board, footprints, the two console
+# scripts and body.scad - are under 4 MB together.
+
+# KiCad's automatic project archives, one per save
+*-backups/
+
+# session locks; present only while KiCad has the project open
+~*.lck
+
+# per-user editor state: window layout, last zoom, active layer
+*.kicad_prl
+
+# footprint library cache, rebuilt on demand
+fp-info-cache
+
+# the copy place_matrix.py takes before it moves anything
+*.kicad_pcb.before-*
+
+# fabrication output, regenerated from the board by the fabrication toolkit
+production/
+
+# 3D exports. board.stl and body.stl come out of KiCad and OpenSCAD; nothing in
+# the project reads them back, body.scad builds from BOSL2 alone.
+#
+# Written with the leading ** on purpose: a pattern containing a slash is
+# anchored to the directory this file sits in, and the boards live one level
+# further down in hardware/<project>/.
+**/3dprint/stl/
