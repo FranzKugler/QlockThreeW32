@@ -6,9 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 QlockThreeW32 is ESP32 firmware for a "word clock": a letter matrix backlit so the current time reads as a sentence (in German, Swiss German, English, French, Italian, Dutch, or Spanish), updated every 5 minutes, with four corner LEDs indicating the remaining minutes. It's a long-running hobby project (originally AVR-based, later ported to ESP32) and carries some legacy cruft from that history — expect dead code paths and commented-out alternatives, though the project has been consolidated onto a single hardware target (see below).
 
-The repo has three parts:
+The repo has four parts:
 - **Firmware** (`src/`) — PlatformIO/Arduino C++ for the ESP32, drives the LED matrix and hosts a small config web server.
 - **Web UI** (`web/`) — a Svelte 5 + Vite single-page app, built into `data/` and flashed to the ESP32's LittleFS filesystem, where the firmware's web server serves it. `data/` is generated output and is gitignored; run `npm run build` before `pio run -t uploadfs`.
+- **Hardware** (`hardware/`) — the KiCad project for the board and the OpenSCAD model of the case and the letter mask. Not built by anything here, but not independent of it either: the mask's letters are generated out of the firmware's language files, see "The panel OpenSCAD cuts".
 - **Mock server** (`server.js`) — a Node/Express stand-in for the firmware's REST API, used to develop the UI on a desktop browser without hardware.
 
 The target hardware is fixed: a Seeed XIAO ESP32-S3 driving a 114-pixel WS2812B strip. Support for other boards (NodeMCU-32S, ESP32-C3) and other LED drivers/peripherals from the project's history has been removed — see "Consolidation history" below.
@@ -264,7 +265,7 @@ One file per language in [src/languages/](src/languages/), plus [Language.h](src
 { 0, 7, "FÜNF" }      // row 0, from column 7
 ```
 
-The bit mask is arithmetic (column *c* is bit 15−*c*), so no macros are needed. The text is present, so the log names what is lit in the language that is lit. The geometry is present, so the browser can draw the real panel and a script can hand OpenSCAD something to cut. And because the panel letters and the word's own text are both here, `Languages::selfCheck()` confirms at every boot that the letters under a word really spell it — which is the mistake one makes when adding a panel, and which otherwise shows up as a plausible-looking wrong face.
+The bit mask is arithmetic (column *c* is bit 15−*c*), so no macros are needed. The text is present, so the log names what is lit in the language that is lit. The geometry is present, so the browser can draw the real panel and `scripts/panels.py` can hand OpenSCAD something to cut. And because the panel letters and the word's own text are both here, `Languages::selfCheck()` confirms at every boot that the letters under a word really spell it — which is the mistake one makes when adding a panel, and which otherwise shows up as a plausible-looking wrong face.
 
 - **The grammar stays imperative, deliberately.** Swabian says "viertel sechs" and counts the hour up where standard German says "viertel nach fünf"; French has "moins le quart"; Italian and Spanish inflect the hour ("è l'una" against "sono le due"). Written as a rule table that becomes a small language of its own, harder to read than the switch it replaces and touched once a year. Each language keeps a `render()`; it just lives next to its panel now.
 - **German is four entries over one panel** — standard, Swabian, Bavarian, Saxon — differing in four of the twelve five-minute steps. `Language_DE.cpp` states the differences as a table in its header comment.
@@ -409,9 +410,21 @@ The preview beside the colour wheel is the **real face**: eleven letters by ten 
 - Polled every 5 s, not at the sensor's 2 s: the letters change every five minutes and the corners once a minute, and the clock answers one request at a time.
 - The mock renders standard German from the wall clock time. It is not a second renderer and does not try to be — it exists so the layout and the moving corners can be worked on without a clock.
 
+#### The panel OpenSCAD cuts
+
+[scripts/panels.py](scripts/panels.py) reads the ten rows out of every `Language_*.cpp` and writes [hardware/Qlock250mm/3dprint/panels.scad](hardware/Qlock250mm/3dprint/panels.scad), which [body.scad](hardware/Qlock250mm/3dprint/body.scad) includes to cut the letter mask.
+
+- **The letters were written out twice, and only one copy was checked.** `body.scad` carried its own `display[y][x]` array; the firmware verifies its panels at every boot (`Languages::selfCheck()`) and a SCAD array gets none of that. The two happened to still agree when this was written — that is luck, not a system, and the failure mode is a physical panel milled with a letter in the wrong place.
+- **Generated, committed, and never fetched or built on demand** — the same rule as `zones.json` and the icons. OpenSCAD cannot run Python, and a 3D print should not depend on a toolchain that happens to be installed. Regenerate with `python scripts/panels.py` after changing a panel; the output carries no timestamp, so a run with nothing changed leaves the file byte-identical.
+- **Seven panels, ten languages.** The four German dialects share one, so the file emits one variable per *distinct* panel and a table mapping each language code onto it — writing the German letters out four times would invite exactly the drift this removes. `panel("de-DE")` looks one up; an unknown code gives `undef` rather than a wrong panel.
+- The script **parses rather than compiles**, which is only safe because the shape is narrow: three string literals then a braced block of either ten strings or ten references into a shared array. Anything else raises. It also cross-checks its findings against `TABLE` in `Languages.cpp` and stops if a language is in one and not the other.
+- Verified as a pure relocation by rendering `body.scad` before and after: identical vertex, edge and facet counts, identical sorted vertex list. **Note that the STL is not byte-reproducible** — two renders of the same file differ, because the facet order out of CGAL is not stable. Compare sorted vertices, not checksums.
+- Two faults fell out of doing this. `body.scad` looped `x` over `[0:11]` for an eleven-column panel, asking for a twelfth letter that does not exist and drawing nothing one column outside the mask; and its `echo` printed `display[x][y]` where the line above it cut `display[y][x]`, so the debug output described a transposed panel. Both are gone.
+
 ### Vendored/generated content (not project source)
 
 - `.pio/`, `dist/`, `compile_commands.json`, `idedata.json` — PlatformIO build cache and IDE tooling metadata, not hand-maintained.
+- `web/public/zones.json`, `web/public/*.png`, `hardware/Qlock250mm/3dprint/panels.scad` — generated by the scripts in [scripts/](scripts/) and committed on purpose, so that neither a build nor a print needs Python. Edit the generator, not the output.
 
 ### Hardware consolidation
 
