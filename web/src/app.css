@@ -472,7 +472,12 @@ select:disabled {
      off, and the two must not look alike. */
   color: rgb(0 0 0 / 0.13);
   font-weight: 600;
-  font-size: clamp(0.5rem, calc(var(--size) / 26), 0.85rem);
+  /* A cell is --size/11 wide by --size/10 tall - about 16 by 17 px at the
+     current 200 px face - so the letter wants to be around 12 px to read as a
+     grid rather than as scattered dots. Divided out of --size rather than
+     fixed, so the face can be resized in one place; the clamp is a guard, not
+     the value, and /26 used to put it below its own floor. */
+  font-size: clamp(0.55rem, calc(var(--size) / 17), 1rem);
   line-height: 1;
   transition: color 0.08s linear, text-shadow 0.08s linear;
 }
