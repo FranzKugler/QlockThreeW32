@@ -51,7 +51,6 @@ export default {
   hue: 'Tonalità',
   saturation: 'Saturazione',
   brightness: 'Luminosità',
-  preview: ['SONO LE', 'DUE', 'E CINQUE'],
   decreaseBy: (label, step) => `Riduci ${label} di ${step}`,
   increaseBy: (label, step) => `Aumenta ${label} di ${step}`,
   automatic: 'Automatico',

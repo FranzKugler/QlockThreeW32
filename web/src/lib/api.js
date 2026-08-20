@@ -136,6 +136,19 @@ export async function setHostname(hostname) {
 }
 
 /**
+ * The face as it is at this moment: the panel of the language that is running,
+ * and which of its letters are lit, read off the frame buffer itself.
+ *
+ * Throws, so the caller can tell "this firmware has no /panel" from "the clock
+ * did not answer" and leave the preview empty rather than wrong.
+ */
+export async function fetchPanel() {
+  const res = await fetch('/panel');
+  if (!res.ok) throw new Error(`/panel: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
  * Whether the clock is unlocked, whether a password has ever been set, and how
  * much of the reset window is left. Carries no secret.
  *

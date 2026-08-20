@@ -36,6 +36,7 @@
 #include "Settings.h"
 #include "LightSensor.h"
 #include "Expert.h"
+#include "languages/Language.h"
 #include "DisplayModes.h"
 #include "Renderer.h"
 
@@ -56,6 +57,11 @@ extern byte mode;
 
 // Set to have the face redrawn on the next pass through loop().
 extern bool needsUpdateFromRtc;
+
+// The frame buffer itself, and the sentence read back out of it. Both are
+// owned by the render loop; /panel only ever looks.
+extern word matrix[16];
+String displayedWords(byte language);
 
 // Rebuilds the Timezone object after POST /timezone changed the rules.
 void applyTimezoneFromSettings();
@@ -907,6 +913,75 @@ void updateExpert()
 }
 
 
+/**
+ * The face, as it is at this moment.
+ *
+ * Both halves come out of the same place the LEDs do: `rows` is the panel of
+ * the language that is running, `on` is read straight off the frame buffer.
+ * That is the whole point - the browser is not a second opinion about what the
+ * clock ought to be showing, it shows what the clock *is* showing, a wrong
+ * render included. Rebuilding the grammar in JavaScript would have been a
+ * second implementation to keep in step, and it would have hidden exactly the
+ * faults worth seeing.
+ *
+ * `on` is written as `#` and `.` rather than as a bit mask so that the answer
+ * can be read with curl: two aligned grids, the letters and what is lit.
+ *
+ * The four corners are reported separately. They live in the low five bits of
+ * rows 0..3, below the eleven columns, and the driver wires them
+ * matrix[0] top left, matrix[3] top right, matrix[2] bottom right,
+ * matrix[1] bottom left - so they are handed over in reading order rather than
+ * in the order the strip is soldered.
+ */
+void sendPanel()
+{
+    const Language *language = Languages::find(settings.getLanguage());
+    if (language == nullptr)
+    {
+        server.send(404, "application/json", "{\"error\":\"noPanel\"}");
+        return;
+    }
+
+    JsonDocument doc;
+    doc["language"] = settings.getLanguage();
+    doc["code"]     = language->code;
+    doc["name"]     = language->name;
+    doc["uiLocale"] = language->uiLocale;
+    doc["mode"]     = mode;
+
+    JsonArray rows = doc["rows"].to<JsonArray>();
+    JsonArray on   = doc["on"].to<JsonArray>();
+    for (uint8_t row = 0; row < PANEL_ROWS; row++)
+    {
+        rows.add(language->rows[row]);
+
+        char lit[PANEL_COLS + 1];
+        for (uint8_t col = 0; col < PANEL_COLS; col++)
+        {
+            lit[col] = (matrix[row] & (1 << (15 - col))) ? '#' : '.';
+        }
+        lit[PANEL_COLS] = '\0';
+        on.add(lit);
+    }
+
+    // Reading order: top left, top right, bottom right, bottom left.
+    const uint8_t CORNER_ROW[4] = { 0, 3, 2, 1 };
+    JsonArray corners = doc["corners"].to<JsonArray>();
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        corners.add((matrix[CORNER_ROW[i]] & 0b11111) == 0b11111);
+    }
+
+    // The same sentence the once-a-minute log line carries, so the browser can
+    // put it under the panel without walking the grid again.
+    doc["text"] = displayedWords(settings.getLanguage());
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+
 // ------ the interface the rest of the program sees ------
 
 void Web::begin()
@@ -931,6 +1006,7 @@ void Web::begin()
     server.on("/configuration", updateConfiguration);
     server.on("/timezone", updateTimezone);
     server.on("/light", HTTP_GET, sendLight);
+    server.on("/panel", HTTP_GET, sendPanel);
     server.on("/light", HTTP_POST, updateLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);

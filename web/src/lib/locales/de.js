@@ -52,8 +52,6 @@ export default {
   hue: 'Farbton',
   saturation: 'Sättigung',
   brightness: 'Helligkeit',
-  // The lit clock face in the preview, reading "it is five past two".
-  preview: ['ES IST', 'FÜNF NACH', 'ZWEI'],
   decreaseBy: (label, step) => `${label} um ${step} verringern`,
   increaseBy: (label, step) => `${label} um ${step} erhöhen`,
   automatic: 'Automatik',

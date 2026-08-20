@@ -13,6 +13,7 @@
   import { onMount } from 'svelte';
   import * as api from '../lib/api.js';
   import { throttle } from '../lib/throttle.js';
+  import { cells } from '../lib/panel.js';
   import { dict } from '../lib/i18n.svelte.js';
   import { errorText } from '../lib/errors.js';
   import SliderRow from './SliderRow.svelte';
@@ -28,6 +29,15 @@
   // cases the automatic section stays hidden rather than appearing and then
   // vanishing again.
   let sensor = $state(null);
+
+  /**
+   * The face, polled separately from the sensor and more slowly: the letters
+   * change every five minutes and the corners once a minute, so there is
+   * nothing to gain from asking at the sensor's rate - and the clock's web
+   * server answers one request at a time.
+   */
+  let panel = $state(null);
+  const PANEL_POLL_MS = 5000;
 
   // Set when the clock refuses a calibration point, cleared on the next try.
   let calibrationError = $state(null);
@@ -77,10 +87,23 @@
     pushNudge(autoLum);
   }
 
+  async function refreshPanel() {
+    try {
+      panel = await api.fetchPanel();
+    } catch {
+      /* older firmware has no /panel; the face stays empty rather than wrong */
+    }
+  }
+
   onMount(() => {
     refresh();
+    refreshPanel();
     const timer = setInterval(refresh, POLL_MS);
-    return () => clearInterval(timer);
+    const faceTimer = setInterval(refreshPanel, PANEL_POLL_MS);
+    return () => {
+      clearInterval(timer);
+      clearInterval(faceTimer);
+    };
   });
 
   /**
@@ -229,6 +252,8 @@
    * into the face the way dark LEDs do. A straight additive mix would wash
    * every colour out to near-white against a face this light.
    */
+  const face = $derived(cells(panel));
+
   const ledColor = $derived(
     css(
       hsvRgb(clock.hue, clock.sat, 100).map(
@@ -244,12 +269,30 @@
   <div class="picker">
     <div class="wheel" use:wheel></div>
 
-    <div class="preview" style="--led: {ledColor}; --size: {WHEEL_SIZE}px">
-      <!-- Keyed by position: two identical lines in some future translation
-           would otherwise throw, the same way the network list did. -->
-      {#each t.preview as line, i (i)}
-        <span>{line}</span>
-      {/each}
+    <!--
+      The real face, not a mock-up of one: the letters are the panel of the
+      language that is running and the lit ones are read off the clock's frame
+      buffer. What is on screen here is what is on the wall, a wrong render
+      included - which is the point of not rebuilding the grammar in JavaScript.
+    -->
+    <div
+      class="preview"
+      style="--led: {ledColor}; --size: {WHEEL_SIZE}px"
+      role="img"
+      aria-label={panel?.text || t.colorTitle}
+    >
+      <span class="corner tl" class:on={panel?.corners?.[0]}></span>
+      <span class="corner tr" class:on={panel?.corners?.[1]}></span>
+      <span class="corner br" class:on={panel?.corners?.[2]}></span>
+      <span class="corner bl" class:on={panel?.corners?.[3]}></span>
+
+      <!-- Keyed by position, not by letter: a panel carries the same letter
+           many times over and a keyed each would throw on the repeat. -->
+      <div class="grid" aria-hidden="true">
+        {#each face as cell (cell.key)}
+          <span class:on={cell.on}>{cell.letter}</span>
+        {/each}
+      </div>
     </div>
   </div>
 

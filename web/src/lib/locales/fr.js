@@ -51,7 +51,6 @@ export default {
   hue: 'Teinte',
   saturation: 'Saturation',
   brightness: 'Luminosité',
-  preview: ['IL EST', 'DEUX HEURES', 'CINQ'],
   decreaseBy: (label, step) => `Diminuer ${label} de ${step}`,
   increaseBy: (label, step) => `Augmenter ${label} de ${step}`,
   automatic: 'Automatique',

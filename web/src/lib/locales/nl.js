@@ -51,7 +51,6 @@ export default {
   hue: 'Kleurtoon',
   saturation: 'Verzadiging',
   brightness: 'Helderheid',
-  preview: ['HET IS', 'VIJF OVER', 'TWEE'],
   decreaseBy: (label, step) => `${label} met ${step} verlagen`,
   increaseBy: (label, step) => `${label} met ${step} verhogen`,
   automatic: 'Automatisch',

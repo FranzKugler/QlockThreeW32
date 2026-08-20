@@ -347,6 +347,104 @@ app.post('/light', (req, res) => {
 
 // The name lives in the settings, like it does on the clock, and is only
 // reported here as well - so there is one copy of it, not two that drift.
+/*
+ * The face.
+ *
+ * The firmware reads this off its own frame buffer; the mock has none, so it
+ * renders the German panel from the wall clock time - enough to see the layout
+ * and the corners move while working on the colour tab, and not an attempt to
+ * be a second renderer. Only German, and only the standard dialect: the point
+ * here is the geometry, and the real thing is one flash away.
+ */
+const PANEL_DE = [
+  'ESKISTAFÜNF',
+  'ZEHNZWANZIG',
+  'DREIVIERTEL',
+  'VORFUNKNACH',
+  'HALBAELFÜNF',
+  'EINSXAMZWEI',
+  'DREIAUJVIER',
+  'SECHSNLACHT',
+  'SIEBENZWÖLF',
+  'ZEHNEUNKUHR'
+];
+
+// row, column, text - the same three things the firmware's Word carries.
+const W = {
+  ES: [0, 0, 2], IST: [0, 3, 3], VOR: [3, 0, 3], NACH: [3, 7, 4], UHR: [9, 8, 3],
+  FUENF: [0, 7, 4], ZEHN: [1, 0, 4], VIERTEL: [2, 4, 7], ZWANZIG: [1, 4, 7],
+  HALB: [4, 0, 4],
+  H: [
+    [8, 6, 5], [5, 0, 3], [5, 7, 4], [6, 0, 4], [6, 7, 4], [4, 7, 4], [7, 0, 5],
+    [8, 0, 6], [7, 7, 4], [9, 3, 4], [9, 0, 4], [4, 5, 3]
+  ]
+};
+
+function panelState() {
+  const now = new Date();
+  const grid = PANEL_DE.map(() => Array(11).fill('.'));
+  const light = ([row, col, len]) => {
+    for (let i = 0; i < len; i++) grid[row][col + i] = '#';
+  };
+
+  light(W.ES);
+  light(W.IST);
+
+  const step = Math.floor(now.getMinutes() / 5);
+  let hours = now.getHours();
+  let full = false;
+
+  if (step === 0) full = true;
+  else if (step === 1) { light(W.FUENF); light(W.NACH); }
+  else if (step === 2) { light(W.ZEHN); light(W.NACH); }
+  else if (step === 3) { light(W.VIERTEL); light(W.NACH); }
+  else if (step === 4) { light(W.ZWANZIG); light(W.NACH); }
+  else if (step === 5) { light(W.FUENF); light(W.VOR); light(W.HALB); hours++; }
+  else if (step === 6) { light(W.HALB); hours++; }
+  else if (step === 7) { light(W.FUENF); light(W.NACH); light(W.HALB); hours++; }
+  else if (step === 8) { light(W.ZWANZIG); light(W.VOR); hours++; }
+  else if (step === 9) { light(W.VIERTEL); light(W.VOR); hours++; }
+  else if (step === 10) { light(W.ZEHN); light(W.VOR); hours++; }
+  else { light(W.FUENF); light(W.VOR); hours++; }
+
+  if (full) light(W.UHR);
+  light(W.H[hours % 12]);
+
+  // Reading order: top left, top right, bottom right, bottom left - clockwise,
+  // which is how the firmware hands them over.
+  const remainder = now.getMinutes() % 5;
+  const order = [3, 0, 1, 2]; // corner index lit at remainder 1, 2, 3, 4
+  const corners = [false, false, false, false];
+  for (let i = 0; i < remainder; i++) corners[order[i]] = true;
+
+  const on = grid.map((row) => row.join(''));
+  const text = on
+    .map((row, r) =>
+      [...row]
+        .map((cell, c) => (cell === '#' ? PANEL_DE[r][c] : ' '))
+        .join('')
+        .split(/\s+/)
+        .filter(Boolean)
+        .join(' ')
+    )
+    .filter(Boolean)
+    .join(' ');
+
+  return {
+    language: 0,
+    code: 'de-DE',
+    name: 'Deutsch',
+    uiLocale: 'de',
+    mode: state.display,
+    rows: PANEL_DE,
+    on,
+    corners,
+    text
+  };
+}
+
+app.get('/panel', (req, res) => res.json(panelState()));
+
 app.get('/wifi', (req, res) => res.json({ ...wifi, hostname: state.hostname }));
 
 /**

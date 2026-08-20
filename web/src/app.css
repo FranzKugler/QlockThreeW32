@@ -432,37 +432,76 @@ select:disabled {
   flex: 0 0 auto;
 }
 
-/* Preview of the lit clock face. Square and the same size as the wheel (both
-   from WHEEL_SIZE in Color.svelte). The ground is a light grey standing in for
-   the clock's face rather than black, so letters set to white stay visible.
-   It is the light theme's --bg written out rather than the variable itself:
-   the panel represents a physical, pale clock face, and following --bg into
-   dark mode would turn it near black and defeat the point. Keep it in step
-   with FACE in Color.svelte, which blends the letters into it.
+/* The clock's face, eleven letters by ten rows plus the four corner LEDs.
+   Square and the same size as the wheel (both from WHEEL_SIZE in
+   Color.svelte). The ground is a light grey standing in for the clock's face
+   rather than black, so letters set to white stay visible. It is the light
+   theme's --bg written out rather than the variable itself: the panel
+   represents a physical, pale clock face, and following --bg into dark mode
+   would turn it near black and defeat the point. Keep it in step with FACE in
+   Color.svelte, which blends the letters into it.
    Border and radius match the dropdowns. */
 .preview {
+  position: relative;
   flex: 0 0 auto;
   width: var(--size);
   height: var(--size);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 1rem 0.9rem;
+  display: grid;
+  place-items: center;
+  padding: 0.85rem;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: rgb(244 245 247);
-  text-align: center;
 }
 
-.preview span {
-  color: var(--led);
+.preview .grid {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  grid-template-rows: repeat(10, 1fr);
+  width: 100%;
+  height: 100%;
+  /* Letters are wider than they are tall, so the cells are not square; the
+     panel is read row by row and the rows want to stay apart. */
+  place-items: center;
+}
+
+.preview .grid span {
+  /* Unlit letters are still there on a real panel - milled or printed - so
+     they are drawn faintly rather than hidden. A blank grid then means "no
+     panel data", which is a different thing from a clock that is switched
+     off, and the two must not look alike. */
+  color: rgb(0 0 0 / 0.13);
   font-weight: 600;
-  font-size: 0.95rem;
-  letter-spacing: 0.16em;
-  text-shadow: 0 0 10px var(--led);
+  font-size: clamp(0.5rem, calc(var(--size) / 26), 0.85rem);
+  line-height: 1;
   transition: color 0.08s linear, text-shadow 0.08s linear;
 }
+
+.preview .grid span.on {
+  color: var(--led);
+  text-shadow: 0 0 8px var(--led);
+}
+
+/* The four corner LEDs, in the corners of the face itself rather than in the
+   grid: they sit outside the eleven columns on the real clock too. */
+.preview .corner {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.13);
+  transition: background 0.08s linear, box-shadow 0.08s linear;
+}
+
+.preview .corner.on {
+  background: var(--led);
+  box-shadow: 0 0 8px var(--led);
+}
+
+.preview .corner.tl { top: 0.4rem; left: 0.4rem; }
+.preview .corner.tr { top: 0.4rem; right: 0.4rem; }
+.preview .corner.br { bottom: 0.4rem; right: 0.4rem; }
+.preview .corner.bl { bottom: 0.4rem; left: 0.4rem; }
 
 /* slider rows (hue, brightness) */
 

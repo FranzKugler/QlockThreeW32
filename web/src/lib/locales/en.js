@@ -51,7 +51,6 @@ export default {
   hue: 'Hue',
   saturation: 'Saturation',
   brightness: 'Brightness',
-  preview: ['IT IS', 'FIVE PAST', 'TWO'],
   decreaseBy: (label, step) => `Decrease ${label} by ${step}`,
   increaseBy: (label, step) => `Increase ${label} by ${step}`,
   automatic: 'Automatic',

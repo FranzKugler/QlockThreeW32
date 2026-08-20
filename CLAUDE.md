@@ -103,6 +103,7 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
 - `GET /wifi` — connection status (`ssid`, `ip`, `rssi`, `mac`, `hostname`, `switching`, `error`).
 - `GET /wifi/scan` — one poll of the async scan: `{scanning:true}` or `{scanning:false, networks:[…]}`.
+- `GET /panel` — the face as it is right now: `rows` (the panel of the language that is running), `on` (a second grid of `#`/`.` read off the frame buffer), `corners` in reading order, plus `code`, `name`, `uiLocale`, `mode` and the sentence. Polled by the colour tab.
 - `GET /log?since=<seq>` — the log ring from that sequence number on, plus `oldest`, `more`, and the state block (`uptime`, `heap`, `heapMin`, `heapBlock`, `reset`). Not part of `/currentState`: none of it is a setting, and the debug tab polls it. **Behind the lock** — see "Expert mode".
 - `GET /expert` — `{enrolled, unlocked, grace, lockedOut}`. No secret in it; the shell needs it before it can decide which tabs exist.
 - `POST /expert` — `{password}` (sets one on a clock with none, otherwise checks it), `{off: true}`, or `{reset: true}`. Answers with the same shape `GET` does.
@@ -121,7 +122,7 @@ Changing the API means touching **four** places: the firmware handler, `server.j
 
 ### Web UI architecture
 
-[web/src/App.svelte](web/src/App.svelte) loads `/currentState` once on mount into a single `$state` object and passes it to the section of the selected tab — [Display](web/src/sections/Display.svelte), [Color](web/src/sections/Color.svelte), [Timezone](web/src/sections/Timezone.svelte); [Wifi](web/src/sections/Wifi.svelte), [Ota](web/src/sections/Ota.svelte) and [Debug](web/src/sections/Debug.svelte) fetch their own state instead, since none of it is part of `/currentState`. [Expert](web/src/sections/Expert.svelte) is not a tab at all — see "Expert mode". `Color` does both: the colour itself comes from `/currentState`, the sensor reading beside it from `/light`. Sections mutate that object through `bind:` and POST the affected endpoint on change; there is no save button, matching the old UI. `Timezone` always posts all fourteen fields at once because the firmware rebuilds both `TimeChangeRule`s from a single request.
+[web/src/App.svelte](web/src/App.svelte) loads `/currentState` once on mount into a single `$state` object and passes it to the section of the selected tab — [Display](web/src/sections/Display.svelte), [Color](web/src/sections/Color.svelte), [Timezone](web/src/sections/Timezone.svelte); [Wifi](web/src/sections/Wifi.svelte), [Ota](web/src/sections/Ota.svelte) and [Debug](web/src/sections/Debug.svelte) fetch their own state instead, since none of it is part of `/currentState`. [Expert](web/src/sections/Expert.svelte) is not a tab at all — see "Expert mode". `Color` does three: the colour itself comes from `/currentState`, the sensor reading beside it from `/light`, and the face it previews from `/panel`. Sections mutate that object through `bind:` and POST the affected endpoint on change; there is no save button, matching the old UI. `Timezone` always posts all fourteen fields at once because the firmware rebuilds both `TimeChangeRule`s from a single request.
 
 ### Timezone picker
 
@@ -394,6 +395,17 @@ The clock keeps its last 200 log lines in RAM and serves them through `GET /log`
 - The response is built into one `String` with the room reserved up front rather than through ArduinoJson, which would put every line into a document and serialise that into a second buffer — on the same heap an update wants. `LOG_BATCH` caps one response at about 11 KB.
 
 The tab also carries the state block the update history keeps pointing at: uptime, reset reason, and free / lowest-ever / largest-block heap. **This is the tab the light sensor's roadmap calls the "geek" tab** — the curves and backup/restore of step 4 belong here too, rather than in a second tab beside it.
+
+#### The face in the colour tab
+
+The preview beside the colour wheel is the **real face**: eleven letters by ten rows in the panel of the language that is running, lit exactly where the clock's own frame buffer says, with the four corner LEDs. It used to be three hardcoded lines per locale (`preview: ['ES IST', 'FÜNF NACH', 'ZWEI']`), which have been deleted.
+
+- **The browser is not a second opinion.** `on` is read off `matrix[16]` itself, so what is on screen is what is on the wall — a wrong render included. Rebuilding the grammar in JavaScript would have been a second implementation to keep in step, and it would have hidden exactly the faults worth seeing.
+- **`on` is `#` and `.`, not a bit mask.** `curl http://<clock>/panel` then shows two aligned grids, the letters and what is lit, which is worth more than the eighty bytes it costs on something whose whole purpose is visual inspection.
+- **The corners are reported separately and in reading order** — top left, top right, bottom right, bottom left. They live in the low five bits of rows 0..3, and the strip is soldered bottom left, top left, top right, bottom right (pixels 110..113), so `matrix[0]` is top left, `matrix[3]` top right, `matrix[2]` bottom right, `matrix[1]` bottom left. Getting that mapping from the driver's wiring comment rather than guessing it is what makes the preview turn the right way round.
+- **Unlit letters are drawn faintly rather than hidden**, because on a real panel they are still there. A grid with no letters at all then means "no panel data" — a different thing from a clock that is switched off, and the two must not look alike.
+- Polled every 5 s, not at the sensor's 2 s: the letters change every five minutes and the corners once a minute, and the clock answers one request at a time.
+- The mock renders standard German from the wall clock time. It is not a second renderer and does not try to be — it exists so the layout and the moving corners can be worked on without a clock.
 
 ### Vendored/generated content (not project source)
 

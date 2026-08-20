@@ -51,7 +51,6 @@ export default {
   hue: 'Tono',
   saturation: 'Saturación',
   brightness: 'Brillo',
-  preview: ['SON LAS', 'DOS', 'Y CINCO'],
   decreaseBy: (label, step) => `Reducir ${label} en ${step}`,
   increaseBy: (label, step) => `Aumentar ${label} en ${step}`,
   automatic: 'Automático',
