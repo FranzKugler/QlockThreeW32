@@ -10,6 +10,7 @@
  */
 #include <Wire.h>
 #include <Adafruit_VEML7700.h>
+#include <Adafruit_TSL2591.h>
 
 #include "LightSensor.h"
 
@@ -86,20 +87,152 @@ float Veml7700Sensor::readLux()
 }
 
 
+// --- TSL2591 -------------------------------------------------------------
+//
+// The sensitivity ladder, least sensitive first. Gain carries the range - its
+// steps are factors of 25, 17 and 23 - and integration time fills in between
+// them with factors of 2 and 3. Written out as a list rather than computed from
+// the two axes because not every combination is worth having: the 300 and
+// 500 ms steps buy a third of a decade for a third of a second and are left
+// out, and the low gains do not need the long times.
+static const struct
+{
+    tsl2591Gain_t gain;
+    tsl2591IntegrationTime_t time;
+} LADDER[] = {
+    { TSL2591_GAIN_LOW,  TSL2591_INTEGRATIONTIME_100MS },   // ~88 klx full scale
+    { TSL2591_GAIN_LOW,  TSL2591_INTEGRATIONTIME_200MS },
+    { TSL2591_GAIN_MED,  TSL2591_INTEGRATIONTIME_100MS },
+    { TSL2591_GAIN_MED,  TSL2591_INTEGRATIONTIME_200MS },
+    { TSL2591_GAIN_HIGH, TSL2591_INTEGRATIONTIME_100MS },
+    { TSL2591_GAIN_HIGH, TSL2591_INTEGRATIONTIME_200MS },   // start here
+    { TSL2591_GAIN_HIGH, TSL2591_INTEGRATIONTIME_400MS },
+    { TSL2591_GAIN_MAX,  TSL2591_INTEGRATIONTIME_200MS },
+    { TSL2591_GAIN_MAX,  TSL2591_INTEGRATIONTIME_400MS },
+    { TSL2591_GAIN_MAX,  TSL2591_INTEGRATIONTIME_600MS },   // ~188 uLx resolution
+};
+#define LADDER_STEPS ((byte)(sizeof(LADDER) / sizeof(LADDER[0])))
+
+// Where to start. In the middle, because either end is four steps from the
+// other and there is no way to guess which end a given clock sits at before
+// the first reading.
+#define LADDER_START 5
+
+// The ADC saturates at 36863 counts at 100 ms and at 65535 above it. Backing
+// off at nine tenths of that keeps the reading out of the region where the
+// two channels stop tracking each other and the lux calculation goes wrong.
+#define SATURATED_FRACTION 0.9f
+
+// Below this many counts the reading is mostly quantisation noise and the next
+// rung up is worth the wait. Not zero: a handful of counts still carries
+// information, and stepping up costs a whole sample interval.
+#define TOO_FEW_COUNTS 80
+
+
+bool Tsl2591Sensor::begin()
+{
+    Adafruit_TSL2591 *tsl = new Adafruit_TSL2591(2591);
+    if (!tsl->begin(&Wire))
+    {
+        delete tsl;
+        return false;
+    }
+    device = tsl;
+    rung = LADDER_START;
+    applyRung();
+    return true;
+}
+
+void Tsl2591Sensor::applyRung()
+{
+    if (!device) return;
+    ((Adafruit_TSL2591 *)device)->setGain(LADDER[rung].gain);
+    ((Adafruit_TSL2591 *)device)->setTiming(LADDER[rung].time);
+}
+
+/**
+ * One measurement, and at most one step of the range.
+ *
+ * The library offers no auto-ranging, which turns out to be the better deal
+ * here. Walking the whole ladder in one call is what makes the VEML7700 block
+ * for over a second; this takes exactly one integration time - 600 ms at the
+ * worst - and moves a single rung, leaving the rest to the next sample.
+ *
+ * It can afford to: the reading is smoothed over 30 s anyway, so converging
+ * across a few samples costs nothing that is visible on the face. A sample
+ * taken while saturated or nearly dark is reported as a failed read (negative),
+ * and the sampling task drops those rather than feeding them to the average.
+ */
+float Tsl2591Sensor::readLux()
+{
+    if (!device) return -1.0f;
+    Adafruit_TSL2591 *tsl = (Adafruit_TSL2591 *)device;
+
+    // Both channels in one transaction, so they belong to the same integration
+    // window. Blocking for the integration time - only ever called on the task.
+    uint32_t both = tsl->getFullLuminosity();
+    uint16_t ir = both >> 16;
+    uint16_t full = both & 0xFFFF;
+
+    const uint16_t maxCounts =
+        LADDER[rung].time == TSL2591_INTEGRATIONTIME_100MS ? 36863 : 65535;
+    const uint16_t ceiling = (uint16_t)(maxCounts * SATURATED_FRACTION);
+
+    if (full >= ceiling || ir >= ceiling)
+    {
+        if (rung > 0)
+        {
+            rung--;
+            applyRung();
+            return -1.0f;       // this one is not a measurement, drop it
+        }
+        // Already as blind as it gets - direct sun on the sensor. Fall through
+        // and report what it says; the curve clamps at the calibrated end.
+    }
+    else if (full < TOO_FEW_COUNTS && rung + 1 < LADDER_STEPS)
+    {
+        rung++;
+        applyRung();
+        return -1.0f;
+    }
+
+    float lux = tsl->calculateLux(full, ir);
+    // The library reports overflow as a negative, which is the same thing the
+    // ceiling above catches - but it applies its own limits, so let it speak.
+    if (lux < 0.0f) return -1.0f;
+    return lux;
+}
+
+
 void AmbientLight::begin()
 {
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
 
-    // The one place a different chip would be chosen. Trying each in turn
-    // would work too, once there is more than one.
-    sensor = new Veml7700Sensor();
-    sensorOk = sensor->begin();
+    // Each candidate in turn, the first that answers wins. One firmware serves
+    // every build of the clock and they do not all carry the same chip, so the
+    // choice belongs at run time rather than in a build flag - and a sensor
+    // swapped on the bench needs no rebuild.
+    //
+    // The TSL2591 is asked first on purpose. The two do not share an address
+    // (0x29 against 0x10), so a clock with both wired up answers twice, and
+    // then the more sensitive one is the one to keep.
+    LightSensor *candidates[] = { new Tsl2591Sensor(), new Veml7700Sensor() };
+
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++)
+    {
+        if (sensor == nullptr && candidates[i]->begin())
+            sensor = candidates[i];
+        else
+            delete candidates[i];
+    }
+    sensorOk = sensor != nullptr;
 
     if (!sensorOk)
     {
         // Not an error worth stopping for: most clocks have no sensor fitted,
         // and everything else works without one.
-        debugA("No %s found on I2C, ambient light measurement is off", sensor->name());
+        debugA("No ambient light sensor on I2C (SDA %d, SCL %d), measurement is off",
+               I2C_SDA_PIN, I2C_SCL_PIN);
         return;
     }
 

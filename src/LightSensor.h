@@ -112,6 +112,38 @@ private:
 };
 
 /**
+ * ams TSL2591 on I2C, address 0x29.
+ *
+ * Resolves to roughly 188 uLx at full sensitivity - a factor of twenty below
+ * the VEML7700 and six hundred below the BH1750 this project started with.
+ * That only matters at the dark end, and the dark end is the whole point:
+ * behind a front panel an evening living room arrives as a fraction of a lux,
+ * and a sensor reporting a flat 0 there cannot tell dusk from night, so the
+ * automatic sits at its floor all evening.
+ *
+ * 0x29 does not collide with the VEML7700 at 0x10. Both can be wired to the
+ * same two lines, which is how one gets judged against the other.
+ *
+ * Unlike the VEML7700 library this one has no auto-ranging, so the class does
+ * it - see readLux() for why that turns out to be an advantage rather than a
+ * chore.
+ */
+class Tsl2591Sensor : public LightSensor
+{
+public:
+    bool begin() override;
+    float readLux() override;
+    const char *name() const override { return "TSL2591"; }
+
+private:
+    /** Pushes the current rung's gain and integration time to the chip. */
+    void applyRung();
+
+    void *device = nullptr; // Adafruit_TSL2591, kept out of the header
+    byte rung = 0;          // position on the sensitivity ladder in the .cpp
+};
+
+/**
  * Owns a sensor, samples it in the background and smooths the result.
  */
 class AmbientLight
