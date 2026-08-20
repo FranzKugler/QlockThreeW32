@@ -171,15 +171,18 @@ app.post('/color', accept(['hue', 'sat', 'lum']));
 /*
  * Language and the corner options.
  *
- * Outside expert mode the language may only move within the panel the clock
- * already has - the letters are milled once and no setting changes them. The
- * mock enforces it too, or the dev UI would let through what the device
+ * Once the clock is set up - meaning an expert password has been chosen - the
+ * language may only move within the panel it already has, because the letters
+ * are milled once and no setting changes them. A clock with no password is
+ * still being set up and keeps the full list.
+ *
+ * The mock enforces it too, or the dev UI would let through what the device
  * refuses, which is the one thing a mock must not do. LANGUAGES is defined
  * further down; the handler only runs long after that.
  */
 app.post('/configuration', (req, res, next) => {
   const wanted = req.body.language;
-  if (!expert.on && wanted !== undefined && wanted !== state.language) {
+  if (expert.password !== null && !expert.on && wanted !== undefined && wanted !== state.language) {
     const have = LANGUAGES.find((l) => l.value === state.language);
     const to = LANGUAGES.find((l) => l.value === wanted);
     if (have && (!to || to.panel !== have.panel)) {

@@ -99,7 +99,7 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /autoluminance` — toggle automatic brightness.
 - `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus the brightness curve (`luxLow`, `brightLow`, `luxHigh`, `brightHigh`, `minRatio`) and the `brightness` it yields for the current reading. Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
 - `POST /light` — the four curve fields, `{want: 1..100}` ("at this light, this bright"), or `{reset: true}`. Answers with the same shape `GET` does, or with `calibrationTooClose` / `calibrationRange`.
-- `POST /configuration` — language, corner LED direction/color. **Refuses a language from another panel while the clock is locked** — `403 {"error":"languageNotOnPanel"}`, see "One clock, one panel".
+- `POST /configuration` — language, corner LED direction/color. **Refuses a language from another panel on an enrolled clock that is locked** — `403 {"error":"languageNotOnPanel"}`, see "One clock, one panel".
 - `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
 - `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
 - `GET /wifi` — connection status (`ssid`, `ip`, `rssi`, `mac`, `hostname`, `switching`, `error`).
@@ -153,14 +153,15 @@ Points worth knowing:
 
 The letters are milled once. No setting moves them, so a language whose words are cut into a different sheet turns the face into a wall of letters that spells nothing — and whoever changed it by accident has no way of telling what went wrong.
 
-Outside expert mode the language may therefore only move **within the panel the clock already has**. German, Swabian, Bavarian and Saxon share theirs and can be swapped freely; every other language is alone on its own, so on an Italian clock the picker has one entry and the field is not drawn at all. Expert mode is where a clock is set up; normal mode is where it can no longer be set up wrongly.
+Once the clock is set up, the language may therefore only move **within the panel it already has**. German, Swabian, Bavarian and Saxon share theirs and can be swapped freely; every other language is alone on its own, so on an Italian clock the picker has one entry and the field is not drawn at all. Expert mode is where a clock is set up; normal mode is where it can no longer be set up wrongly.
 
 - **The refusal is in `POST /configuration`, not only in the browser** — the endpoint is reachable without the UI, the same reason the expert tabs are guarded server-side. `Display.svelte` filters the list so the UI never offers what the firmware would refuse.
 - **Panels are compared by their letters** (`Languages::samePanel`), not by a group number stored beside them. A stored number would be the same fact written twice, and the two would drift; comparing ten short strings costs nothing at the rate this is asked. `nullptr` is not the same panel as anything, itself included — "unknown" must not read as "fits".
 - **The check is against the *stored* language, never against what the request claims.** Otherwise a request could carry its own permission.
 - **A stored language this firmware does not know grounds no refusal.** It says nothing about which panel is on the wall, and refusing on it would lock the language out entirely on a clock whose NVS holds a number from a newer build.
 - **`/languages` does not fold the lock state in.** It is static for a firmware, which is what lets the shell ask once and never poll; the browser filters it against `expert.unlocked`, which it already tracks. Making the answer depend on the lock would mean refetching on every unlock.
-- **Consequence worth knowing: a fresh clock is locked and defaults to German.** Setting it to Italian therefore means enrolling an expert password first. That is the intended order — expert mode is where the basic setup happens — but it does mean the panel language is not reachable straight out of the box.
+- **A clock with no expert password is left alone**, and keeps the full list. That looks inconsistent beside `Expert::guard()`, which closes `/log` and `/ota/*` on such a clock too, and it is not: those two keep a stranger on the network out, while this one keeps the owner from breaking their own face. Someone who has not yet chosen a password is still setting the clock up, and the language is the one setting that has to match the hardware — locking them out of it at that moment would be the worst possible timing. Enrolling is what says "this clock is set up".
+- **It is a one-way street once enrolled.** A clock left locked on Italian cannot be moved back to German without the password. That is the point, but it is not a state anyone can click their way out of.
 
 ### The clock's name
 

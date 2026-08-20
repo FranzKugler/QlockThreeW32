@@ -189,12 +189,20 @@ void updateColor()
 /**
  * Language and the corner LED options.
  *
- * Outside expert mode the language may only move within the panel the clock
+ * Once the clock is set up, the language may only move within the panel it
  * already has. The panel is a milled sheet of letters, not a setting: on an
  * Italian clock every other language is a wall of letters that spells nothing,
- * and the one that changes it by accident has no way of knowing what went
- * wrong. Expert mode is where a clock is set up; normal mode is where it can
- * no longer be set up wrongly.
+ * and whoever changed it by accident has no way of knowing what went wrong.
+ * Expert mode is where a clock is set up; normal mode is where it can no
+ * longer be set up wrongly.
+ *
+ * "Set up" means enrolled - a password has been chosen. A clock with none is
+ * left alone, and that is not the same inconsistency it looks like next to
+ * Expert::guard(), which closes /log and /ota/* on such a clock too. Those two
+ * keep a stranger on the network out. This one keeps the owner from breaking
+ * their own face, and someone who has not yet declared the clock set up is
+ * still setting it up. Locking them out of the one setting that has to match
+ * the hardware would be the worst moment to start.
  *
  * Guarded here rather than only in the browser, for the same reason the expert
  * tabs are: the endpoint is reachable without the UI. And guarded by the
@@ -206,7 +214,7 @@ void updateConfiguration()
     deserializeJson(doc, server.arg(0));
 
     byte wanted = (byte)doc["language"].as<int>();
-    if (!Expert::unlocked() && wanted != settings.getLanguage())
+    if (Expert::enrolled() && !Expert::unlocked() && wanted != settings.getLanguage())
     {
         const Language *have = Languages::find(settings.getLanguage());
 

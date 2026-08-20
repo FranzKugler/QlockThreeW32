@@ -25,17 +25,21 @@
    * The languages this clock can actually show.
    *
    * A clock has one panel of milled letters and no setting changes that, so
-   * outside expert mode only the languages cut into the same sheet are on
-   * offer - the four German dialects share one, every other language is alone
-   * on its own. Where that leaves a single choice there is nothing to choose,
-   * and the field goes away rather than sitting there disabled.
+   * once it is set up only the languages cut into the same sheet are on offer
+   * - the four German dialects share one, every other language is alone on its
+   * own. Where that leaves a single choice there is nothing to choose, and the
+   * field goes away rather than sitting there disabled.
+   *
+   * A clock with no expert password has not been set up yet, and choosing the
+   * language to match the panel is part of setting one up - so it keeps the
+   * full list. The firmware draws the same line.
    *
    * The firmware refuses the others as well (POST /configuration); this only
    * keeps the UI from offering what it would refuse.
    */
   const offered = $derived.by(() => {
     const all = languages();
-    if (expert?.unlocked) return all;
+    if (!expert?.enrolled || expert.unlocked) return all;
 
     const current = all.find((l) => l.value === state.language);
     // An unknown language, or a firmware that does not report panels: say
