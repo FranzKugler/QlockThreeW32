@@ -10,7 +10,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update', 'Debug'],
+  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update', 'Debug', 'Speicher'],
   loading: 'Einstellungen werden geladen …',
   loadingShort: 'wird geladen …',
   clockUnreachable: 'Uhr nicht erreichbar',
@@ -239,13 +239,33 @@ export default {
     'Hochfahren. Was der Bootloader vor der Firmware ausgibt, steht nur am ' +
     'USB-Kabel.',
 
-  // --- file explorer, above the log in the debug tab ---
-  fsTitle: 'Dateien',
-  fsHint:
-    'Das Dateisystem der Uhr (LittleFS) — dieselbe Partition, aus der ' +
-    'diese Seite kommt. NVS steht hier nicht: dort liegen Schlüssel und ' +
-    'Werte, keine Dateien. Wer index.html löscht, erreicht die Uhr nur ' +
-    'noch über die Schnittstelle und braucht das USB-Kabel.',
+  // --- storage tab: the filesystem and NVS, one explorer for both ---
+  storageTitle: 'Speicher',
+  storageFs: 'LittleFS',
+  storageNvs: 'NVS',
+  storageFsHint:
+    'Das Dateisystem der Uhr — dieselbe Partition, aus der diese Seite ' +
+    'kommt. Ein Update der Weboberfläche überschreibt sie vollständig.',
+  storageFsWarn:
+    'Wer index.html löscht, erreicht die Uhr nur noch über die ' +
+    'Schnittstelle und braucht das USB-Kabel.',
+  storageNvsHint:
+    'Kein Dateisystem, sondern Schlüssel und Werte: Namensräume als ' +
+    'Ordner, Schlüssel als Dateien. Die Endung ist eine Deutung des ' +
+    'Inhalts, kein gespeicherter Name. Ein Update lässt NVS unberührt — ' +
+    'deshalb liegen Einstellungen, Kennwort und Helligkeitskurve hier.',
+  storageNvsWarn:
+    'Die Uhr hält ihre Einstellungen im Arbeitsspeicher und schreibt sie ' +
+    'bei der nächsten Änderung zurück. Eine Bearbeitung hier überlebt nur ' +
+    'ein sofortiger Neustart.',
+  fsEntries: (n) => `${n} Einträge`,
+  fsGesture: 'Rechte Maustaste oder langes Antippen öffnet das Menü.',
+  fsNewFolderHere: 'Ordner darin anlegen',
+  fsProtected: 'Nicht lesbar (Kennwort-Hash)',
+  fsCompact: 'kompakt speichern',
+  fsNotJson: 'kein gültiges JSON',
+
+  // --- the explorer itself ---
   fsUsage: (used, total) => `${used} von ${total} belegt`,
   fsRoot: 'Wurzel',
   fsEmpty: 'Dieser Ordner ist leer.',
@@ -330,6 +350,20 @@ export default {
   err_fsExists: 'Gibt es schon',
   err_fsDelete: 'Löschen fehlgeschlagen',
   err_fsMkdir: 'Ordner konnte nicht angelegt werden',
+
+  err_nvsPath: 'Namensraum oder Schlüssel fehlt',
+  err_nvsBody: 'Anfrage unlesbar',
+  err_nvsNamespace: 'Namensraum nicht gefunden',
+  err_nvsNotFound: 'Schlüssel nicht gefunden',
+  err_nvsProtected: 'Dieser Wert wird nicht herausgegeben',
+  err_nvsBinary: 'Binärwert — nur zum Herunterladen',
+  err_nvsTooBig: 'Zu groß für den Editor',
+  err_nvsNotANumber: 'Dieser Schlüssel hält eine Zahl',
+  err_nvsRead: 'Wert nicht lesbar',
+  err_nvsWrite: 'Wert konnte nicht geschrieben werden',
+  err_nvsDelete: 'Löschen fehlgeschlagen',
+  err_nvsMemory: 'Zu wenig Arbeitsspeicher',
+  err_nvsNamespaceDelete: 'Ein Namensraum verschwindet mit seinem letzten Schlüssel',
 
   // --- api errors ---
   connectionLost: 'Verbindung zur Uhr unterbrochen',

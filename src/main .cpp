@@ -55,6 +55,7 @@
 #include "DisplayModes.h"
 #include "WebRoutes.h"
 #include "FileRoutes.h"
+#include "NvsRoutes.h"
 #include "Expert.h"
 #include "languages/Language.h"
 // Credentials of this particular clock, not in version control. Without it the
@@ -647,6 +648,7 @@ void setup()
 
     Web::begin();
     Files::begin();
+    Nvs::begin();
     server.begin();
 
 ArduinoOTA.setPort(8266);

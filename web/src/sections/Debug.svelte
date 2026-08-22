@@ -18,7 +18,6 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import * as api from '../lib/api.js';
   import { dict } from '../lib/i18n.svelte.js';
-  import Files from './Files.svelte';
 
   const t = $derived(dict());
 
@@ -184,8 +183,6 @@
     <p class="hint">{t.loadingShort}</p>
   {/if}
 </section>
-
-<Files />
 
 <section class="card">
   <h2>{t.logTitle}</h2>

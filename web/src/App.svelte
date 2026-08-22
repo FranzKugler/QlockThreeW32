@@ -20,13 +20,14 @@
   import Wifi from './sections/Wifi.svelte';
   import Ota from './sections/Ota.svelte';
   import Debug from './sections/Debug.svelte';
+  import Storage from './sections/Storage.svelte';
   import Expert from './sections/Expert.svelte';
   import Luminance from './sections/Luminance.svelte';
 
-  // Labels come from t.tabs, in this order. The last two are only offered
-  // once the clock is unlocked; t.tabs keeps all six either way, so the label
+  // Labels come from t.tabs, in this order. The last three are only offered
+  // once the clock is unlocked; t.tabs keeps all seven either way, so the label
   // of a tab is found by its place in this list rather than in the visible one.
-  const ALL_TABS = ['display', 'color', 'timezone', 'wifi', 'ota', 'debug'];
+  const ALL_TABS = ['display', 'color', 'timezone', 'wifi', 'ota', 'debug', 'storage'];
   const OPEN_TABS = 4;
 
   let active = $state('display');
@@ -203,6 +204,8 @@
       <Ota />
     {:else if active === 'debug'}
       <Debug />
+    {:else if active === 'storage'}
+      <Storage />
     {:else if active === 'luminance'}
       <Luminance />
     {:else}

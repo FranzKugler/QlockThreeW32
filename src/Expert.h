@@ -109,9 +109,10 @@ namespace Expert
      * It lives here rather than in WebRoutes so that the files that need it
      * cannot drift apart on what "locked" means. A handler that forgets to
      * call it is open, so the list of callers is worth keeping in one place:
-     * /log, the five /ota routes, and five of the six /fs routes.
+     * /log, the five /ota routes, five of the six /fs routes, and the four
+     * /nvs routes.
      *
-     * The sixth is /fs/upload, and it is the reason unlocked() is public:
+     * The odd one out is /fs/upload, and it is why unlocked() is public:
      * like /ota/upload it streams the body into flash from a handler that
      * cannot send a response, so it asks the question itself and refuses by
      * recording an error for the done handler. Guarding only the done handler

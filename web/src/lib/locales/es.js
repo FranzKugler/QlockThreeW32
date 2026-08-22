@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización', 'Depuración'],
+  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización', 'Depuración', 'Almacenamiento'],
   loading: 'Cargando los ajustes …',
   loadingShort: 'cargando …',
   clockUnreachable: 'Reloj no accesible',
@@ -239,13 +239,33 @@ export default {
     'arranque. Lo que el gestor de arranque imprime antes del firmware solo ' +
     'se ve por el cable USB.',
 
-  // --- file explorer, above the log in the debug tab ---
-  fsTitle: 'Archivos',
-  fsHint:
-    'El sistema de archivos del reloj (LittleFS): la misma partición desde ' +
-    'la que se sirve esta página. NVS no aparece aquí, porque guarda claves ' +
-    'y valores, no archivos. Si se borra index.html, el reloj solo queda ' +
-    'accesible por la API y hace falta el cable USB para recuperarlo.',
+  // --- storage tab: the filesystem and NVS, one explorer for both ---
+  storageTitle: 'Almacenamiento',
+  storageFs: 'LittleFS',
+  storageNvs: 'NVS',
+  storageFsHint:
+    'El sistema de archivos del reloj: la misma partición desde la que se ' +
+    'sirve esta página. Una actualización de la interfaz la reescribe entera.',
+  storageFsWarn:
+    'Si se borra index.html, el reloj solo queda accesible por la API y ' +
+    'hace falta el cable USB para recuperarlo.',
+  storageNvsHint:
+    'No es un sistema de archivos sino claves y valores: los espacios de ' +
+    'nombres como carpetas y las claves como archivos. La extensión es una ' +
+    'lectura del contenido, no un nombre guardado. Una actualización no ' +
+    'toca NVS: por eso aquí viven los ajustes, la contraseña y la curva.',
+  storageNvsWarn:
+    'El reloj mantiene sus ajustes en memoria y los reescribe en el ' +
+    'siguiente cambio. Una edición hecha aquí solo sobrevive a un ' +
+    'reinicio inmediato.',
+  fsEntries: (n) => `${n} entradas`,
+  fsGesture: 'Clic derecho, o pulsación larga, para abrir el menú.',
+  fsNewFolderHere: 'Carpeta nueva dentro',
+  fsProtected: 'No legible (hash de la contraseña)',
+  fsCompact: 'guardar compacto',
+  fsNotJson: 'JSON no válido',
+
+  // --- the explorer itself ---
   fsUsage: (used, total) => `${used} de ${total} ocupados`,
   fsRoot: 'Raíz',
   fsEmpty: 'Esta carpeta está vacía.',
@@ -331,6 +351,20 @@ export default {
   err_fsExists: 'Ya existe',
   err_fsDelete: 'No se pudo eliminar',
   err_fsMkdir: 'No se pudo crear la carpeta',
+
+  err_nvsPath: 'Falta el espacio de nombres o la clave',
+  err_nvsBody: 'Petición ilegible',
+  err_nvsNamespace: 'Espacio de nombres no encontrado',
+  err_nvsNotFound: 'Clave no encontrada',
+  err_nvsProtected: 'Este valor no se entrega',
+  err_nvsBinary: 'Valor binario: solo descarga',
+  err_nvsTooBig: 'Demasiado grande para el editor',
+  err_nvsNotANumber: 'Esta clave contiene un número',
+  err_nvsRead: 'No se pudo leer el valor',
+  err_nvsWrite: 'No se pudo escribir el valor',
+  err_nvsDelete: 'No se pudo eliminar',
+  err_nvsMemory: 'Memoria insuficiente',
+  err_nvsNamespaceDelete: 'Un espacio de nombres desaparece con su última clave',
 
   // --- api errors ---
   connectionLost: 'Se ha perdido la conexión con el reloj',

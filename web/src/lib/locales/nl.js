@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update', 'Debug'],
+  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update', 'Debug', 'Opslag'],
   loading: 'Instellingen worden geladen …',
   loadingShort: 'wordt geladen …',
   clockUnreachable: 'Klok niet bereikbaar',
@@ -238,13 +238,33 @@ export default {
     'het opstarten. Wat de bootloader vóór de firmware toont, staat alleen ' +
     'op de USB-kabel.',
 
-  // --- file explorer, above the log in the debug tab ---
-  fsTitle: 'Bestanden',
-  fsHint:
-    'Het bestandssysteem van de klok (LittleFS) — dezelfde partitie waar ' +
-    'deze pagina vandaan komt. NVS staat er niet bij: daar liggen sleutels ' +
-    'en waarden, geen bestanden. Wie index.html wist, bereikt de klok nog ' +
-    'alleen via de API en heeft de USB-kabel nodig.',
+  // --- storage tab: the filesystem and NVS, one explorer for both ---
+  storageTitle: 'Opslag',
+  storageFs: 'LittleFS',
+  storageNvs: 'NVS',
+  storageFsHint:
+    'Het bestandssysteem van de klok — dezelfde partitie waar deze pagina ' +
+    'vandaan komt. Een update van de webinterface overschrijft haar geheel.',
+  storageFsWarn:
+    'Wie index.html wist, bereikt de klok nog alleen via de API en heeft ' +
+    'de USB-kabel nodig.',
+  storageNvsHint:
+    'Geen bestandssysteem maar sleutels en waarden: naamruimten als ' +
+    'mappen, sleutels als bestanden. De extensie is een lezing van de ' +
+    'inhoud, geen opgeslagen naam. Een update laat NVS ongemoeid — daarom ' +
+    'staan instellingen, wachtwoord en helderheidscurve hier.',
+  storageNvsWarn:
+    'De klok houdt haar instellingen in het werkgeheugen en schrijft ze ' +
+    'bij de volgende wijziging terug. Een bewerking hier overleeft alleen ' +
+    'een onmiddellijke herstart.',
+  fsEntries: (n) => `${n} items`,
+  fsGesture: 'Rechtermuisknop, of lang indrukken, opent het menu.',
+  fsNewFolderHere: 'Nieuwe map hierin',
+  fsProtected: 'Niet leesbaar (wachtwoord-hash)',
+  fsCompact: 'compact opslaan',
+  fsNotJson: 'geen geldige JSON',
+
+  // --- the explorer itself ---
   fsUsage: (used, total) => `${used} van ${total} in gebruik`,
   fsRoot: 'Hoofdmap',
   fsEmpty: 'Deze map is leeg.',
@@ -329,6 +349,20 @@ export default {
   err_fsExists: 'Bestaat al',
   err_fsDelete: 'Verwijderen mislukt',
   err_fsMkdir: 'De map kon niet worden aangemaakt',
+
+  err_nvsPath: 'Naamruimte of sleutel ontbreekt',
+  err_nvsBody: 'Verzoek onleesbaar',
+  err_nvsNamespace: 'Naamruimte niet gevonden',
+  err_nvsNotFound: 'Sleutel niet gevonden',
+  err_nvsProtected: 'Deze waarde wordt niet afgegeven',
+  err_nvsBinary: 'Binaire waarde — alleen downloaden',
+  err_nvsTooBig: 'Te groot voor de editor',
+  err_nvsNotANumber: 'Deze sleutel bevat een getal',
+  err_nvsRead: 'De waarde kon niet worden gelezen',
+  err_nvsWrite: 'De waarde kon niet worden geschreven',
+  err_nvsDelete: 'Verwijderen mislukt',
+  err_nvsMemory: 'Te weinig geheugen',
+  err_nvsNamespaceDelete: 'Een naamruimte verdwijnt met haar laatste sleutel',
 
   // --- api errors ---
   connectionLost: 'Verbinding met de klok verbroken',

@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Visualizzazione', 'Colore', 'Fuso orario', 'WiFi', 'Aggiornamento', 'Debug'],
+  tabs: ['Visualizzazione', 'Colore', 'Fuso orario', 'WiFi', 'Aggiornamento', 'Debug', 'Memoria'],
   loading: 'Caricamento delle impostazioni …',
   loadingShort: 'caricamento …',
   clockUnreachable: 'Orologio non raggiungibile',
@@ -239,13 +239,33 @@ export default {
     "dell'avvio. Quello che il bootloader stampa prima del firmware si vede " +
     'solo sul cavo USB.',
 
-  // --- file explorer, above the log in the debug tab ---
-  fsTitle: 'File',
-  fsHint:
-    'Il file system dell\'orologio (LittleFS) — la stessa partizione da cui ' +
-    'arriva questa pagina. NVS non compare qui: contiene chiavi e valori, ' +
-    'non file. Cancellando index.html l\'orologio resta raggiungibile solo ' +
-    'tramite l\'API, e per tornare indietro serve il cavo USB.',
+  // --- storage tab: the filesystem and NVS, one explorer for both ---
+  storageTitle: 'Memoria',
+  storageFs: 'LittleFS',
+  storageNvs: 'NVS',
+  storageFsHint:
+    'Il file system dell\'orologio — la stessa partizione da cui arriva ' +
+    'questa pagina. Un aggiornamento dell\'interfaccia la riscrive tutta.',
+  storageFsWarn:
+    'Cancellando index.html l\'orologio resta raggiungibile solo tramite ' +
+    'l\'API, e per tornare indietro serve il cavo USB.',
+  storageNvsHint:
+    'Non un file system ma chiavi e valori: i namespace come cartelle, ' +
+    'le chiavi come file. L\'estensione è una lettura del contenuto, non ' +
+    'un nome memorizzato. Un aggiornamento non tocca NVS: per questo ci ' +
+    'stanno impostazioni, password e curva di luminosità.',
+  storageNvsWarn:
+    'L\'orologio tiene le impostazioni in RAM e le riscrive alla prossima ' +
+    'modifica. Una modifica fatta qui sopravvive solo a un riavvio ' +
+    'immediato.',
+  fsEntries: (n) => `${n} voci`,
+  fsGesture: 'Tasto destro, o pressione prolungata, per il menu.',
+  fsNewFolderHere: 'Nuova cartella dentro',
+  fsProtected: 'Non leggibile (hash della password)',
+  fsCompact: 'salva compatto',
+  fsNotJson: 'JSON non valido',
+
+  // --- the explorer itself ---
   fsUsage: (used, total) => `${used} di ${total} occupati`,
   fsRoot: 'Radice',
   fsEmpty: 'Questa cartella è vuota.',
@@ -331,6 +351,20 @@ export default {
   err_fsExists: 'Esiste già',
   err_fsDelete: 'Eliminazione non riuscita',
   err_fsMkdir: 'Impossibile creare la cartella',
+
+  err_nvsPath: 'Namespace o chiave mancante',
+  err_nvsBody: 'Richiesta illeggibile',
+  err_nvsNamespace: 'Namespace non trovato',
+  err_nvsNotFound: 'Chiave non trovata',
+  err_nvsProtected: 'Questo valore non viene fornito',
+  err_nvsBinary: 'Valore binario: solo download',
+  err_nvsTooBig: 'Troppo grande per l\'editor',
+  err_nvsNotANumber: 'Questa chiave contiene un numero',
+  err_nvsRead: 'Impossibile leggere il valore',
+  err_nvsWrite: 'Impossibile scrivere il valore',
+  err_nvsDelete: 'Eliminazione non riuscita',
+  err_nvsMemory: 'Memoria insufficiente',
+  err_nvsNamespaceDelete: 'Un namespace sparisce con la sua ultima chiave',
 
   // --- api errors ---
   connectionLost: "Collegamento con l'orologio interrotto",

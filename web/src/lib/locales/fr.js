@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour', 'Débogage'],
+  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour', 'Débogage', 'Stockage'],
   loading: 'Chargement des réglages …',
   loadingShort: 'chargement …',
   clockUnreachable: 'Horloge injoignable',
@@ -239,13 +239,33 @@ export default {
     "du démarrage. Ce que le bootloader affiche avant le micrologiciel n'est " +
     'visible que sur le câble USB.',
 
-  // --- file explorer, above the log in the debug tab ---
-  fsTitle: 'Fichiers',
-  fsHint:
-    'Le système de fichiers de l\'horloge (LittleFS) — la partition d\'où ' +
-    'vient cette page. NVS n\'y figure pas : il contient des clés et des ' +
-    'valeurs, pas des fichiers. Supprimer index.html rend l\'horloge ' +
-    'accessible seulement par l\'API, et il faut le câble USB pour revenir.',
+  // --- storage tab: the filesystem and NVS, one explorer for both ---
+  storageTitle: 'Stockage',
+  storageFs: 'LittleFS',
+  storageNvs: 'NVS',
+  storageFsHint:
+    'Le système de fichiers de l\'horloge — la partition d\'où vient cette ' +
+    'page. Une mise à jour de l\'interface la réécrit entièrement.',
+  storageFsWarn:
+    'Supprimer index.html rend l\'horloge accessible seulement par l\'API, ' +
+    'et il faut le câble USB pour revenir.',
+  storageNvsHint:
+    'Pas un système de fichiers mais des clés et des valeurs : les ' +
+    'espaces de noms en dossiers, les clés en fichiers. L\'extension est ' +
+    'une lecture du contenu, pas un nom enregistré. Une mise à jour ne ' +
+    'touche pas NVS — d\'où les réglages, le mot de passe et la courbe.',
+  storageNvsWarn:
+    'L\'horloge garde ses réglages en mémoire vive et les réécrit au ' +
+    'changement suivant. Une modification faite ici ne survit qu\'à un ' +
+    'redémarrage immédiat.',
+  fsEntries: (n) => `${n} entrées`,
+  fsGesture: 'Clic droit, ou appui long, pour ouvrir le menu.',
+  fsNewFolderHere: 'Nouveau dossier dedans',
+  fsProtected: 'Illisible (empreinte du mot de passe)',
+  fsCompact: 'enregistrer compact',
+  fsNotJson: 'JSON invalide',
+
+  // --- the explorer itself ---
   fsUsage: (used, total) => `${used} sur ${total} utilisés`,
   fsRoot: 'Racine',
   fsEmpty: 'Ce dossier est vide.',
@@ -331,6 +351,20 @@ export default {
   err_fsExists: 'Existe déjà',
   err_fsDelete: 'Échec de la suppression',
   err_fsMkdir: 'Impossible de créer le dossier',
+
+  err_nvsPath: 'Espace de noms ou clé manquant',
+  err_nvsBody: 'Requête illisible',
+  err_nvsNamespace: 'Espace de noms introuvable',
+  err_nvsNotFound: 'Clé introuvable',
+  err_nvsProtected: 'Cette valeur n\'est pas communiquée',
+  err_nvsBinary: 'Valeur binaire — téléchargement uniquement',
+  err_nvsTooBig: 'Trop volumineux pour l\'éditeur',
+  err_nvsNotANumber: 'Cette clé contient un nombre',
+  err_nvsRead: 'Impossible de lire la valeur',
+  err_nvsWrite: 'Impossible d\'écrire la valeur',
+  err_nvsDelete: 'Échec de la suppression',
+  err_nvsMemory: 'Mémoire insuffisante',
+  err_nvsNamespaceDelete: 'Un espace de noms disparaît avec sa dernière clé',
 
   // --- api errors ---
   connectionLost: "Connexion à l'horloge interrompue",

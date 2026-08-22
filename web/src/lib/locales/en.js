@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update', 'Debug'],
+  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update', 'Debug', 'Storage'],
   loading: 'Loading the settings …',
   loadingShort: 'loading …',
   clockUnreachable: 'Clock not reachable',
@@ -237,13 +237,32 @@ export default {
     'booting. What the bootloader prints before the firmware starts is only ' +
     'on the USB cable.',
 
-  // --- file explorer, above the log in the debug tab ---
-  fsTitle: 'Files',
-  fsHint:
-    'The clock\'s filesystem (LittleFS) — the same partition this page is ' +
-    'served from. NVS is not shown here: it holds keys and values, not ' +
-    'files. Delete index.html and the clock is reachable through the API ' +
-    'only, and getting it back needs the USB cable.',
+  // --- storage tab: the filesystem and NVS, one explorer for both ---
+  storageTitle: 'Storage',
+  storageFs: 'LittleFS',
+  storageNvs: 'NVS',
+  storageFsHint:
+    'The clock\'s filesystem — the same partition this page is served ' +
+    'from. A web UI update overwrites it whole.',
+  storageFsWarn:
+    'Delete index.html and the clock is reachable through the API only, ' +
+    'and getting it back needs the USB cable.',
+  storageNvsHint:
+    'Not a filesystem but keys and values: namespaces as folders, keys ' +
+    'as files. The extension is a reading of the content, not a stored ' +
+    'name. An update leaves NVS untouched — which is why the settings, ' +
+    'the password and the brightness curve live here.',
+  storageNvsWarn:
+    'The clock keeps its settings in RAM and writes them back on the ' +
+    'next change. An edit made here survives only an immediate restart.',
+  fsEntries: (n) => `${n} entries`,
+  fsGesture: 'Right-click, or press and hold, to open the menu.',
+  fsNewFolderHere: 'New folder inside',
+  fsProtected: 'Not readable (password hash)',
+  fsCompact: 'save compact',
+  fsNotJson: 'not valid JSON',
+
+  // --- the explorer itself ---
   fsUsage: (used, total) => `${used} of ${total} used`,
   fsRoot: 'Root',
   fsEmpty: 'This folder is empty.',
@@ -328,6 +347,20 @@ export default {
   err_fsExists: 'Already exists',
   err_fsDelete: 'Delete failed',
   err_fsMkdir: 'The folder could not be created',
+
+  err_nvsPath: 'Namespace or key missing',
+  err_nvsBody: 'Request could not be read',
+  err_nvsNamespace: 'Namespace not found',
+  err_nvsNotFound: 'Key not found',
+  err_nvsProtected: 'This value is not handed out',
+  err_nvsBinary: 'Binary value — download only',
+  err_nvsTooBig: 'Too large for the editor',
+  err_nvsNotANumber: 'This key holds a number',
+  err_nvsRead: 'The value could not be read',
+  err_nvsWrite: 'The value could not be written',
+  err_nvsDelete: 'Delete failed',
+  err_nvsMemory: 'Not enough memory',
+  err_nvsNamespaceDelete: 'A namespace goes with its last key',
 
   // --- api errors ---
   connectionLost: 'Connection to the clock was lost',

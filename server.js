@@ -55,7 +55,7 @@ const expertState = () => ({
 });
 
 // Everything behind the lock, in one list.
-for (const prefix of ['/log', '/ota', '/fs']) {
+for (const prefix of ['/log', '/ota', '/fs', '/nvs']) {
   app.use(prefix, (req, res, next) => {
     if (expert.on) return next();
     res.status(403).json({ error: 'expertLocked' });
@@ -1103,6 +1103,164 @@ app.post('/fs/mkdir', (req, res) => {
   if (!fs.existsSync(path.dirname(at.full))) return res.status(500).json({ error: 'fsMkdir' });
   fs.mkdirSync(at.full);
   res.json({ path: at.clean });
+});
+
+/*
+ * NVS, as far as the mock needs it.
+ *
+ * A flat list of {ns, key, type, value}, persisted to .mocknvs.json so an edit
+ * made while developing survives a restart of this server - which is the whole
+ * point of NVS on the clock and would be a strange thing for the stand-in to
+ * get wrong.
+ *
+ * See src/NvsRoutes.h for the pretence this is built on and where it stops.
+ * The seed is what a real clock holds: the three namespaces this firmware
+ * writes, plus one of the WiFi driver's, because a tree that shows only the
+ * tidy half would give a misleading idea of what is in there.
+ */
+const NVS_STORE = path.resolve('.mocknvs.json');
+const NVS_EDIT_MAX = 4096;
+const NVS_PEEK_MAX = 2048;
+
+// NVS accounts for itself in 32-byte entries; a 20 kB partition is about this.
+const NVS_TOTAL_ENTRIES = 630;
+
+const NVS_SEED = [
+  {
+    ns: 'qlock', key: 'conf', type: 'str',
+    value: JSON.stringify({
+      Schema: 2, Language: 2, RenderCornerColor: 0, CornerDirection: 1,
+      Brightness: 40, Hue: 134, Saturation: 50, UseLdr: 1, Mode: 1,
+      Hostname: 'QlockThreeW32', NtpServer: 'pool.ntp.org', TzZone: 'Europe/Berlin',
+      UseDs: 1, TzName: 'CET', TzWeek: 0, TzDoW: 1, TzMonth: 10, TzHour: 3, TzOffset: 60,
+      TzDsName: 'CEST', TzDsWeek: 0, TzDsDoW: 1, TzDsMonth: 3, TzDsHour: 2, TzDsOffset: 120
+    })
+  },
+  {
+    ns: 'qlocklight', key: 'curve', type: 'str',
+    value: JSON.stringify({
+      slope: 54.2, offset: 48.3,
+      points: [{ lux: 7.4, percent: 55, seconds: 1840 }]
+    })
+  },
+  { ns: 'qlockexpert', key: 'hash', type: 'blob', bytes: 32 },
+  { ns: 'qlockexpert', key: 'salt', type: 'blob', bytes: 16 },
+  { ns: 'qlockexpert', key: 'on', type: 'u8', value: '1' },
+  { ns: 'nvs.net80211', key: 'sta.ssid', type: 'blob', bytes: 36 },
+  { ns: 'nvs.net80211', key: 'sta.pswd', type: 'blob', bytes: 64 },
+  { ns: 'nvs.net80211', key: 'opmode', type: 'u8', value: '1' }
+];
+
+function nvsLoad() {
+  if (fs.existsSync(NVS_STORE)) {
+    try {
+      return JSON.parse(fs.readFileSync(NVS_STORE, 'utf8'));
+    } catch {
+      /* rewritten from the seed below */
+    }
+  }
+  fs.writeFileSync(NVS_STORE, JSON.stringify(NVS_SEED, null, 2));
+  return structuredClone(NVS_SEED);
+}
+
+let nvsEntries = nvsLoad();
+const nvsFlush = () => fs.writeFileSync(NVS_STORE, JSON.stringify(nvsEntries, null, 2));
+
+// The one value that is not handed out. See the note in src/NvsRoutes.h: it is
+// the only secret here whose leak outlives the unlock that leaked it.
+const nvsProtected = (entry) =>
+  entry.ns === 'qlockexpert' && (entry.key === 'hash' || entry.key === 'salt');
+
+const nvsIsInteger = (type) => /^[ui](8|16|32|64)$/.test(type);
+
+const nvsFind = (ns, key) => nvsEntries.find((e) => e.ns === ns && e.key === key);
+
+/** The size the clock would report: bytes of text, or bytes of blob. */
+const nvsSize = (entry) =>
+  entry.type === 'blob' ? entry.bytes : Buffer.byteLength(entry.value ?? '');
+
+/** The suffix, which is a reading of the value and not a stored name. */
+function nvsSuffix(entry) {
+  if (entry.type === 'blob') return 'bin';
+  if (nvsIsInteger(entry.type)) return 'txt';
+  if (nvsSize(entry) > NVS_PEEK_MAX) return 'bin';
+  const first = (entry.value ?? '').trimStart()[0];
+  return first === '{' || first === '[' ? 'json' : 'txt';
+}
+
+app.get('/nvs/list', (req, res) => {
+  res.json({
+    entries: nvsEntries.map((entry) => {
+      const guarded = nvsProtected(entry);
+      return {
+        ns: entry.ns,
+        key: entry.key,
+        type: entry.type,
+        size: guarded ? 0 : nvsSize(entry),
+        suffix: guarded ? 'bin' : nvsSuffix(entry),
+        ...(guarded
+          ? { protected: true }
+          : { edit: entry.type !== 'blob' && nvsSize(entry) <= NVS_EDIT_MAX })
+      };
+    }),
+    used: nvsEntries.length + new Set(nvsEntries.map((e) => e.ns)).size,
+    total: NVS_TOTAL_ENTRIES,
+    namespaces: new Set(nvsEntries.map((e) => e.ns)).size,
+    editMax: NVS_EDIT_MAX
+  });
+});
+
+app.get('/nvs/read', (req, res) => {
+  const entry = nvsFind(req.query.ns, req.query.key);
+  if (!entry) return res.status(404).json({ error: 'nvsNotFound' });
+  if (nvsProtected(entry)) return res.status(403).json({ error: 'nvsProtected' });
+
+  if (entry.type === 'blob') {
+    // No text form, so it is a download whether or not one was asked for -
+    // which is exactly what `.bin` in the tree is telling the reader.
+    res.set('Content-Disposition', `attachment; filename="${entry.key}.bin"`);
+    return res.type('application/octet-stream').send(Buffer.alloc(entry.bytes, 0x5a));
+  }
+
+  if (req.query.download !== undefined) {
+    res.set('Content-Disposition', `attachment; filename="${entry.key}.${nvsSuffix(entry)}"`);
+    return res.type('application/octet-stream').send(entry.value);
+  }
+  res.type(nvsSuffix(entry) === 'json' ? 'application/json' : 'text/plain').send(entry.value);
+});
+
+app.post('/nvs/save', (req, res) => {
+  const { ns, key, content } = req.body;
+  if (!ns || !key) return res.status(400).json({ error: 'nvsPath' });
+
+  const entry = nvsFind(ns, key);
+  if (!entry) return res.status(404).json({ error: 'nvsNotFound' });
+  if (nvsProtected(entry)) return res.status(403).json({ error: 'nvsProtected' });
+  if (entry.type === 'blob') return res.status(400).json({ error: 'nvsBinary' });
+  if (String(content).length > NVS_EDIT_MAX) return res.status(413).json({ error: 'nvsTooBig' });
+
+  // The type the store already has decides what may go back. Writing a string
+  // over an integer would leave the firmware reading it as missing, and a
+  // setting that silently reverts to its default is the worst failure here.
+  if (nvsIsInteger(entry.type) && !/^-?\d+\s*$/.test(String(content))) {
+    return res.status(400).json({ error: 'nvsNotANumber' });
+  }
+
+  entry.value = String(content);
+  nvsFlush();
+  res.json({ ns, key, size: Buffer.byteLength(entry.value), cached: true });
+});
+
+app.post('/nvs/delete', (req, res) => {
+  const { ns, key } = req.body;
+  if (!ns || !key) return res.status(400).json({ error: 'nvsPath' });
+
+  const before = nvsEntries.length;
+  nvsEntries = nvsEntries.filter((e) => !(e.ns === ns && e.key === key));
+  if (nvsEntries.length === before) return res.status(404).json({ error: 'nvsNotFound' });
+
+  nvsFlush();
+  res.json({ ns, key });
 });
 
 app.listen(8080, () => console.log('QlockThreeW32 mock API on http://localhost:8080'));

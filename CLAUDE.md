@@ -62,8 +62,9 @@ on :8080 directly, which serves `data/` statically.
 | [src/WebRoutes.cpp](src/WebRoutes.cpp) | `Web::` — every HTTP handler except `/ota/*`, `PORTAL_STYLE`, the network-switch state machine |
 | [src/LightSensor.cpp](src/LightSensor.cpp) | the `LightSensor` interface, `Veml7700Sensor`, and `AmbientLight` with its sampling task |
 | [src/LogBuffer.cpp](src/LogBuffer.cpp) | the in-memory log ring, the `DebugLog` tee and the ESP-IDF capture hook |
-| [src/Expert.cpp](src/Expert.cpp) | the lock on `/log` and `/ota/*`: the password, the NVS flag, `Expert::guard()` |
+| [src/Expert.cpp](src/Expert.cpp) | the lock on `/log`, `/ota/*`, `/fs/*` and `/nvs/*`: the password, the NVS flag, `Expert::guard()` |
 | [src/FileRoutes.cpp](src/FileRoutes.cpp) | `Files::` — the `/fs/*` handlers: the tree, the download, the streamed upload, the editor |
+| [src/NvsRoutes.cpp](src/NvsRoutes.cpp) | `Nvs::` — the `/nvs/*` handlers: NVS walked as a two-level tree |
 | [src/languages/](src/languages/) | one file per language: its panel letters, its words, and how it says the time |
 | [src/DisplayModes.h](src/DisplayModes.h) | the mode numbers, shared because `main .cpp` renders them and `WebRoutes.cpp` accepts them |
 
@@ -115,6 +116,10 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /fs/save` — `{path, content}`, for the in-browser editor; buffered, so capped at `FS_EDIT_MAX`. **Behind the lock.**
 - `POST /fs/delete` — `{path}`; one file, or one *empty* directory. **Behind the lock.**
 - `POST /fs/mkdir` — `{path}`; one directory, parent must exist. **Behind the lock.**
+- `GET /nvs/list` — every entry in the partition as `{ns, key, type, size, suffix, edit|protected}`, plus `used`/`total` in entries. One answer, not one per namespace: the iterator walks the whole partition anyway. **Behind the lock.**
+- `GET /nvs/read?ns=&key=` — one value as text, or as bytes where it has no text form. `&download=1` names the file. **Behind the lock.**
+- `POST /nvs/save` — `{ns, key, content}`, in the type the key already has. **Behind the lock.**
+- `POST /nvs/delete` — `{ns, key}`. **Behind the lock.**
 - `GET /expert` — `{enrolled, unlocked, grace, lockedOut}`. No secret in it; the shell needs it before it can decide which tabs exist.
 - `POST /expert` — `{password}` (sets one on a clock with none, otherwise checks it), `{off: true}`, or `{reset: true}`. Answers with the same shape `GET` does.
 - `POST /wifi` — `{ssid, password}`; answers immediately, the switch runs in `loop()`.
@@ -168,7 +173,7 @@ Once the clock is set up, the language may therefore only move **within the pane
 - **The check is against the *stored* language, never against what the request claims.** Otherwise a request could carry its own permission.
 - **A stored language this firmware does not know grounds no refusal.** It says nothing about which panel is on the wall, and refusing on it would lock the language out entirely on a clock whose NVS holds a number from a newer build.
 - **`/languages` does not fold the lock state in.** It is static for a firmware, which is what lets the shell ask once and never poll; the browser filters it against `expert.unlocked`, which it already tracks. Making the answer depend on the lock would mean refetching on every unlock.
-- **A clock with no expert password is left alone**, and keeps the full list. That looks inconsistent beside `Expert::guard()`, which closes `/log` and `/ota/*` on such a clock too, and it is not: those two keep a stranger on the network out, while this one keeps the owner from breaking their own face. Someone who has not yet chosen a password is still setting the clock up, and the language is the one setting that has to match the hardware — locking them out of it at that moment would be the worst possible timing. Enrolling is what says "this clock is set up".
+- **A clock with no expert password is left alone**, and keeps the full list. That looks inconsistent beside `Expert::guard()`, which closes `/log`, `/ota/*`, `/fs/*` and `/nvs/*` on such a clock too, and it is not: those two keep a stranger on the network out, while this one keeps the owner from breaking their own face. Someone who has not yet chosen a password is still setting the clock up, and the language is the one setting that has to match the hardware — locking them out of it at that moment would be the worst possible timing. Enrolling is what says "this clock is set up".
 - **It is a one-way street once enrolled.** A clock left locked on Italian cannot be moved back to German without the password. That is the point, but it is not a state anyone can click their way out of.
 
 ### The clock's name
@@ -410,9 +415,56 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 
 Do not confuse it with [src/Debug.h](src/Debug.h), which despite the name has nothing to do with RemoteDebug: it is a leftover set of `DEBUG_PRINT*` macros around `Serial.print`, compiled to nothing unless `DEBUG` is defined, and included only by `Renderer.cpp`. Its companion GUI library, `RemoteDebugger` (variable watch/manipulation via a web console), was already inert before consolidation — the include and its init calls were commented out in `main .cpp` — and has been removed from `lib_deps` entirely, since it no longer compiles against the current ESP32 Arduino core (`std::byte` ambiguity in its vendored source). Its vendored web client, `RemoteDebugApp/`, was removed with it. A browser-based log console (e.g. the WebSerial library) was considered as a replacement but rejected: it requires migrating the whole web server from the synchronous `WebServer` used here to `ESPAsyncWebServer`/`AsyncTCP`, and current WebSerial releases are AGPL-3.0-licensed.
 
+### The storage tab
+
+The seventh tab, behind expert mode, holds an explorer over the clock's two persistent stores: **LittleFS**, the 3.5 MB filesystem this page is served from, and **NVS**, the key-value store the settings live in. [Storage.svelte](web/src/sections/Storage.svelte) is the switch between them, [Explorer.svelte](web/src/sections/Explorer.svelte) draws either, and [web/src/lib/explorers.js](web/src/lib/explorers.js) is the interface that makes one component enough. [src/FileRoutes.cpp](src/FileRoutes.cpp) serves `/fs/*` and [src/NvsRoutes.cpp](src/NvsRoutes.cpp) serves `/nvs/*`.
+
+It began inside the debug tab and moved out: a file tree next to a log window is two unrelated jobs sharing a screen, and the log is the one that needs the room.
+
+- **They are named by what they are.** "LittleFS" and "NVS" are the words in every ESP32 document and in this project's own logs, so somebody searching for where their settings went finds the panel holding them. A friendlier metaphor would have to be un-learned the first time anything goes wrong.
+- **The difference between them is the whole reason both exist**, and each panel says so in a line: a filesystem update overwrites LittleFS wholesale, and leaves NVS untouched. That is why the settings, the expert password and the brightness curve are in NVS — see "Settings persistence".
+
+#### NVS as a tree, and where the pretence stops
+
+A namespace is drawn as a folder and a key as a file. It reads convincingly because every record this clock writes is a JSON string under one key, so `qlock` really does look like a folder holding `conf.json`. The four places it is not a filesystem are stated in [src/NvsRoutes.h](src/NvsRoutes.h) rather than left to be discovered:
+
+- **The tree is two levels deep and cannot be deeper.** There are no sub-namespaces; a folder inside a folder is not refused, it is impossible.
+- **Nothing to upload, no folder to create.** A namespace exists because keys are in it and vanishes with the last one, so both buttons would be writing a key by another name. The panel drops them rather than greying them out — `canUpload`/`canMkdir` on the adapter, so the component has no branch of its own.
+- **The extension is a reading, not a fact.** A string starting with `{` or `[` is offered as `.json`, another string as `.txt`, everything else as `.bin`. Nothing in NVS records a name. `NVS_PEEK_MAX` stops the listing pulling a large blob into the heap just to look at its first character.
+- **Sizes are entries, not bytes**, because `nvs_get_stats()` counts in 32-byte entries and inventing a byte figure would be worse than an odd unit. Hence `unit` on the adapter.
+
+Two more, from building it:
+
+- **Raw `nvs_*` calls, not `Preferences`.** This has to walk namespaces whose names it does not know and read values whose type it learns while walking; `Preferences` wraps one namespace of a known shape, which is right everywhere else in this firmware and wrong here.
+- **The stored type decides what a write may be.** Putting a string over a `u8` would leave the firmware's `nvs_get_u8` finding nothing and the setting silently reverting to its default — the worst way for this to fail. A number that will not parse is refused with `nvsNotANumber` instead.
+- **One value is deliberately unreadable: the expert password hash, and its salt.** Everything else here is exactly as open as the unlock that reached it and closes again when the clock is locked; a hash carried off during a borrowed thirty seconds is crackable offline forever, and probably against a password used elsewhere too. The key is still *listed* — a tree that hides entries is a tree that lies — only the read and the write are refused.
+- **An edit to a cached namespace is only as durable as the next settings save.** The firmware holds `Settings` in RAM and writes the whole record back on any change, so editing `qlock/conf` and then touching a slider loses the edit. The panel warns, and `/nvs/save` answers `cached: true` so a curl user sees it too.
+
+#### One explorer, two stores
+
+`lib/explorers.js` is a narrow interface — `list`, `readText`, `urlOf`, `save`, `remove`, and `upload`/`mkdir` only where they mean something — and the differences it admits are the ones that would be lies to hide.
+
+- **The one structural difference is how a listing arrives.** LittleFS answers per directory and the tree expands lazily, which keeps a full directory from making every response slow. NVS has no such thing: `nvs_entry_find` walks the whole partition regardless, so it is fetched once and sliced in the adapter. Hiding that behind `list(path)` means the component never has to know.
+- Switching panels destroys the component and builds a new one — the two sit in different `{#if}` branches — so there is no reset code and no effect watching the prop.
+
+#### The context menu
+
+Right-click, or press and hold for `LONG_PRESS_MS` (500 ms) on a touch screen. That replaced a download link and two buttons on every row, which was most of what the tree looked like.
+
+- **Long press is the only honest touch equivalent.** A swipe collides with the page scroller, and an always-visible "⋯" per row is the clutter this removed. The gesture is named in a line under the tree, because a context menu nobody finds is worse than the buttons were.
+- **A long press ends in a click**, which the window's close-on-outside handler would read as "clicked elsewhere" and shut the menu the instant it appeared. Hence the 300 ms guard on `openedAt`.
+- Rows are focusable and answer Enter, Space and the menu key, so the tree works without a mouse. `onKey` checks `event.target === event.currentTarget` first: a folder row contains a button, and Enter on that means "open the folder" — letting it bubble would open the folder and the menu at once.
+- `user-select: none` and `-webkit-touch-callout: none` on the row, or the long press selects the text and raises iOS's own callout instead.
+
+#### Pretty-printing, and the way back out
+
+JSON arrives from both stores as a single line — that is how the clock writes its records and how the build writes `version.json` — and one line is not something anyone can correct. So it is laid out on the way in.
+
+**What matters is the way back.** A record shown pretty and saved pretty is three times its size on a partition with a job to do, so a value that arrived compact goes back compact. The switch is visible rather than magic: hiding it would mean the editor silently deciding what to write. If the box stops being valid JSON it is saved exactly as shown, because refusing to save half-typed text is worse than not minifying it.
+
 ### Expert mode
 
-The update and debug tabs are locked behind a password. One flag in NVS says whether the clock is unlocked; while it is 0, `/ota/*` and `/log` answer `403 {"error":"expertLocked"}` and the web UI does not offer the tabs. [src/Expert.cpp](src/Expert.cpp) owns all of it, and `Expert::guard()` is the single line at the top of every covered handler — six of them, listed in the header so the list cannot quietly grow.
+The update, debug and storage tabs are locked behind a password. One flag in NVS says whether the clock is unlocked; while it is 0, `/ota/*`, `/log`, `/fs/*` and `/nvs/*` answer `403 {"error":"expertLocked"}` and the web UI does not offer the tabs. [src/Expert.cpp](src/Expert.cpp) owns all of it, and `Expert::guard()` is the single line at the top of every covered handler — fifteen of them, listed in the header so the list cannot quietly grow. The two streaming uploads (`/ota/upload`, `/fs/upload`) ask `Expert::unlocked()` themselves instead: they write into flash from a handler that cannot send a response, so guarding only the done handler would let a stranger overwrite something and be refused afterwards, which is not a refusal.
 
 **How to get in: `http://<clock>/#expert`** — the address bar, since the screen has no chip in the tab row. That is the whole entrance; there is no other. What it offers depends on the state the clock reports through `GET /expert`:
 
@@ -452,20 +504,6 @@ The clock keeps its last 200 log lines in RAM and serves them through `GET /log`
 - The response is built into one `String` with the room reserved up front rather than through ArduinoJson, which would put every line into a document and serialise that into a second buffer — on the same heap an update wants. `LOG_BATCH` caps one response at about 11 KB.
 
 The tab also carries the state block the update history keeps pointing at: uptime, reset reason, and free / lowest-ever / largest-block heap. The brightness curves that were once meant to land here went to `#luminance` instead, outside the lock: the debug tab is behind expert mode and a brightness curve has no business needing a password.
-
-#### The file explorer
-
-Above the log in the debug tab sits a tree of the clock's filesystem, with download, upload, delete and a small editor. [src/FileRoutes.cpp](src/FileRoutes.cpp) serves it and [web/src/sections/Files.svelte](web/src/sections/Files.svelte) draws it.
-
-- **It is LittleFS, and it is not NVS.** The two get asked about in the same breath because both survive a reboot, but NVS is a key-value store — one JSON string under `qlock`/`settings`, another under `qlocklight`/`curve` — with no tree, no paths and nothing that can be downloaded as a file. What has files is the 3.5 MB partition: the web UI, `zones.json`, the icons, `version.json`. A "file explorer for NVS" cannot be built, only a settings editor, which is what the other tabs already are.
-- **It hands out write access to the partition the page itself is served from.** Deleting `index.html` leaves a clock that answers every REST endpoint and shows nothing in a browser; the way back is `pio run -t uploadfs` over USB. That is not a reason to forbid it — somebody who opens a file explorer wants to change files — but it is why delete asks first, why the hint says so, and why **delete is not recursive**: emptying a directory by hand is tedious in exact proportion to how much is being thrown away.
-- **Behind expert mode**, with no argument needed beyond the one already made for `/log`: this is strictly the more powerful of the two, so anything that locks the log must lock this. That takes `Expert::guard()`'s list of callers from six to eleven, plus the second `Expert::unlocked()` check the streaming upload needs.
-- **Two shapes of write, because they have different problems.** The upload **streams** — multipart through the second handler on the route, the same pattern the OTA upload uses, so a 200 kB bundle never sits in the heap; the cost is that the data handler cannot answer, and refuses by recording an error the done handler sends. The editor **buffers** — `POST /fs/save` takes JSON, so the content is in memory twice — which is why `FS_EDIT_MAX` (24 KB) exists and why the browser only offers the editor below it.
-- **Both write to a `.part` file and rename on success.** Uploading a new `index.html` that dies half way would otherwise destroy the working one, and the working one is how you reach the page to try again.
-- **The upload's target path travels in the query string**, which needs checking rather than assuming: `WebServer::_parseRequest` calls `_parseArguments(searchStr)` *before* `_parseForm`, so `server.arg()` answers correctly inside the upload handler, and the form fields are merged in afterwards. Verified against `Parsing.cpp` in the core.
-- **The tree is expanded one directory per request**, not fetched whole. A directory somebody filled then costs one slow response instead of making every response slow. The browser keeps its state flat — a path-keyed object of listings plus a set of open paths — rather than as a recursive component, so a refresh has one place to touch and a delete three levels down does not have to find its own node.
-- **`safePath()` is not a sandbox.** The whole volume is fair game by design; it checks that what arrived is a path at all — absolute, no `..` to climb with, no backslashes, no control characters, short enough for LittleFS to hold without truncating it into a different file. The mock needs one check the firmware gets for free: on the clock every path is inside the volume by construction, in Node the resolved path has to be proven to still sit under `.mockfs`.
-- The mock works on a real directory, `.mockfs/`, seeded on first run and gitignored — **deliberately not `data/`**, because the explorer can delete things and deleting the built web UI out from under the dev server is a puzzling way to discover that. It parses the one multipart part by hand rather than taking a dependency used nowhere else.
 
 #### The face in the colour tab
 

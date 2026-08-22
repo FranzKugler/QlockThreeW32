@@ -436,3 +436,33 @@ async function fsWrite(path, body) {
   if (!res.ok) throw new Error(await fsFailure(res, path));
   return res.json();
 }
+
+/* ------ NVS, shown as a two-level tree beside the filesystem ------
+ *
+ * A namespace is not a folder and a key is not a file; see src/NvsRoutes.h for
+ * how far that pretence is carried and exactly where it stops. These are the
+ * four calls it rests on, and they take the namespace and key apart rather
+ * than a path, because that is what the store actually has.
+ */
+
+/** Every entry in the partition, in one answer. */
+export async function fetchNvs() {
+  const res = await fetch('/nvs/list');
+  if (!res.ok) throw new Error(await fsFailure(res, '/nvs/list'));
+  return res.json();
+}
+
+/** One value as text. Blobs have none and are downloaded instead. */
+export async function readNvs(ns, key) {
+  const res = await fetch(nvsQuery(ns, key));
+  if (!res.ok) throw new Error(await fsFailure(res, '/nvs/read'));
+  return res.text();
+}
+
+export const nvsUrl = (ns, key) => `${nvsQuery(ns, key)}&download=1`;
+
+export const saveNvs = (ns, key, content) => fsWrite('/nvs/save', { ns, key, content });
+export const deleteNvs = (ns, key) => fsWrite('/nvs/delete', { ns, key });
+
+const nvsQuery = (ns, key) =>
+  `/nvs/read?ns=${encodeURIComponent(ns)}&key=${encodeURIComponent(key)}`;

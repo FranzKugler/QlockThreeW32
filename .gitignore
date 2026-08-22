@@ -24,3 +24,6 @@ __pycache__/
 
 # the mock server's stand-in for the clock's LittleFS, seeded on first run
 .mockfs/
+
+# the mock server's stand-in for NVS, seeded on first run
+.mocknvs.json
