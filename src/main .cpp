@@ -390,7 +390,7 @@ String displayedWords(byte language)
             if (matrix[row] & (1 << (15 - col)))
             {
                 if (!inWord && out.length()) out += ' ';
-                Languages::appendCharacter(out, panel->rows[row], col);
+                Languages::appendCell(out, panel->rows[row], col);
                 inWord = true;
             }
             else

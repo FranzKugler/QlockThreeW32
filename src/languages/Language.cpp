@@ -14,37 +14,50 @@
 #include "../Renderer.h"   // LANGUAGE_COUNT, until the numbers move here too
 #include "../LogBuffer.h"
 
-uint8_t Languages::characters(const char *utf8)
+namespace
+{
+    /** U+2032 PRIME, the apostrophe of O'CLOCK. See PANEL_PRIME in Language.h. */
+    bool isPrime(const char *at)
+    {
+        return (uint8_t)at[0] == 0xE2 && (uint8_t)at[1] == 0x80 && (uint8_t)at[2] == 0xB2;
+    }
+
+    /**
+     * The start of the cell after the one starting at `at`.
+     *
+     * One lead byte, its continuation bytes, and a prime if one follows - that
+     * is the whole cell rule, stated here once so that counting and extracting
+     * cannot disagree about it.
+     */
+    const char *nextCell(const char *at)
+    {
+        if (*at == '\0') return at;
+
+        at++;                                       // past the lead byte
+        while ((*at & 0xC0) == 0x80) at++;          // and its continuations
+        if (isPrime(at)) at += 3;
+
+        return at;
+    }
+}
+
+uint8_t Languages::cells(const char *utf8)
 {
     uint8_t count = 0;
-    for (const char *at = utf8; *at; at++)
-    {
-        // Continuation bytes are 10xxxxxx and belong to the character before.
-        if ((*at & 0xC0) != 0x80) count++;
-    }
+    for (const char *at = utf8; *at; at = nextCell(at)) count++;
     return count;
 }
 
-void Languages::appendCharacter(String &out, const char *utf8, uint8_t index)
+void Languages::appendCell(String &out, const char *utf8, uint8_t index)
 {
-    uint8_t seen = 0;
-    for (const char *at = utf8; *at; at++)
-    {
-        if ((*at & 0xC0) == 0x80) continue;   // still inside the previous one
+    const char *at = utf8;
+    for (uint8_t i = 0; i < index && *at; i++) at = nextCell(at);
+    if (*at == '\0') return;
 
-        if (seen == index)
-        {
-            out += *at;
-            // Take the continuation bytes with it, or the string stops being
-            // UTF-8 and the browser shows a replacement character.
-            for (const char *tail = at + 1; (*tail & 0xC0) == 0x80 && *tail; tail++)
-            {
-                out += *tail;
-            }
-            return;
-        }
-        seen++;
-    }
+    // Byte by byte to the start of the next cell, so the continuation bytes
+    // travel with their lead byte - otherwise the string stops being UTF-8 and
+    // the browser shows a replacement character.
+    for (const char *end = nextCell(at); at < end; at++) out += *at;
 }
 
 void Face::light(uint8_t index)
@@ -52,7 +65,7 @@ void Face::light(uint8_t index)
     if (index >= wordCount) return;
 
     const Word &entry = words[index];
-    uint8_t length = Languages::characters(entry.text);
+    uint8_t length = Languages::cells(entry.text);
     if (entry.col + length > PANEL_COLS) return;
 
     // Column 0 is the most significant bit of the row, which is what the old
@@ -72,11 +85,20 @@ int Languages::selfCheck()
 
         for (uint8_t row = 0; row < PANEL_ROWS; row++)
         {
-            uint8_t width = characters(language->rows[row]);
+            uint8_t width = cells(language->rows[row]);
             if (width != PANEL_COLS)
             {
-                debugE("Panel %s row %d has %d characters, not %d",
+                debugE("Panel %s row %d has %d cells, not %d",
                        language->code, row, width, PANEL_COLS);
+                problems++;
+            }
+
+            // A prime is a suffix and has nothing to attach to here, so
+            // the row would silently be one cell short of what it looks.
+            if (isPrime(language->rows[row]))
+            {
+                debugE("Panel %s row %d starts with a prime",
+                       language->code, row);
                 problems++;
             }
         }
@@ -84,7 +106,7 @@ int Languages::selfCheck()
         for (uint8_t i = 0; i < language->wordCount; i++)
         {
             const Word &entry = language->words[i];
-            uint8_t length = characters(entry.text);
+            uint8_t length = cells(entry.text);
 
             if (entry.row >= PANEL_ROWS || entry.col + length > PANEL_COLS)
             {
@@ -97,7 +119,7 @@ int Languages::selfCheck()
             String under;
             for (uint8_t c = 0; c < length; c++)
             {
-                appendCharacter(under, language->rows[entry.row], entry.col + c);
+                appendCell(under, language->rows[entry.row], entry.col + c);
             }
 
             if (under != entry.text)

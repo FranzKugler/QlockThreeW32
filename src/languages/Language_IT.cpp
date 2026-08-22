@@ -21,7 +21,7 @@ namespace
     /*
      *   01234567890
      * 0 SONORLEBORE
-     * 1 ERLUNASDUEZ
+     * 1 ÈRL′UNASDUEZ   (the L′ is one cell)
      * 2 TREOTTONOVE
      * 3 DIECIUNDICI
      * 4 DODICISETTE
@@ -42,7 +42,7 @@ namespace
     const Word WORDS[] = {
         { 0, 0, "SONO" },
         { 0, 5, "LE" },
-        { 1, 0, "E" },      // the "è" of "è l'una", row 1
+        { 1, 0, "È" },      // the "è" of "è l'una", row 1
         { 7, 0, "E" },      // the "e" of "e cinque", row 7
         { 6, 7, "MENO" },
 
@@ -53,7 +53,7 @@ namespace
         { 9, 0, "DIECI" },
         { 9, 6, "MEZZA" },
 
-        { 1, 2, "LUNA" },   // L'UNA, without the apostrophe the panel has no room for
+        { 1, 2, "L′UNA" },  // the L and its apostrophe share one cell
         { 1, 7, "DUE" },
         { 2, 0, "TRE" },
         { 5, 0, "QUATTRO" },
@@ -159,7 +159,7 @@ extern const Language LANGUAGE_ITALIAN = {
     "it", "Italiano", "it",
     {
         "SONORLEBORE",
-        "ERLUNASDUEZ",
+        "ÈRL′UNASDUEZ",
         "TREOTTONOVE",
         "DIECIUNDICI",
         "DODICISETTE",

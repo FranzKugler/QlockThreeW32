@@ -42,15 +42,38 @@
 #include <Arduino.h>
 
 // Fixed, and the reason the rendering logic stays manageable. Every panel this
-// clock knows is eleven letters by ten rows.
+// clock knows is eleven cells by ten rows.
 #define PANEL_ROWS 10
 #define PANEL_COLS 11
+
+/*
+ * A cell is usually one character. It is not always.
+ *
+ * English wants O'CLOCK and Italian L'UNA, and on a real panel the letter and
+ * its apostrophe share one milled opening - one LED behind them, lit or dark
+ * together. Before this, both were faked with a lookalike single character (Ò
+ * for O', Ľ for L'), which read wrongly on the wall, spelled wrongly in the
+ * log, and made selfCheck complain at every boot because the word underneath
+ * said O and the panel said Ò.
+ *
+ * So: **U+2032 PRIME attaches to the character before it, and the two are one
+ * cell.** That is the entire rule. It needs no separator in the row string, so
+ * a panel still reads as a panel in the source:
+ *
+ *     "TENSEO′CLOCK"      // twelve characters, eleven cells
+ *
+ * PRIME rather than an ASCII apostrophe because ' is a quote in half the files
+ * that touch this and a letter in none of them, and rather than U+2019 because
+ * that is typographic punctuation which a font may kern into its neighbour.
+ * A prime at the start of a row has nothing to attach to; selfCheck says so.
+ */
+#define PANEL_PRIME "′"
 
 /**
  * One contiguous run of lit letters.
  *
  * `text` is both the label and the length: the run is as many columns as the
- * text has characters. Words with a gap in them are two entries - the German
+ * text has cells. Words with a gap in them are two entries - the German
  * "ES IST" is ES at column 0 and IST at column 3, with a K between that stays
  * dark - which also makes the log read "ES IST" rather than "ESIST".
  */
@@ -139,14 +162,18 @@ namespace Languages
      */
     bool samePanel(const Language *a, const Language *b);
 
-    /** Characters - not bytes - in a UTF-8 string. "FÜNF" is 4. */
-    uint8_t characters(const char *utf8);
+    /**
+     * Cells - not bytes, and not quite characters - in a UTF-8 string.
+     * "FÜNF" is 4 and so is "O′CLO" minus a letter; see PANEL_PRIME above.
+     */
+    uint8_t cells(const char *utf8);
 
     /**
-     * Appends character `index` of a UTF-8 string to `out`. Panels carry Ü and
-     * Ö, so the letter at a column is not the byte at that offset.
+     * Appends cell `index` of a UTF-8 string to `out`. Panels carry Ü and Ö,
+     * so the letter at a column is not the byte at that offset, and they carry
+     * O′, so it is not the character at that offset either.
      */
-    void appendCharacter(String &out, const char *utf8, uint8_t index);
+    void appendCell(String &out, const char *utf8, uint8_t index);
 }
 
 #endif

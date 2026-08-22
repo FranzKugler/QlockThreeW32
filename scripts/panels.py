@@ -39,10 +39,29 @@ TARGET = os.path.join(ROOT, "hardware", "Qlock250mm", "3dprint", "panels.scad")
 PANEL_ROWS = 10
 PANEL_COLS = 11
 
+# One cell of the panel is usually one character, but not always: a milled O'
+# is one hole in the sheet. The apostrophe is written U+2032 PRIME so it can
+# never be taken for a letter, and it attaches to the character before it.
+# That is the whole rule, and Language.h is where the firmware states it.
+PRIME = "′"
+
 STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 ROW_ARRAY = re.compile(r"(\w+)\s*\[\s*PANEL_ROWS\s*\]\s*=\s*\{")
 DEFINITION = re.compile(r"extern\s+const\s+Language\s+(\w+)\s*=\s*\{")
 INDEXED = re.compile(r"(\w+)\s*\[\s*\d+\s*\]")
+WORD_ARRAY = re.compile(r"const\s+Word\s+WORDS\s*\[\s*\]\s*=\s*\{")
+WORD_ENTRY = re.compile(r'\{\s*(\d+)\s*,\s*(\d+)\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}')
+
+
+def split_cells(text):
+    """The panel cells of a row, with a prime riding on the character before."""
+    cells = []
+    for character in text:
+        if character == PRIME and cells:
+            cells[-1] += character
+        else:
+            cells.append(character)
+    return cells
 
 
 def unescape(text):
@@ -74,10 +93,40 @@ def row_arrays(source):
     return found
 
 
+def words_in(source):
+    """The (row, col, text) of every entry in the file's WORDS array."""
+    match = WORD_ARRAY.search(source)
+    if match is None:
+        raise ValueError("no WORDS array")
+    body = braced(source, match.end() - 1)
+    return [(int(r), int(c), unescape(t)) for r, c, t in WORD_ENTRY.findall(body)]
+
+
+def check_words(language):
+    """
+    The same check the firmware runs at every boot (Languages::selfCheck), run
+    here as well because this project has no host C++ compiler and a panel that
+    disagrees with its own words must not reach a milling machine.
+    """
+    problems = []
+    for row, col, text in language["words"]:
+        wanted = split_cells(text)
+        if row >= PANEL_ROWS or col + len(wanted) > PANEL_COLS:
+            problems.append('%s "%s" runs off the panel at %d,%d'
+                            % (language["code"], text, row, col))
+            continue
+        under = "".join(language["grid"][row][col:col + len(wanted)])
+        if under != text:
+            problems.append('%s at %d,%d says "%s" but the panel reads "%s"'
+                            % (language["code"], row, col, text, under))
+    return problems
+
+
 def languages_in(path):
     """Every Language defined in one file: symbol, code, name, locale, rows."""
     source = io.open(path, encoding="utf-8").read()
     arrays = row_arrays(source)
+    words = words_in(source)
     out = []
 
     for match in DEFINITION.finditer(source):
@@ -101,14 +150,20 @@ def languages_in(path):
 
         if len(rows) != PANEL_ROWS:
             raise ValueError("%s: %d rows, expected %d" % (symbol, len(rows), PANEL_ROWS))
-        for number, row in enumerate(rows):
-            if len(row) != PANEL_COLS:
+
+        grid = [split_cells(row) for row in rows]
+        for number, cells in enumerate(grid):
+            if len(cells) != PANEL_COLS:
                 raise ValueError(
-                    "%s row %d: %d characters, expected %d - %r"
-                    % (symbol, number, len(row), PANEL_COLS, row))
+                    "%s row %d: %d cells, expected %d - %r"
+                    % (symbol, number, len(cells), PANEL_COLS, rows[number]))
+            if cells[0] == PRIME:
+                raise ValueError("%s row %d starts with a prime, which has "
+                                 "nothing to attach to" % (symbol, number))
 
         out.append({"symbol": symbol, "code": code, "name": name, "locale": locale,
-                    "rows": rows, "file": os.path.basename(path)})
+                    "rows": rows, "grid": grid, "words": words,
+                    "file": os.path.basename(path)})
     return out
 
 
@@ -155,7 +210,9 @@ def render(languages, panels):
         out.append("// " + ", ".join(l["name"] for l in panel["languages"]))
         out.append(panel["name"] + " = [")
         for i, row in enumerate(panel["rows"]):
-            cells = ", ".join('"%s"' % c for c in row)
+            # One element per cell, not per character: an O followed by a prime
+            # is one hole in the sheet and has to be cut as one.
+            cells = ", ".join('"%s"' % c for c in split_cells(row))
             out.append("    [%s]%s" % (cells, "," if i + 1 < len(panel["rows"]) else ""))
         out.append("];")
         out.append("")
@@ -197,6 +254,14 @@ def main():
         raise SystemExit("defined but not in the table: " + ", ".join(extra))
 
     languages = [found[s] for s in order]
+
+    problems = []
+    for language in languages:
+        problems += check_words(language)
+    if problems:
+        raise SystemExit("the panels disagree with their words:\n  "
+                         + "\n  ".join(problems))
+
     panels = group(languages)
     text = render(languages, panels)
 

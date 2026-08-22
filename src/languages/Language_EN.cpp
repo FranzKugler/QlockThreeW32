@@ -31,7 +31,7 @@ namespace
      * 6 FOURFIVETWO
      * 7 EIGHTELEVEN
      * 8 SEVENTWELVE
-     * 9 TENSEOCLOCK
+     * 9 TENSEO′CLOCK   (the O′ is one cell)
      */
     enum
     {
@@ -45,7 +45,7 @@ namespace
         { 0, 0, "IT" },
         { 0, 3, "IS" },
         { 1, 0, "A" },
-        { 9, 5, "OCLOCK" },
+        { 9, 5, "O′CLOCK" },
 
         { 1, 2, "QUARTER" },
         { 2, 0, "TWENTY" },
@@ -163,7 +163,7 @@ extern const Language LANGUAGE_ENGLISH = {
         "FOURFIVETWO",
         "EIGHTELEVEN",
         "SEVENTWELVE",
-        "TENSEOCLOCK"
+        "TENSEO′CLOCK"
     },
     WORDS, sizeof(WORDS) / sizeof(WORDS[0]), render
 };
