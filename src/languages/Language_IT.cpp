@@ -21,7 +21,7 @@ namespace
     /*
      *   01234567890
      * 0 SONORLEBORE
-     * 1 ÈRL'UNASDUEZ   (the L' is one cell)
+     * 1 ÈRĽUNASDUEZ   (Ľ is L' - see the note by the word)
      * 2 TREOTTONOVE
      * 3 DIECIUNDICI
      * 4 DODICISETTE
@@ -53,7 +53,14 @@ namespace
         { 9, 0, "DIECI" },
         { 9, 6, "MEZZA" },
 
-        { 1, 2, "L'UNA" },  // the L and its apostrophe share one cell
+        // Ľ is U+013D LATIN CAPITAL LETTER L WITH CARON, standing in for the
+        // L' of "l'una" as one character.
+        //
+        // English does the same thing the other way, with the apostrophe rule
+        // in Language.h ("TENSEO'CLOCK"), because there is no single character
+        // for O'. Do not "fix" one to match the other: this panel is cut with a
+        // glyph that carries its own mark, and that one is not.
+        { 1, 2, "ĽUNA" },
         { 1, 7, "DUE" },
         { 2, 0, "TRE" },
         { 5, 0, "QUATTRO" },
@@ -159,7 +166,7 @@ extern const Language LANGUAGE_ITALIAN = {
     "it", "Italiano", "it",
     {
         "SONORLEBORE",
-        "ÈRL'UNASDUEZ",
+        "ÈRĽUNASDUEZ",
         "TREOTTONOVE",
         "DIECIUNDICI",
         "DODICISETTE",
