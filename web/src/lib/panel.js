@@ -17,26 +17,27 @@ export const PANEL_ROWS = 10;
 export const PANEL_COLS = 11;
 
 /**
- * U+2032 PRIME, the apostrophe of English O'CLOCK and Italian L'UNA. On the
- * panel the letter and its apostrophe share one milled opening and one LED, so
- * they are one cell here too. The firmware states the rule in Language.h and
- * sends the row as it is written; splitting it is this side's half.
+ * The apostrophe of English O'CLOCK and Italian L'UNA, in the three spellings
+ * it turns up in. On the panel the letter and its apostrophe share one milled
+ * opening and one LED, so they are one cell here too. The firmware states the
+ * rule in Language.h and sends the row as it is written; splitting it is this
+ * side's half.
  */
-const PRIME = '′';
+const MARKS = "'’′";
 
 /**
- * The cells of one row: characters, except that a prime rides on the one
+ * The cells of one row: characters, except that an apostrophe rides on the one
  * before it.
  *
  * Split with the spread operator rather than with `charAt`, because rows carry
  * Ü and Ö and a UTF-16 index is not a character index for those - and then
- * re-joined by the prime rule, because a character index is not a cell index
- * for O′ either.
+ * re-joined by the apostrophe rule, because a character index is not a cell
+ * index for O' either.
  */
 function rowCells(row) {
   const out = [];
   for (const character of row) {
-    if (character === PRIME && out.length > 0) out[out.length - 1] += character;
+    if (MARKS.includes(character) && out.length > 0) out[out.length - 1] += character;
     else out.push(character);
   }
   return out;

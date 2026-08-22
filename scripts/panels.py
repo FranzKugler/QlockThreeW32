@@ -40,10 +40,11 @@ PANEL_ROWS = 10
 PANEL_COLS = 11
 
 # One cell of the panel is usually one character, but not always: a milled O'
-# is one hole in the sheet. The apostrophe is written U+2032 PRIME so it can
-# never be taken for a letter, and it attaches to the character before it.
-# That is the whole rule, and Language.h is where the firmware states it.
-PRIME = "′"
+# is one hole in the sheet, and the apostrophe attaches to the character before
+# it. Write the plain ASCII one; U+2019 and U+2032 are taken as the same thing
+# so that a panel pasted in from elsewhere fails on the word it disagrees with
+# rather than on a mystifying cell count. Language.h states the rule.
+MARKS = "'’′"
 
 STRING = re.compile(r'"((?:[^"\\]|\\.)*)"')
 ROW_ARRAY = re.compile(r"(\w+)\s*\[\s*PANEL_ROWS\s*\]\s*=\s*\{")
@@ -54,10 +55,10 @@ WORD_ENTRY = re.compile(r'\{\s*(\d+)\s*,\s*(\d+)\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}'
 
 
 def split_cells(text):
-    """The panel cells of a row, with a prime riding on the character before."""
+    """The panel cells of a row, with an apostrophe riding on the one before."""
     cells = []
     for character in text:
-        if character == PRIME and cells:
+        if character in MARKS and cells:
             cells[-1] += character
         else:
             cells.append(character)
@@ -157,9 +158,9 @@ def languages_in(path):
                 raise ValueError(
                     "%s row %d: %d cells, expected %d - %r"
                     % (symbol, number, len(cells), PANEL_COLS, rows[number]))
-            if cells[0] == PRIME:
-                raise ValueError("%s row %d starts with a prime, which has "
-                                 "nothing to attach to" % (symbol, number))
+            if cells[0] in MARKS:
+                raise ValueError("%s row %d starts with an apostrophe, which "
+                                 "has nothing to attach to" % (symbol, number))
 
         out.append({"symbol": symbol, "code": code, "name": name, "locale": locale,
                     "rows": rows, "grid": grid, "words": words,
@@ -210,8 +211,8 @@ def render(languages, panels):
         out.append("// " + ", ".join(l["name"] for l in panel["languages"]))
         out.append(panel["name"] + " = [")
         for i, row in enumerate(panel["rows"]):
-            # One element per cell, not per character: an O followed by a prime
-            # is one hole in the sheet and has to be cut as one.
+            # One element per cell, not per character: an O and its apostrophe
+            # are one hole in the sheet and have to be cut as one.
             cells = ", ".join('"%s"' % c for c in split_cells(row))
             out.append("    [%s]%s" % (cells, "," if i + 1 < len(panel["rows"]) else ""))
         out.append("];")

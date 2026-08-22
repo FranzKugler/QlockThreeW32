@@ -16,18 +16,31 @@
 
 namespace
 {
-    /** U+2032 PRIME, the apostrophe of O'CLOCK. See PANEL_PRIME in Language.h. */
-    bool isPrime(const char *at)
+    /**
+     * The apostrophe of O'CLOCK, in the three spellings it turns up in:
+     * ASCII ' , U+2019 RIGHT SINGLE QUOTATION MARK, U+2032 PRIME. See
+     * PANEL_MARKS in Language.h. Returns its length in bytes, or 0.
+     *
+     * Reading past the end is not possible: && stops at the first byte that
+     * does not match, and a terminating NUL matches nothing here.
+     */
+    uint8_t markLength(const char *at)
     {
-        return (uint8_t)at[0] == 0xE2 && (uint8_t)at[1] == 0x80 && (uint8_t)at[2] == 0xB2;
+        if (at[0] == '\'') return 1;
+        if ((uint8_t)at[0] == 0xE2 && (uint8_t)at[1] == 0x80 &&
+            ((uint8_t)at[2] == 0x99 || (uint8_t)at[2] == 0xB2))
+        {
+            return 3;
+        }
+        return 0;
     }
 
     /**
      * The start of the cell after the one starting at `at`.
      *
-     * One lead byte, its continuation bytes, and a prime if one follows - that
-     * is the whole cell rule, stated here once so that counting and extracting
-     * cannot disagree about it.
+     * One lead byte, its continuation bytes, and an apostrophe if one follows
+     * - that is the whole cell rule, stated here once so that counting and
+     * extracting cannot disagree about it.
      */
     const char *nextCell(const char *at)
     {
@@ -35,7 +48,7 @@ namespace
 
         at++;                                       // past the lead byte
         while ((*at & 0xC0) == 0x80) at++;          // and its continuations
-        if (isPrime(at)) at += 3;
+        at += markLength(at);
 
         return at;
     }
@@ -93,11 +106,11 @@ int Languages::selfCheck()
                 problems++;
             }
 
-            // A prime is a suffix and has nothing to attach to here, so
+            // An apostrophe is a suffix and has nothing to attach to here, so
             // the row would silently be one cell short of what it looks.
-            if (isPrime(language->rows[row]))
+            if (markLength(language->rows[row]) != 0)
             {
-                debugE("Panel %s row %d starts with a prime",
+                debugE("Panel %s row %d starts with an apostrophe",
                        language->code, row);
                 problems++;
             }

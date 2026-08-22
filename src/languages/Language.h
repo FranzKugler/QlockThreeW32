@@ -56,18 +56,22 @@
  * log, and made selfCheck complain at every boot because the word underneath
  * said O and the panel said Ò.
  *
- * So: **U+2032 PRIME attaches to the character before it, and the two are one
+ * So: **an apostrophe attaches to the character before it, and the two are one
  * cell.** That is the entire rule. It needs no separator in the row string, so
  * a panel still reads as a panel in the source:
  *
- *     "TENSEO′CLOCK"      // twelve characters, eleven cells
+ *     "TENSEO'CLOCK"      // twelve characters, eleven cells
  *
- * PRIME rather than an ASCII apostrophe because ' is a quote in half the files
- * that touch this and a letter in none of them, and rather than U+2019 because
- * that is typographic punctuation which a font may kern into its neighbour.
- * A prime at the start of a row has nothing to attach to; selfCheck says so.
+ * Write the plain ASCII apostrophe: it is on every keyboard, and a rule people
+ * cannot type is a rule they will not follow. U+2019 and U+2032 are accepted
+ * as well, so that a panel pasted in from somewhere else fails on the word it
+ * disagrees with rather than on a mystifying "12 cells, expected 11".
+ *
+ * The mark is kept exactly as written - nothing is normalised - so the panel,
+ * the log, /panel and the SCAD array all spell it the same way. A mark at the
+ * start of a row has nothing to attach to; selfCheck says so.
  */
-#define PANEL_PRIME "′"
+#define PANEL_MARKS "'’′"
 
 /**
  * One contiguous run of lit letters.

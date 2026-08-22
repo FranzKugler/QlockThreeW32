@@ -21,7 +21,7 @@ namespace
     /*
      *   01234567890
      * 0 SONORLEBORE
-     * 1 ÈRL′UNASDUEZ   (the L′ is one cell)
+     * 1 ÈRL'UNASDUEZ   (the L' is one cell)
      * 2 TREOTTONOVE
      * 3 DIECIUNDICI
      * 4 DODICISETTE
@@ -53,7 +53,7 @@ namespace
         { 9, 0, "DIECI" },
         { 9, 6, "MEZZA" },
 
-        { 1, 2, "L′UNA" },  // the L and its apostrophe share one cell
+        { 1, 2, "L'UNA" },  // the L and its apostrophe share one cell
         { 1, 7, "DUE" },
         { 2, 0, "TRE" },
         { 5, 0, "QUATTRO" },
@@ -159,7 +159,7 @@ extern const Language LANGUAGE_ITALIAN = {
     "it", "Italiano", "it",
     {
         "SONORLEBORE",
-        "ÈRL′UNASDUEZ",
+        "ÈRL'UNASDUEZ",
         "TREOTTONOVE",
         "DIECIUNDICI",
         "DODICISETTE",
