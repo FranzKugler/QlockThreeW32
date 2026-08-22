@@ -80,7 +80,11 @@
     border: none;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
-    padding: 0.5rem 0.9rem;
+    /* Asymmetric on purpose. Padding proportional to the font left the rule
+       sitting on the word rather than under it - these tabs are a size below
+       the ones in the header, and the gap does not survive being scaled with
+       everything else. It is set by eye, not by ratio. */
+    padding: 0.45rem 0.9rem 0.8rem;
     font: inherit;
     font-size: 0.9rem;
     color: var(--muted);
