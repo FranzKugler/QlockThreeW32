@@ -45,18 +45,31 @@ export default {
   autoBrightness: 'Automatische helderheid',
   measured: 'Gemeten',
   calibration: 'Kalibratie',
-  calDark: 'Donker',
-  calBright: 'Licht',
-  calCapture: 'Nu vastleggen',
+  calTaught: (n) => `${n} geleerde punten`,
   calReset: 'Herstellen',
   calHint:
-    'Stel de helderheid in die je bij het huidige licht wilt en leg die vast ' +
-    '— één keer in het donker, één keer bij daglicht. Alles daartussen ' +
-    'regelt de klok zelf.',
+    'In de automatische stand betekent de helderheidsschuif „bij dit licht ' +
+    'wil ik het zo helder”. Tien seconden na de laatste wijziging onthoudt ' +
+    'de klok het paar en legt een nieuwe lijn door alles wat ze geleerd ' +
+    'heeft. Niets te drukken.',
   ldrHint:
-    'Het display volgt het omgevingslicht, logaritmisch tussen de twee ' +
-    'punten — zo neemt het oog waar. De waarde tussen haakjes is ' +
-    'ongefilterd en helpt bij het plaatsen van de sensor.',
+    'Het display volgt het omgevingslicht, logaritmisch — zoals het oog. ' +
+    'Geregeld tussen 20 en 100 %. De waarde tussen haakjes is ongefilterd ' +
+    'en helpt bij het plaatsen van de sensor.',
+  lumTitle: 'Helderheidscurve',
+  lumHint:
+    'Wat de automaat geleerd heeft en wat ze eruit afleidt. Alleen lezen — ' +
+    'herstellen doe je op het tabblad kleur.',
+  lumLine: 'Lijn',
+  lumSlope: 'Helling',
+  lumSlopeFitted: 'uit de punten berekend',
+  lumSlopeKept: 'behouden, punten liggen te dicht bijeen',
+  lumAdjusting: (want, secs) => `${want} % ingesteld — binnen ${secs} s geleerd`,
+  lumPoints: 'Geleerde punten',
+  lumWanted: 'gewenst',
+  lumCurve: 'lijn',
+  lumWhen: 'bedrijfstijd',
+  lumEmpty: 'Nog niets geleerd — de standaardlijn geldt.',
 
   // --- timezone tab ---
   timeServer: 'Tijdserver',

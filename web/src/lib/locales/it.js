@@ -45,18 +45,31 @@ export default {
   autoBrightness: 'Luminosità automatica',
   measured: 'Misurato',
   calibration: 'Calibrazione',
-  calDark: 'Buio',
-  calBright: 'Chiaro',
-  calCapture: 'Memorizza',
+  calTaught: (n) => `${n} punti appresi`,
   calReset: 'Ripristina',
   calHint:
-    'Imposta la luminosità desiderata con la luce attuale, poi memorizzala ' +
-    '— una volta al buio, una alla luce del giorno. Di tutto ciò che sta in ' +
-    'mezzo si occupa l’orologio.',
+    'In automatico il cursore della luminosità significa «con questa luce ' +
+    'la voglio così». Dieci secondi dopo l’ultima modifica l’orologio ' +
+    'memorizza la coppia e ricalcola la retta su tutto ciò che ha appreso. ' +
+    'Non c’è nulla da premere.',
   ldrHint:
-    'Il display segue la luce ambientale, in modo logaritmico fra i due ' +
-    'punti — è così che percepisce l’occhio. Il valore fra parentesi non ' +
-    'è livellato e aiuta a posizionare il sensore.',
+    'Il display segue la luce ambientale in modo logaritmico — come fa ' +
+    'l’occhio. Regolato fra 20 e 100 %. Il valore fra parentesi non è ' +
+    'filtrato e aiuta a posizionare il sensore.',
+  lumTitle: 'Curva di luminosità',
+  lumHint:
+    'Cosa ha imparato l’automatismo e cosa ne deduce. Sola lettura — il ' +
+    'ripristino è nella scheda colore.',
+  lumLine: 'Retta',
+  lumSlope: 'Pendenza',
+  lumSlopeFitted: 'calcolata dai punti',
+  lumSlopeKept: 'mantenuta, punti troppo vicini',
+  lumAdjusting: (want, secs) => `${want} % impostato — appreso entro ${secs} s`,
+  lumPoints: 'Punti appresi',
+  lumWanted: 'voluto',
+  lumCurve: 'retta',
+  lumWhen: 'attività',
+  lumEmpty: 'Ancora nulla di appreso — vale la retta predefinita.',
 
   // --- timezone tab ---
   timeServer: 'Server orario',

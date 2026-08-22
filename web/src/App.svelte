@@ -21,6 +21,7 @@
   import Ota from './sections/Ota.svelte';
   import Debug from './sections/Debug.svelte';
   import Expert from './sections/Expert.svelte';
+  import Luminance from './sections/Luminance.svelte';
 
   // Labels come from t.tabs, in this order. The last two are only offered
   // once the clock is unlocked; t.tabs keeps all six either way, so the label
@@ -44,12 +45,16 @@
   const t = $derived(dict());
   const tabIds = $derived(expert.unlocked ? ALL_TABS : ALL_TABS.slice(0, OPEN_TABS));
   const labelOf = (id) => t.tabs[ALL_TABS.indexOf(id)];
-  const activeLabel = $derived(active === 'expert' ? t.expertTitle : labelOf(active));
+  // The two hash screens are not in the tab row, so their heading comes from
+  // their own title rather than from a chip that does not exist.
+  const HASH_SCREENS = { '#expert': 'expert', '#luminance': 'luminance' };
+  const HASH_TITLES = $derived({ expert: t.expertTitle, luminance: t.lumTitle });
+  const activeLabel = $derived(HASH_TITLES[active] ?? labelOf(active));
 
   function select(id) {
     active = id;
     menuOpen = false;
-    // Leave #expert behind, or reloading the page would land back on it.
+    // Leave the hash behind, or reloading the page would land back on it.
     if (location.hash) history.replaceState(null, '', location.pathname);
   }
 
@@ -59,8 +64,12 @@
    * guessing. `#expert` in the address is the way in.
    */
   async function syncFromHash() {
-    if (location.hash !== '#expert') return;
-    active = 'expert';
+    const screen = HASH_SCREENS[location.hash];
+    if (!screen) return;
+
+    active = screen;
+    if (screen !== 'expert') return;
+
     // Fetched again on the way in: the reset window is counting down, and a
     // value read when the page loaded would be stale by minutes.
     try {
@@ -194,6 +203,8 @@
       <Ota />
     {:else if active === 'debug'}
       <Debug />
+    {:else if active === 'luminance'}
+      <Luminance />
     {:else}
       <Expert {expert} onchange={applyExpert} />
     {/if}

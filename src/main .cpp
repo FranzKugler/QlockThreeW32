@@ -50,6 +50,7 @@
 #include "Renderer.h"
 #include "Settings.h"
 #include "LightSensor.h"
+#include "Luminance.h"
 #include "OtaUpdate.h"
 #include "DisplayModes.h"
 #include "WebRoutes.h"
@@ -444,6 +445,22 @@ void applyTimezoneFromSettings()
  * automatic off has to give back the brightness the user chose, and the
  * calibration needs it as the "how bright I want it here" half of a point.
  */
+/**
+ * What actually reaches the driver this tick.
+ *
+ * With the automatic off, the setting is applied at once - somebody dragging
+ * the slider wants to see the effect while dragging, so no easing there.
+ *
+ * With it on, the computed value is approached by an eighth of the remaining
+ * distance per second, about twenty seconds for a full swing. The reading is
+ * already smoothed over thirty seconds, so this is not about noise: it is about
+ * the step when a lamp is switched on, which is a genuine jump the eye would
+ * otherwise catch.
+ *
+ * And while a nudge is being waited out, the nudge wins outright. The user is
+ * holding the slider; easing towards a curve they are in the middle of
+ * correcting would be a control that argues back. See Luminance.h.
+ */
 byte brightnessToApply()
 {
     static int applied = -1;
@@ -456,9 +473,14 @@ byte brightnessToApply()
         return settings.getBrightness();
     }
 
-    byte target = brightnessForLux(ambientLight.lux(),
-                                   settings.getAutoLuxLow(), settings.getAutoBrightLow(),
-                                   settings.getAutoLuxHigh(), settings.getAutoBrightHigh());
+    byte nudge;
+    if (Luminance::adjusting(nudge))
+    {
+        applied = nudge;
+        return nudge;
+    }
+
+    byte target = Luminance::forLux(ambientLight.lux());
 
     if (applied < 0) applied = target;
 
@@ -620,6 +642,7 @@ void setup()
     // started at the plug. Before the server, so no request can arrive while
     // the answer to "is this clock unlocked" is still the default.
     Expert::begin();
+    Luminance::begin();
 
     Web::begin();
     server.begin();
@@ -769,6 +792,10 @@ void loop()
     {
         lastTick = now();
         needsUpdateFromRtc = true;
+
+        // Once a second is often enough for a ten second timer, and it keeps
+        // the settle check on the same beat as everything else here.
+        Luminance::poll(ambientLight.lux());
     }
     
 	// we have to change something at the display

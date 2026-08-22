@@ -167,7 +167,33 @@ app.post('/autoluminance', (req, res) => {
   res.json({ msg: '' });
 });
 // Note: like the firmware, /color does not touch automaticLum.
-app.post('/color', accept(['hue', 'sat', 'lum']));
+/*
+ * Colour and brightness.
+ *
+ * The brightness slider means two different things. With the automatic off it
+ * is the brightness, stored. With it on it is "at this light, I want this
+ * much": the automatic steps aside and the pair is kept LUM_SETTLE_MS after
+ * the last move - the timer is on this side in the firmware too, because a tab
+ * closed mid-adjustment must not lose the point. The stored manual brightness
+ * is left alone, so switching the automatic off gives it back.
+ */
+app.post('/color', (req, res) => {
+  console.log('/color', req.body);
+  if (req.body.hue !== undefined) state.hue = req.body.hue;
+  if (req.body.sat !== undefined) state.sat = req.body.sat;
+
+  if (req.body.lum !== undefined) {
+    if (state.automaticLum) {
+      nudge = {
+        percent: Math.min(LUM_MAX_PERCENT, Math.max(LUM_MIN_PERCENT, req.body.lum)),
+        at: Date.now() + LUM_SETTLE_MS
+      };
+    } else {
+      state.lum = req.body.lum;
+    }
+  }
+  res.json({ msg: '' });
+});
 /*
  * Language and the corner options.
  *
@@ -267,39 +293,111 @@ app.get('/manifest.webmanifest', (req, res) => {
  * with no sensor fitted, and the colour tab then hides the automatic section
  * entirely - set it to false here to develop against that.
  */
-// Mirrors the defaults in src/Settings.cpp, and is changed by POST /light the
-// way the clock's own curve is.
-const DEFAULT_CURVE = { luxLow: 1.0, brightLow: 20, luxHigh: 200.0, brightHigh: 100 };
-const curve = { ...DEFAULT_CURVE };
+/*
+ * The automatic brightness, as far as the mock needs it.
+ *
+ * The firmware keeps up to ten (lux, percent) pairs in NVS and fits a line
+ * through them in log light; see src/Luminance.h, which is where the rules
+ * are. This repeats the shape of it so the colour tab and the #luminance
+ * screen can be worked on without a clock - the same least squares, the same
+ * refusal to fit a slope through points that sit on top of each other, and the
+ * same 20..100 clamp.
+ *
+ * It is not a second implementation to keep in step with the firmware: nothing
+ * here has to agree with the clock to the last percent, and if the two ever
+ * disagree the clock is right.
+ */
+const LUM_POINTS = 10;
+const LUM_MIN_PERCENT = 20;
+const LUM_MAX_PERCENT = 100;
+const LUM_SETTLE_MS = 10000;
+const LUM_SAME_LIGHT_RATIO = 1.3;
+const LUM_FIT_MIN_DECADES = 0.6;
 
-// Same constant as CALIBRATION_MIN_RATIO in src/LightSensor.h.
-const MIN_RATIO = 4.0;
+const DEFAULT_LINE = { lowLux: 0.3, lowPercent: 20, highLux: 9.0, highPercent: 100 };
 
-const clamp = (value) => Math.min(100, Math.max(1, Math.round(value)));
+const logLux = (lux) => Math.log10(Math.max(lux, 0.01));
 
-/** Where a reading sits between the two points, 0..1, on the log scale. */
-function luxPosition(lux) {
-  const floor = 0.01;
-  const value = Math.max(lux, floor);
-  const low = Math.max(curve.luxLow, floor);
-  const high = Math.max(curve.luxHigh, low * MIN_RATIO);
-  return Math.min(
-    1,
-    Math.max(0, (Math.log10(value) - Math.log10(low)) / (Math.log10(high) - Math.log10(low)))
-  );
+const curve = { slope: 0, offset: 0, fitted: false, points: [] };
+
+function defaultLine() {
+  const lo = logLux(DEFAULT_LINE.lowLux);
+  const hi = logLux(DEFAULT_LINE.highLux);
+  curve.slope = (DEFAULT_LINE.highPercent - DEFAULT_LINE.lowPercent) / (hi - lo);
+  curve.offset = DEFAULT_LINE.lowPercent - curve.slope * lo;
+  curve.fitted = false;
 }
 
-/** The same log interpolation brightnessForLux() does in the firmware. */
+function fit() {
+  if (curve.points.length === 0) return defaultLine();
+
+  const xs = curve.points.map((p) => logLux(p.lux));
+  const ys = curve.points.map((p) => p.percent);
+  const meanX = xs.reduce((a, b) => a + b, 0) / xs.length;
+  const meanY = ys.reduce((a, b) => a + b, 0) / ys.length;
+
+  let canFitSlope = Math.max(...xs) - Math.min(...xs) >= LUM_FIT_MIN_DECADES;
+  if (canFitSlope) {
+    let top = 0;
+    let bottom = 0;
+    xs.forEach((x, i) => {
+      top += (x - meanX) * (ys[i] - meanY);
+      bottom += (x - meanX) ** 2;
+    });
+    const candidate = bottom > 0 ? top / bottom : 0;
+    // Darker room, brighter clock is never wanted, so a slope of zero or less
+    // is refused and the old one stands.
+    if (candidate > 0) curve.slope = candidate;
+    else canFitSlope = false;
+  }
+
+  curve.offset = meanY - curve.slope * meanX;
+  curve.fitted = canFitSlope;
+}
+
 function brightnessForLux(lux) {
-  return clamp(curve.brightLow + luxPosition(lux) * (curve.brightHigh - curve.brightLow));
+  const raw = curve.slope * logLux(lux) + curve.offset;
+  return Math.min(LUM_MAX_PERCENT, Math.max(LUM_MIN_PERCENT, Math.round(raw)));
 }
+
+/*
+ * A new point replaces a near neighbour rather than joining the queue, so ten
+ * corrections made in one evening cannot push the daylight point out and
+ * collapse the line onto a single lighting condition.
+ */
+function remember(lux, percent) {
+  const near = curve.points.find(
+    (p) => Math.max(lux / p.lux, p.lux / lux) <= LUM_SAME_LIGHT_RATIO
+  );
+  const point = { lux, percent, seconds: Math.round(process.uptime()) };
+  if (near) Object.assign(near, point);
+  else {
+    curve.points.push(point);
+    if (curve.points.length > LUM_POINTS) curve.points.shift();
+  }
+  fit();
+}
+
+defaultLine();
 
 // Roughly a lit living room seen through a dark front panel, drifting slowly
 // so the tab has something to react to.
 const currentLux = () => 7.4 + Math.sin(Date.now() / 20000) * 2;
 
+// The nudge being waited out, if any. The timer lives on this side in the
+// firmware too - a browser tab closed mid-adjustment must not lose the point.
+let nudge = null;
+
+function settle() {
+  if (nudge && Date.now() >= nudge.at) {
+    remember(currentLux(), nudge.percent);
+    nudge = null;
+  }
+}
+
 /** The body of GET /light, shared with the POST which answers the same shape. */
 function lightState() {
+  settle();
   const lux = currentLux();
   return {
     sensor: 'VEML7700',
@@ -307,68 +405,58 @@ function lightState() {
     available: true,
     lux,
     raw: 7.1 + Math.sin(Date.now() / 3000) * 3,
-    ...curve,
+    slope: curve.slope,
+    offset: curve.offset,
+    fitted: curve.fitted,
     brightness: brightnessForLux(lux),
-    minRatio: MIN_RATIO
+    minPercent: LUM_MIN_PERCENT,
+    maxPercent: LUM_MAX_PERCENT,
+    taught: curve.points.length,
+    adjusting: nudge !== null
   };
 }
 
 app.get('/light', (req, res) => res.json(lightState()));
 
 /**
- * Writes the brightness curve, and refuses the same pairs the firmware refuses
- * - a UI that only ever sees the happy path here would not show its error
- * state until it met a real clock.
+ * The only thing left to write about the curve: throw it away.
+ *
+ * There is nothing to set any more. It is taught by moving the brightness
+ * slider while the automatic is on, which arrives at POST /color.
  */
 app.post('/light', (req, res) => {
   if (req.body.reset) {
-    Object.assign(curve, DEFAULT_CURVE);
+    curve.points = [];
+    nudge = null;
+    defaultLine();
     return res.json(lightState());
   }
-
-  // "At this light, I want this much" - translates the curve, keeping the
-  // slope, and where that will not fit pins the overflowing end and solves the
-  // other so the request is still met exactly. Same arithmetic as
-  // updateLight() in WebRoutes.cpp; keep the two in step.
-  if (typeof req.body.want === 'number') {
-    const want = req.body.want;
-    if (want < 1 || want > 100) return res.status(400).json({ error: 'calibrationRange' });
-
-    const lux = currentLux();
-    const delta = want - brightnessForLux(lux);
-    let low = curve.brightLow + delta;
-    let high = curve.brightHigh + delta;
-
-    if (low < 1 || low > 100 || high < 1 || high > 100) {
-      const position = luxPosition(lux);
-      low = clamp(low);
-      high = clamp(high);
-      if (position <= 0.5) low = Math.round((want - position * high) / (1 - position));
-      else high = Math.round((want - (1 - position) * low) / position);
-      low = clamp(low);
-      high = clamp(high);
-    }
-
-    curve.brightLow = low;
-    curve.brightHigh = high;
-    return res.json(lightState());
-  }
-
-  const { luxLow, brightLow, luxHigh, brightHigh } = req.body;
-
-  if (!(luxHigh > luxLow * MIN_RATIO)) {
-    return res.status(400).json({ error: 'calibrationTooClose' });
-  }
-  if (brightLow < 1 || brightLow > 100 || brightHigh < 1 || brightHigh > 100) {
-    return res.status(400).json({ error: 'calibrationRange' });
-  }
-
-  Object.assign(curve, { luxLow, brightLow, luxHigh, brightHigh });
-  res.json(lightState());
+  res.status(400).json({ error: 'calibrationRange' });
 });
 
-// The name lives in the settings, like it does on the clock, and is only
-// reported here as well - so there is one copy of it, not two that drift.
+/** Everything the automatic is thinking, for the #luminance screen. */
+app.get('/luminance', (req, res) => {
+  settle();
+  const lux = currentLux();
+  res.json({
+    lux,
+    raw: 7.1 + Math.sin(Date.now() / 3000) * 3,
+    available: true,
+    slope: curve.slope,
+    offset: curve.offset,
+    fitted: curve.fitted,
+    brightness: brightnessForLux(lux),
+    minPercent: LUM_MIN_PERCENT,
+    maxPercent: LUM_MAX_PERCENT,
+    capacity: LUM_POINTS,
+    settleMs: LUM_SETTLE_MS,
+    uptime: Math.round(process.uptime()),
+    adjusting: nudge !== null,
+    ...(nudge ? { wanted: nudge.percent } : {}),
+    points: curve.points.map((p) => ({ ...p, curve: brightnessForLux(p.lux) }))
+  });
+});
+
 /*
  * The face.
  *

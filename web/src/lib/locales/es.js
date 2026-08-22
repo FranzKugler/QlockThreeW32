@@ -45,18 +45,31 @@ export default {
   autoBrightness: 'Brillo automático',
   measured: 'Medido',
   calibration: 'Calibración',
-  calDark: 'Oscuro',
-  calBright: 'Claro',
-  calCapture: 'Memorizar',
+  calTaught: (n) => `${n} puntos aprendidos`,
   calReset: 'Restablecer',
   calHint:
-    'Ajusta el brillo que quieras con la luz actual y memorízalo: una vez a ' +
-    'oscuras y otra con luz de día. De todo lo intermedio se encarga el ' +
-    'reloj.',
+    'Con el automático activado, el control de brillo significa «con esta ' +
+    'luz lo quiero así». Diez segundos después del último cambio el reloj ' +
+    'guarda el par y traza una recta nueva por todo lo aprendido. No hay ' +
+    'nada que pulsar.',
   ldrHint:
-    'La pantalla sigue la luz ambiental, de forma logarítmica entre los dos ' +
-    'puntos: así es como percibe el ojo. El valor entre paréntesis no está ' +
-    'suavizado y ayuda a colocar el sensor.',
+    'La pantalla sigue la luz ambiente de forma logarítmica, como el ojo. ' +
+    'Se regula entre 20 y 100 %. El valor entre paréntesis es sin suavizar ' +
+    'y ayuda a colocar el sensor.',
+  lumTitle: 'Curva de brillo',
+  lumHint:
+    'Lo que el automático ha aprendido y lo que deduce de ello. Solo ' +
+    'lectura: el restablecimiento está en la pestaña de color.',
+  lumLine: 'Recta',
+  lumSlope: 'Pendiente',
+  lumSlopeFitted: 'calculada a partir de los puntos',
+  lumSlopeKept: 'conservada, los puntos están demasiado juntos',
+  lumAdjusting: (want, secs) => `${want} % ajustado: se aprende en ${secs} s`,
+  lumPoints: 'Puntos aprendidos',
+  lumWanted: 'deseado',
+  lumCurve: 'recta',
+  lumWhen: 'actividad',
+  lumEmpty: 'Todavía no ha aprendido nada: rige la recta por defecto.',
 
   // --- timezone tab ---
   timeServer: 'Servidor de hora',

@@ -46,18 +46,31 @@ export default {
   autoBrightness: 'Helligkeit automatisch',
   measured: 'Gemessen',
   calibration: 'Kalibrierung',
-  calDark: 'Dunkel',
-  calBright: 'Hell',
-  calCapture: 'Jetzt merken',
+  calTaught: (n) => `${n} gelernte Punkte`,
   calReset: 'Zurücksetzen',
   calHint:
-    'Helligkeit so einstellen, wie sie beim aktuellen Umgebungslicht sein ' +
-    'soll, und merken — einmal im Dunkeln, einmal bei Tageslicht. Alles ' +
-    'dazwischen regelt die Uhr selbst.',
+    'Im Automatikbetrieb bedeutet der Helligkeitsregler „bei diesem Licht ' +
+    'hätte ich es gerne so hell“. Zehn Sekunden nach der letzten Änderung ' +
+    'merkt sich die Uhr das Paar und legt eine neue Gerade durch alles ' +
+    'Gelernte. Nichts zu drücken.',
   ldrHint:
-    'Die Anzeige folgt dem Umgebungslicht, zwischen den beiden Punkten ' +
-    'logarithmisch — so nimmt das Auge wahr. Der Wert in Klammern ist ' +
-    'ungeglättet und hilft beim Platzieren des Sensors.',
+    'Die Anzeige folgt dem Umgebungslicht, logarithmisch — so nimmt das ' +
+    'Auge wahr. Geregelt wird zwischen 20 und 100 %. Der Wert in Klammern ' +
+    'ist ungeglättet und hilft beim Platzieren des Sensors.',
+  lumTitle: 'Helligkeitskurve',
+  lumHint:
+    'Was die Automatik gelernt hat und was sie daraus schließt. Nur zum ' +
+    'Ansehen — zurückgesetzt wird im Farbreiter.',
+  lumLine: 'Gerade',
+  lumSlope: 'Steigung',
+  lumSlopeFitted: 'aus den Punkten berechnet',
+  lumSlopeKept: 'beibehalten, Punkte liegen zu eng',
+  lumAdjusting: (want, secs) => `${want} % eingestellt — wird in bis zu ${secs} s gelernt`,
+  lumPoints: 'Gelernte Punkte',
+  lumWanted: 'gewollt',
+  lumCurve: 'Gerade',
+  lumWhen: 'Laufzeit',
+  lumEmpty: 'Noch nichts gelernt — es gilt die Standardgerade.',
 
   // --- timezone tab ---
   timeServer: 'Zeitserver',

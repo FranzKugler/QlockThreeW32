@@ -45,18 +45,31 @@ export default {
   autoBrightness: 'Luminosité automatique',
   measured: 'Mesuré',
   calibration: 'Étalonnage',
-  calDark: 'Sombre',
-  calBright: 'Clair',
-  calCapture: 'Mémoriser',
+  calTaught: (n) => `${n} points appris`,
   calReset: 'Réinitialiser',
   calHint:
-    'Réglez la luminosité voulue pour l’éclairage actuel, puis ' +
-    'mémorisez-la — une fois dans le noir, une fois en plein jour. ' +
-    'L’horloge se charge de tout l’intermédiaire.',
+    'En mode automatique, le curseur de luminosité signifie « avec cet ' +
+    'éclairage, je la veux comme ça ». Dix secondes après le dernier ' +
+    'changement, l’horloge retient le couple et recalcule sa droite sur ' +
+    'tout ce qu’elle a appris. Rien à valider.',
   ldrHint:
-    'L’affichage suit la lumière ambiante, de façon logarithmique entre ' +
-    'les deux points — c’est ainsi que l’œil perçoit. La valeur entre ' +
-    'parenthèses n’est pas lissée et aide à placer le capteur.',
+    'L’affichage suit la lumière ambiante, de façon logarithmique — comme ' +
+    'l’œil. Régulé entre 20 et 100 %. La valeur entre parenthèses est ' +
+    'brute et aide à placer le capteur.',
+  lumTitle: 'Courbe de luminosité',
+  lumHint:
+    'Ce que l’automatisme a appris et ce qu’il en déduit. En lecture seule ' +
+    '— la réinitialisation est dans l’onglet couleur.',
+  lumLine: 'Droite',
+  lumSlope: 'Pente',
+  lumSlopeFitted: 'calculée à partir des points',
+  lumSlopeKept: 'conservée, points trop rapprochés',
+  lumAdjusting: (want, secs) => `${want} % réglé — appris d’ici ${secs} s`,
+  lumPoints: 'Points appris',
+  lumWanted: 'voulu',
+  lumCurve: 'droite',
+  lumWhen: 'durée',
+  lumEmpty: 'Rien d’appris pour l’instant — la droite par défaut s’applique.',
 
   // --- timezone tab ---
   timeServer: 'Serveur de temps',

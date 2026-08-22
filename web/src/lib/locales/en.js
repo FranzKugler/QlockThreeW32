@@ -45,18 +45,31 @@ export default {
   autoBrightness: 'Automatic brightness',
   measured: 'Measured',
   calibration: 'Calibration',
-  calDark: 'Dark',
-  calBright: 'Bright',
-  calCapture: 'Capture now',
+  calTaught: (n) => `${n} points learned`,
   calReset: 'Reset',
   calHint:
-    'Set the brightness you want at the light there is right now, then ' +
-    'capture it — once in the dark, once in daylight. Everything in ' +
-    'between the clock works out for itself.',
+    'With the automatic on, the brightness slider means “at this light I ' +
+    'would like it this bright”. Ten seconds after the last change the ' +
+    'clock keeps the pair and fits a new line through everything it has ' +
+    'learned. Nothing to press.',
   ldrHint:
-    'The display follows the ambient light, logarithmically between the two ' +
-    'points — that is how the eye perceives it. The figure in brackets is ' +
+    'The display follows the ambient light, logarithmically — the way the ' +
+    'eye does. Regulated between 20 and 100 %. The value in brackets is ' +
     'unsmoothed and helps when placing the sensor.',
+  lumTitle: 'Brightness curve',
+  lumHint:
+    'What the automatic has been taught and what it makes of it. Read-only ' +
+    '— resetting is in the colour tab.',
+  lumLine: 'Line',
+  lumSlope: 'Slope',
+  lumSlopeFitted: 'fitted from the points',
+  lumSlopeKept: 'kept, points sit too close together',
+  lumAdjusting: (want, secs) => `${want} % set — learned within ${secs} s`,
+  lumPoints: 'Points learned',
+  lumWanted: 'wanted',
+  lumCurve: 'line',
+  lumWhen: 'uptime',
+  lumEmpty: 'Nothing learned yet — the default line applies.',
 
   // --- timezone tab ---
   timeServer: 'Time server',

@@ -39,6 +39,7 @@
 #include "languages/Language.h"
 #include "DisplayModes.h"
 #include "LedDriverWS2812FastLED.h"   // the corner colours in sendPanel()
+#include "Luminance.h"
 #include "Renderer.h"
 
 // Debug and the debugX macros, plus the ring the web UI reads them out of.
@@ -176,6 +177,20 @@ void updateAutoLuminance()
     server.send(200, "application/json", "{msg: ''}");
 }
 
+/**
+ * Colour and brightness.
+ *
+ * The brightness slider has two meanings. With the automatic off it is the
+ * brightness, stored and kept. With it on it is "at this light, I want this
+ * much" - the automatic steps aside, and ten seconds after the last move the
+ * pair is kept and the line re-fitted; see Luminance.h. The stored manual
+ * brightness is deliberately left alone in that case, so switching the
+ * automatic off gives back the value chosen by hand rather than the last thing
+ * the learning was told.
+ *
+ * The settle timer lives here rather than in the browser, because a tab closed
+ * mid-adjustment must not lose the point.
+ */
 void updateColor()
 {
     JsonDocument doc;
@@ -183,7 +198,15 @@ void updateColor()
     // Stored in the units they arrive in; the renderer scales them to 8 bit.
     settings.setColorHue((uint16_t)doc["hue"]);
     settings.setColorSat((byte)doc["sat"]);
-    settings.setBrightness(doc["lum"]);
+
+    if (settings.getUseLdr() && ambientLight.present())
+    {
+        if (doc["lum"].is<int>()) Luminance::nudged((byte)(int)doc["lum"]);
+    }
+    else
+    {
+        settings.setBrightness(doc["lum"]);
+    }
 
     needsUpdateFromRtc = true;
     scheduleSettingsSave();
@@ -444,17 +467,25 @@ void sendLight()
     doc["lux"]       = ambientLight.lux();
     doc["raw"]       = ambientLight.raw();
 
-    // The curve, and what it makes of the current reading. The UI shows that
+    // The line, and what it makes of the current reading. The UI shows that
     // number beside the slider: with the automatic on the slider is not what
     // the display is doing, and a control that lies is worse than no control.
-    doc["luxLow"]      = settings.getAutoLuxLow();
-    doc["brightLow"]   = settings.getAutoBrightLow();
-    doc["luxHigh"]     = settings.getAutoLuxHigh();
-    doc["brightHigh"]  = settings.getAutoBrightHigh();
-    doc["brightness"]  = brightnessForLux(ambientLight.lux(),
-                                          settings.getAutoLuxLow(), settings.getAutoBrightLow(),
-                                          settings.getAutoLuxHigh(), settings.getAutoBrightHigh());
-    doc["minRatio"]    = CALIBRATION_MIN_RATIO;
+    doc["slope"]      = Luminance::slope();
+    doc["offset"]     = Luminance::offset();
+    doc["fitted"]     = Luminance::slopeFitted();
+    doc["brightness"] = Luminance::forLux(ambientLight.lux());
+    doc["minPercent"] = LUM_MIN_PERCENT;
+    doc["maxPercent"] = LUM_MAX_PERCENT;
+
+    // How much the clock has been told. The colour tab only needs the count;
+    // the points themselves are GET /luminance's business.
+    Luminance::Point kept[LUM_POINTS];
+    doc["taught"] = Luminance::points(kept, LUM_POINTS);
+
+    // Whether a nudge is being waited out, so the slider can stay where it was
+    // put instead of snapping back to the curve for ten seconds.
+    byte nudge;
+    doc["adjusting"] = Luminance::adjusting(nudge);
 
     String out;
     serializeJson(doc, out);
@@ -462,140 +493,84 @@ void sendLight()
 }
 
 /**
- * Writes the automatic brightness curve, three ways:
+ * The only thing left to write about the brightness curve: throw it away.
  *
- *   {luxLow, brightLow, luxHigh, brightHigh}  the two calibration points
- *   {want: 1..100}                            shift the level, keep the slope
- *   {reset: true}                             back to the defaults
+ *   {reset: true}   forget every point, back to the default line
  *
- * The clock validates rather than trusts. The UI will not offer to save a bad
- * pair, but this endpoint is reachable without it, and a curve whose points sit
- * on top of each other makes brightnessForLux() swing across its whole range on
- * sensor noise. Rejected with a code the UI can translate, not with a sentence
- * - see errors.js.
+ * There is nothing else to set. The curve is not configured any more, it is
+ * taught - by moving the brightness slider while the automatic is on, which
+ * arrives at POST /color like any other slider move. Luminance.h says why that
+ * is the whole interface.
+ *
+ * What used to be here - two calibration points to POST, and a {want} that
+ * shifted the level while keeping the slope - is gone. The shift survives, but
+ * as the fallback for points too close together to carry a slope, which is the
+ * only case where sliding the whole line is the honest answer.
  */
 void updateLight()
 {
     JsonDocument doc;
     deserializeJson(doc, server.arg(0));
 
-    // Back to the cautious default curve, without naming it a second time
-    // here: a freshly constructed Settings carries it, and Settings.cpp stays
-    // the one place those four numbers are written down.
     if (doc["reset"] | false)
     {
-        Settings defaults;
-        settings.setAutoLuxLow(defaults.getAutoLuxLow());
-        settings.setAutoBrightLow(defaults.getAutoBrightLow());
-        settings.setAutoLuxHigh(defaults.getAutoLuxHigh());
-        settings.setAutoBrightHigh(defaults.getAutoBrightHigh());
+        Luminance::reset();
         needsUpdateFromRtc = true;
-        scheduleSettingsSave();
         sendLight();
         return;
     }
 
-    // "At the light there is right now, I want this much display." The whole
-    // curve is shifted to satisfy that, keeping its slope: the two calibration
-    // points say how hard the clock reacts to a change in light, and this says
-    // at what level - two different questions that deserve two controls.
-    //
-    // The current light is taken from the sensor here rather than from the
-    // request: the browser polls every two seconds and would be shifting
-    // against a reading that has already moved on.
-    //
-    // This is also the signal a learning version has to collect. It stores one
-    // adjustment now, replacing the last; keeping them and fitting a line
-    // through the samples is what turns this into the learning step.
-    if (doc["want"].is<int>())
+    server.send(400, "application/json", "{\"error\":\"calibrationRange\"}");
+}
+
+/**
+ * Everything the automatic brightness is thinking, for a human.
+ *
+ * Reached at #luminance in the web UI, with no chip in the tab row - it is a
+ * workbench, not a setting. Deliberately **not** behind expert mode: there is
+ * no secret in it, and needing to unlock the clock to look at a brightness
+ * curve would put a lock in the way of something it has nothing to do with.
+ * Read-only for the same reason; the one write is POST /light {reset}.
+ */
+void sendLuminance()
+{
+    JsonDocument doc;
+    doc["lux"]        = ambientLight.lux();
+    doc["raw"]        = ambientLight.raw();
+    doc["available"]  = ambientLight.available();
+    doc["slope"]      = Luminance::slope();
+    doc["offset"]     = Luminance::offset();
+    doc["fitted"]     = Luminance::slopeFitted();
+    doc["brightness"] = Luminance::forLux(ambientLight.lux());
+    doc["minPercent"] = LUM_MIN_PERCENT;
+    doc["maxPercent"] = LUM_MAX_PERCENT;
+    doc["capacity"]   = LUM_POINTS;
+    doc["settleMs"]   = LUM_SETTLE_MS;
+    doc["uptime"]     = (uint32_t)(millis() / 1000);
+
+    byte nudge;
+    bool busy = Luminance::adjusting(nudge);
+    doc["adjusting"] = busy;
+    if (busy) doc["wanted"] = nudge;
+
+    // Oldest first, each with what the line makes of its own light - which is
+    // the number worth looking at, because it says how far the fit ended up
+    // from what was actually asked for at that point.
+    Luminance::Point kept[LUM_POINTS];
+    uint8_t taught = Luminance::points(kept, LUM_POINTS);
+    JsonArray list = doc["points"].to<JsonArray>();
+    for (uint8_t i = 0; i < taught; i++)
     {
-        int want = doc["want"];
-        if (want < 1 || want > 100)
-        {
-            server.send(400, "application/json", "{\"error\":\"calibrationRange\"}");
-            return;
-        }
-
-        float lux = ambientLight.lux();
-        int low  = settings.getAutoBrightLow();
-        int high = settings.getAutoBrightHigh();
-        int delta = want - brightnessForLux(lux,
-                                            settings.getAutoLuxLow(), (byte)low,
-                                            settings.getAutoLuxHigh(), (byte)high);
-
-        // Moving both ends by the same amount keeps the slope, which is what
-        // the two calibration points are for. That is the normal case and the
-        // one to preserve.
-        int newLow  = low + delta;
-        int newHigh = high + delta;
-
-        if (newLow < 1 || newLow > 100 || newHigh < 1 || newHigh > 100)
-        {
-            // No room to translate: the display cannot go past 100 %, so a
-            // curve already reaching it cannot be lifted as a whole. The
-            // instruction still has to be carried out - a slider that silently
-            // does nothing is the fault this control was built to fix - so the
-            // end that would overflow is pinned and the other one solved to
-            // put the curve through the requested point exactly. The slope
-            // gives way, and only at the extremes.
-            //
-            // Which end moves is decided by the reading, and the halves are
-            // split at the middle so the divisor below can never approach
-            // zero: the far end is always at least half a span away.
-            float position = luxPosition(lux, settings.getAutoLuxLow(), settings.getAutoLuxHigh());
-
-            newLow  = constrain(newLow, 1, 100);
-            newHigh = constrain(newHigh, 1, 100);
-
-            if (position <= 0.5f)
-                newLow = lroundf((want - position * newHigh) / (1.0f - position));
-            else
-                newHigh = lroundf((want - (1.0f - position) * newLow) / position);
-
-            newLow  = constrain(newLow, 1, 100);
-            newHigh = constrain(newHigh, 1, 100);
-        }
-
-        settings.setAutoBrightLow((byte)newLow);
-        settings.setAutoBrightHigh((byte)newHigh);
-
-        debugI("Brightness nudged to %d %% at %.2f lx: curve %d..%d -> %d..%d",
-               want, lux, low, high, newLow, newHigh);
-
-        needsUpdateFromRtc = true;
-        scheduleSettingsSave();
-        sendLight();
-        return;
+        JsonObject one = list.add<JsonObject>();
+        one["lux"]     = kept[i].lux;
+        one["percent"] = kept[i].percent;
+        one["seconds"] = kept[i].seconds;
+        one["curve"]   = Luminance::forLux(kept[i].lux);
     }
 
-    float luxLow     = doc["luxLow"]  | 0.0f;
-    float luxHigh    = doc["luxHigh"] | 0.0f;
-    int   brightLow  = doc["brightLow"]  | 0;
-    int   brightHigh = doc["brightHigh"] | 0;
-
-    if (!(luxHigh > luxLow * CALIBRATION_MIN_RATIO))
-    {
-        server.send(400, "application/json", "{\"error\":\"calibrationTooClose\"}");
-        return;
-    }
-    if (brightLow < 1 || brightLow > 100 || brightHigh < 1 || brightHigh > 100)
-    {
-        server.send(400, "application/json", "{\"error\":\"calibrationRange\"}");
-        return;
-    }
-
-    settings.setAutoLuxLow(luxLow);
-    settings.setAutoBrightLow((byte)brightLow);
-    settings.setAutoLuxHigh(luxHigh);
-    settings.setAutoBrightHigh((byte)brightHigh);
-
-    debugA("Brightness curve: %.2f lx -> %d %%, %.2f lx -> %d %%",
-           luxLow, brightLow, luxHigh, brightHigh);
-
-    needsUpdateFromRtc = true;
-    scheduleSettingsSave();
-
-    sendLight();
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
 }
 
 // Current connection, plus the outcome of a switch requested via POST /wifi.
@@ -1139,6 +1114,7 @@ void Web::begin()
     server.on("/light", HTTP_GET, sendLight);
     server.on("/panel", HTTP_GET, sendPanel);
     server.on("/languages", HTTP_GET, sendLanguages);
+    server.on("/luminance", HTTP_GET, sendLuminance);
     server.on("/light", HTTP_POST, updateLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);

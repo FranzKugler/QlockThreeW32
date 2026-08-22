@@ -14,10 +14,11 @@
  * time, which can block for well over a second - and the clock's web server is
  * synchronous, so a blocked loop() is a clock that stops answering.
  *
- * Nothing regulates on this yet. The reading is measured, smoothed and served
- * to the web UI so the placement behind the front panel can be judged first:
- * a dark panel passes only a few percent of the visible light, and how much is
- * a property of each individual clock.
+ * What is done with the reading is not here. Luminance.h owns the curve from
+ * lux to display brightness and how it is learned; this file measures, smooths
+ * and stops. The two lived together for a while and the seam was worth cutting:
+ * the curve is arithmetic that can be reasoned about at a desk, and the
+ * measurement is a chip on a wire.
  *
  * @mc       ESP32S3
  * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
@@ -44,35 +45,6 @@
 // in a closed room and log(0) has no answer, so the curve needs a floor - and
 // a hundredth of a lux is far below anything the eye distinguishes anyway.
 #define LUX_FLOOR 0.01f
-
-// How far apart the two calibration points have to be, as a ratio. Two points
-// taken in near enough the same light describe no slope at all, and dividing by
-// that span would swing the brightness across its whole range on sensor noise.
-// Two doublings is the least that still says something.
-#define CALIBRATION_MIN_RATIO 4.0f
-
-/**
- * Where a reading sits between the two calibration points, 0..1, on the log
- * scale the curve runs on. Shared so that the curve and the code that adjusts
- * it cannot disagree about what "here" means.
- */
-float luxPosition(float lux, float luxLow, float luxHigh);
-
-/**
- * Display brightness in percent for an ambient reading, from the two
- * calibration points.
- *
- * Brightness runs linearly in log(lux) between them, not in lux: perception is
- * roughly logarithmic (Weber-Fechner), and the range the clock has to cover
- * spans several decades - a dark bedroom and a sunlit room differ by a factor
- * of thousands, which no linear mapping survives. The result is clamped to the
- * two calibrated ends rather than extrapolated, so a sunbeam on the sensor
- * cannot drive the display past what the user asked for.
- *
- * Pure, so the curve can be reasoned about without a sensor present.
- */
-byte brightnessForLux(float lux, float luxLow, byte brightLow,
-                      float luxHigh, byte brightHigh);
 
 /** One ambient light sensor, whichever chip it happens to be. */
 class LightSensor

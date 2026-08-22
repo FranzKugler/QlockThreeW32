@@ -67,28 +67,35 @@ export const setAutoLuminance = (automaticLum) =>
   post('/autoluminance', { automaticLum: automaticLum ? 1 : 0 });
 
 /**
- * Writes the two points of the automatic brightness curve.
+ * Everything the automatic brightness is thinking: the line, the points it was
+ * fitted through, and what it makes of the light right now.
+ *
+ * Reached at #luminance, and read-only - the only write is resetLightCurve().
+ * Throws, so the screen can say the clock did not answer rather than draw an
+ * empty chart.
+ */
+export async function fetchLuminance() {
+  const res = await fetch('/luminance');
+  if (!res.ok) throw new Error(`/luminance: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Throws the calibration away and restores the default line.
+ *
+ * The only thing left to write about the curve. There is nothing to set any
+ * more: it is taught by moving the brightness slider while the automatic is
+ * on, which goes to /color like any other slider move.
  *
  * Not through post(), which reports and returns a bare boolean: the clock
- * validates the pair and answers either with the curve it stored or with a
- * code saying why it did not, and the calibration button has to show which.
+ * answers with the curve it now has, and the tab shows that.
  */
-/**
- * "At the light there is right now, I want this much display."
- *
- * Shifts the curve rather than setting a brightness: with the automatic on,
- * the slider is not a level any more but a preference, and the clock keeps it
- * at every other light level too. The current reading is left to the firmware,
- * which has it first-hand - this UI polls, and would be a step behind.
- */
-export const nudgeBrightness = (want) => setLightCurve({ want });
-
-export async function setLightCurve(curve) {
+export async function resetLightCurve() {
   try {
     const res = await fetch('/light', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(curve)
+      body: JSON.stringify({ reset: true })
     });
     const body = await res.json();
     if (!res.ok) return { error: body.error || `HTTP ${res.status}` };

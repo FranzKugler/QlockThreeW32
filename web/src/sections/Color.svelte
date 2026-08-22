@@ -63,24 +63,35 @@
     try {
       const next = await api.fetchLight();
       sensor = next;
-      if (Date.now() - adjustedAt > SETTLE_MS && next.brightness != null) {
-        autoLum = next.brightness;
-      }
+
+      // Two things have to be over before the slider follows the curve again.
+      // The local one stops a poll yanking it out from under a finger. The
+      // clock's own `adjusting` is the longer of the two: it holds the nudge
+      // for ten seconds before learning from it, and `brightness` meanwhile is
+      // still what the *old* line says - following that would snap the slider
+      // back to a value the clock is not showing and is about to revise.
+      const settled = Date.now() - adjustedAt > SETTLE_MS && !next.adjusting;
+      if (settled && next.brightness != null) autoLum = next.brightness;
     } catch {
       /* older firmware has no /light; treat that as no sensor */
     }
   }
 
   /*
-   * Throttled like the colour wheel, and for the same reason: one POST per
-   * pointer move would bury the clock's single-threaded web server. Each one
-   * is measured against the curve as it stands, so a drag converges on the
-   * value asked for rather than adding up shifts.
+   * A nudge is an ordinary brightness write. The clock knows its own automatic
+   * is on and reads it as "at this light, I want this much": it steps the
+   * automatic aside, and ten seconds after the last move it keeps the pair and
+   * fits its line again through everything it has been told. Nothing here has
+   * to know that, and there is no button to press afterwards, because the
+   * adjustment *is* the lesson.
+   *
+   * Throttled like the colour wheel and for the same reason: one POST per
+   * pointer move would bury the clock's single-threaded web server.
    */
-  const pushNudge = throttle(async (want) => {
-    const result = await api.nudgeBrightness(want);
-    if (!result.error) sensor = result;
-  }, 250);
+  const pushNudge = throttle(
+    (want) => api.setColor({ hue: clock.hue, sat: clock.sat, lum: want }),
+    250
+  );
 
   function nudge() {
     adjustedAt = Date.now();
@@ -106,47 +117,34 @@
     };
   });
 
-  /**
-   * Stores "this much light should look like this much display" for one end of
-   * the curve, taking the light from the sensor and the brightness from the
-   * slider - which is why this needs the automatic off: with it on, the slider
-   * is not what the display is doing.
-   */
-  async function calibrate(end) {
-    // The smoothed reading, not the raw one: that is what the curve is fed at
-    // runtime, so calibrating against anything else builds in an offset. The
-    // raw number is shown above for placing the sensor, which is a different
-    // job.
-    const here = sensor.lux;
-    const point = end === 'low'
-      ? { luxLow: here, brightLow: wantedNow, luxHigh: sensor.luxHigh, brightHigh: sensor.brightHigh }
-      : { luxLow: sensor.luxLow, brightLow: sensor.brightLow, luxHigh: here, brightHigh: wantedNow };
-
-    const result = await api.setLightCurve(point);
-    calibrationError = result.error ?? null;
-    if (!result.error) sensor = result;
-  }
-
   /*
    * The two images are updated independently, so this UI can find itself
-   * talking to a firmware from before the curve existed: it answers /light
-   * with a reading and no curve at all. Everything below is gated on this
-   * rather than on `present`, because `sensor.luxLow.toFixed()` on a missing
-   * field would take the whole tab down.
+   * talking to a firmware from before the line existed: it answers /light with
+   * a reading and no curve at all. Everything below is gated on this rather
+   * than on `present`, because reading a field that is not there would take
+   * the whole tab down.
    */
-  const hasCurve = $derived(sensor?.luxLow != null);
+  const hasCurve = $derived(sensor?.slope != null);
 
   // Whether the ambient light is actually in charge of the display right now.
   const autoActive = $derived(sensor?.present && clock.automaticLum && hasCurve);
 
-  // Whichever slider is on screen is the one a calibration point is taken
-  // from - both mean "this is how bright I want it here".
+  // Whichever slider is on screen, it means "this is how bright I want it
+  // here". Only the automatic one is also a lesson.
   const wantedNow = $derived(autoActive ? autoLum : clock.lum);
 
-  const canCalibrate = $derived(sensor?.available);
+  /*
+   * The regulated range, taken from the clock rather than assumed here. Below a
+   * fifth the face is not really readable, and zero is the display switching
+   * itself off - a mode chosen in the display tab, never something the light
+   * sensor decides. The slider therefore stops where the regulation stops,
+   * instead of letting somebody ask for a level the clock will quietly refuse.
+   */
+  const autoMin = $derived(sensor?.minPercent ?? 20);
+  const autoMax = $derived(sensor?.maxPercent ?? 100);
 
   async function resetCurve() {
-    const result = await api.setLightCurve({ reset: true });
+    const result = await api.resetLightCurve();
     calibrationError = result.error ?? null;
     if (!result.error) sensor = result;
   }
@@ -348,16 +346,19 @@
 
   <!--
     Two meanings, one control. With the automatic off it is the brightness.
-    With it on it is "at this light, I want this much" - the clock shifts its
-    whole curve to match and keeps the preference at every other light level.
-    Which is also the only way it can ever learn anything: nudging the slider
-    is the one signal that says the automatic got it wrong.
+    With it on it is "at this light, I want this much": the clock keeps the
+    pair and fits its line again through everything it has been told. Which is
+    the only way it can ever learn anything - nudging the slider is the one
+    signal a user gives about whether the automatic got it right, so that nudge
+    has to be the lesson. There is deliberately nothing to press afterwards.
   -->
   {#if autoActive}
     <SliderRow
       id="lum"
       label={t.brightness}
       unit="%"
+      min={autoMin}
+      max={autoMax}
       bind:value={autoLum}
       track={lumTrack}
       onchange={nudge}
@@ -411,26 +412,9 @@
     </div>
 
     {#if hasCurve}
-      <h3>{t.calibration}</h3>
-
       <div class="field">
-        <span class="key">{t.calDark}</span>
-        <span class="point">
-          {sensor.luxLow.toFixed(1)} lx → {sensor.brightLow} %
-          <button type="button" class="secondary" onclick={() => calibrate('low')} disabled={!canCalibrate}>
-            {t.calCapture}
-          </button>
-        </span>
-      </div>
-
-      <div class="field">
-        <span class="key">{t.calBright}</span>
-        <span class="point">
-          {sensor.luxHigh.toFixed(1)} lx → {sensor.brightHigh} %
-          <button type="button" class="secondary" onclick={() => calibrate('high')} disabled={!canCalibrate}>
-            {t.calCapture}
-          </button>
-        </span>
+        <span class="key">{t.calibration}</span>
+        <span>{t.calTaught(sensor.taught ?? 0)}</span>
       </div>
 
       {#if calibrationError}
@@ -447,17 +431,8 @@
 {/if}
 
 <style>
-  h3 {
-    margin: 1.4rem 0 0.2rem;
-    font-size: 0.95rem;
-  }
   .raw {
     opacity: 0.6;
-  }
-  .point {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
   }
   .error {
     color: var(--danger, #c0392b);

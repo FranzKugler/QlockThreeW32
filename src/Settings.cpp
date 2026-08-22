@@ -57,10 +57,6 @@ Settings::Settings()
     // clock still dims in the right direction until someone calibrates it.
     // The floor of 20 % is the point of the whole thing: 0 % would be a clock
     // that switches itself off in a dark room and looks broken.
-    AutoLuxLow = 1.0f;
-    AutoBrightLow = 20;
-    AutoLuxHigh = 200.0f;
-    AutoBrightHigh = 100;
     ColorHue = 0;
     ColorSat = 0;
     Mode = 1;
@@ -150,10 +146,6 @@ void Settings::loadSettings()
     Brightness =        doc["Brightness"] | 50;
     // Absent in a record from before automatic brightness did anything, which
     // is exactly when the defaults are the right answer.
-    AutoLuxLow =        doc["AutoLuxLow"] | 1.0f;
-    AutoBrightLow =     doc["AutoBrightLow"] | 20;
-    AutoLuxHigh =       doc["AutoLuxHigh"] | 200.0f;
-    AutoBrightHigh =    doc["AutoBrightHigh"] | 100;
     ColorHue =          doc["ColorHue"] | 0;
     ColorSat =          doc["ColorSat"] | 0;
     // The display mode used to be reported to the web UI and settable through
@@ -217,10 +209,6 @@ void Settings::fillDocument(JsonDocument &doc)
     doc["RenderColorCorner"]= RenderColorCorner;
     doc["UseLdr"]           = UseLdr;        
     doc["Brightness"]       = Brightness;
-    doc["AutoLuxLow"]       = AutoLuxLow;
-    doc["AutoBrightLow"]    = AutoBrightLow;
-    doc["AutoLuxHigh"]      = AutoLuxHigh;
-    doc["AutoBrightHigh"]   = AutoBrightHigh;
     doc["ColorHue"]         = ColorHue;
     doc["ColorSat"]         = ColorSat;
     doc["Mode"]             = Mode;

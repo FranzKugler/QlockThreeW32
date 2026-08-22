@@ -95,10 +95,11 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 [src/WebRoutes.cpp](src/WebRoutes.cpp) (and [src/OtaUpdate.cpp](src/OtaUpdate.cpp) for `/ota/*`) and [server.js](server.js) implement the same endpoints, consumed by [web/src/lib/api.js](web/src/lib/api.js):
 - `GET /currentState` — returns the full current settings object as JSON.
 - `POST /display` — display mode.
-- `POST /color` — hue/saturation/luminance.
+- `POST /color` — hue/saturation/luminance. **With the automatic on, `lum` is a lesson rather than a level** — see "Automatic brightness".
 - `POST /autoluminance` — toggle automatic brightness.
-- `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus the brightness curve (`luxLow`, `brightLow`, `luxHigh`, `brightHigh`, `minRatio`) and the `brightness` it yields for the current reading. Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
-- `POST /light` — the four curve fields, `{want: 1..100}` ("at this light, this bright"), or `{reset: true}`. Answers with the same shape `GET` does, or with `calibrationTooClose` / `calibrationRange`.
+- `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus the fitted line (`slope`, `offset`, `fitted`), the `brightness` it yields for the current reading, the regulated range (`minPercent`, `maxPercent`), how many points have been `taught`, and whether a nudge is being waited out (`adjusting`). Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
+- `POST /light` — `{reset: true}`, and nothing else. The curve is not configured any more, it is taught through `POST /color`; see "Automatic brightness".
+- `GET /luminance` — the same line plus every calibration point and what the line makes of it. The workbench at `#luminance`; read-only, and deliberately outside expert mode.
 - `POST /configuration` — language, corner LED direction/color. **Refuses a language from another panel on an enrolled clock that is locked** — `403 {"error":"languageNotOnPanel"}`, see "One clock, one panel".
 - `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
 - `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
@@ -349,37 +350,52 @@ It is stored in **NVS**, not in the filesystem, because the filesystem partition
 
 ### Automatic brightness
 
-`brightnessForLux()` in `LightSensor.cpp` maps a reading onto a display brightness, from two calibration points held in `Settings` (`AutoLuxLow`/`AutoBrightLow`, `AutoLuxHigh`/`AutoBrightHigh`). It is a free function with no state, so the curve can be reasoned about — and compared against a reference implementation — without a sensor present.
+`Luminance` ([src/Luminance.h](src/Luminance.h)/[.cpp](src/Luminance.cpp)) owns the curve from a reading to a display brightness, and how it is learned. It is a straight line in log light:
 
-- **Brightness is linear in log(lux), not in lux.** Perception is roughly logarithmic and the range to cover spans several decades: a dark bedroom and a sunlit room differ by a factor of thousands, which no linear mapping survives.
-- **The result is clamped to the two calibrated ends, never extrapolated**, so a torch or a sunbeam on the sensor cannot drive the display past what the user asked for.
-- **The floor is 1 %, never 0.** Zero is the display switching itself off, which is a mode chosen in the display tab, not something the light sensor gets to decide.
-- Two guards keep bad input out of a division: `LUX_FLOOR` (log(0) has no answer, and the VEML7700 reports a plain 0 in a closed room) and `CALIBRATION_MIN_RATIO`, the factor by which the two points must differ. Points too close together describe no slope and would swing the brightness across its whole range on sensor noise. `POST /light` rejects such a pair with `calibrationTooClose`; `brightnessForLux()` clamps as well, because the endpoint is reachable without the UI and an old record could hold anything.
-- The defaults (1 lx → 20 %, 200 lx → 100 %) are deliberately cautious rather than good: they assume a sensor in the open. **Behind a front panel both readings shrink by the same factor, which in log space only shifts the line sideways** — so an uncalibrated clock still dims in the right direction, just not by the right amount.
+```
+brightness = slope * log10(lux) + offset      clamped to 20..100
+```
 
-`brightnessToApply()` in `main .cpp` decides what actually reaches the driver each tick:
+- **Log, not lux.** Perception is roughly logarithmic and the range to cover spans decades — a dark bedroom and a sunlit room differ by a factor of thousands, which no straight line in plain lux survives.
+- **20 % is the floor, and it is a floor on the *regulation*.** Below a fifth the face is not really readable, and zero is the display switching itself off — a mode chosen in the display tab, never something the light sensor decides. The slider in the colour tab is limited to the same range while the automatic is on, taken from `minPercent`/`maxPercent` in `/light` rather than assumed, so the UI cannot ask for a level the clock will then refuse to use.
 
-- With the automatic **off**, the setting is applied immediately — someone dragging the slider wants to see the effect while dragging, so no easing there.
-- With it **on**, the computed value is approached by an eighth of the remaining distance per second, about twenty seconds for a full swing. The reading is already smoothed over 30 s, so this is not about noise: it is about the step when a lamp is switched on, which is a genuine jump the eye would otherwise catch.
-- **The manual setting is never overwritten.** Switching the automatic off has to give back the brightness the user chose, and the calibration needs it as the "how bright I want it here" half of a point.
+#### There is no "remember this" button, and that is the design
 
-**The brightness slider has two meanings, and that is the point.** With the automatic off it is the brightness. With it on it is *"at this light, I want this much"* — `POST /light {want}` shifts the whole curve to satisfy it. Disabling the slider instead was the first attempt and it was wrong: nudging the brightness is the **only** signal a user ever gives about whether the automatic got it right, so locking the slider locks out the one input step 4 has to learn from. The endpoint is deliberately shaped as that learning primitive — it takes a wanted level at the current light, and a learning version keeps the samples and fits a line through them instead of applying each one immediately.
+Nudging the brightness is the **only** signal a user ever gives about whether the automatic got it right. So the nudge *is* the calibration:
 
-How the shift works, and why it is not just an addition:
+1. The slider moves while the automatic is on. `POST /color` sees `UseLdr` set and hands the value to `Luminance::nudged()` instead of storing it as the manual brightness.
+2. The automatic steps aside — `brightnessToApply()` returns the nudge outright, with no easing, because someone holding a slider does not want the clock arguing back.
+3. `LUM_SETTLE_MS` (10 s) after the **last** move, `Luminance::poll()` keeps the pair (light now, brightness asked for) and fits the line again through everything kept.
 
-- Normally both ends move by the same amount, which keeps the slope. The two calibration points say how hard the clock reacts to a change in light; this says at what level. Two questions, two controls.
-- **A pure translation cannot always express the request.** The default curve already reaches 100 % at its bright end, so "brighter here" has nowhere to go — the first version clamped the shift to zero and the slider silently did nothing, which is the exact fault this control exists to fix. Now the overflowing end is pinned and the other is **solved** so the curve passes through the requested point exactly. The slope gives way, and only at the extremes.
-- Which end gets solved is decided by `luxPosition()`, split at the middle so the divisor is never near zero: the far end is always at least half a span away.
-- Asking for 100 % (or 1 %) at a middling light level flattens the curve completely, because no line through that point stays in range. That is forced by the arithmetic, not a bug — `{reset: true}` is the way back.
-- A drag converges rather than compounding: each request is measured against the curve as it stands, so the last value sent is the one that ends up applied.
+The switch keeps saying "automatic" throughout, because it still is: it is being taught, not turned off.
 
-The calibration buttons are **entirely in the browser**: the UI reads the current lux from `/light`, takes the brightness from whichever slider is on screen, and posts all four numbers. The firmware only ever stores and validates a curve — there is no "capture" concept in it. The curve is written against the **smoothed** reading, not the raw one, because that is what the curve is fed at runtime; calibrating against anything else builds in an offset.
+- **The timer is in the firmware, not the browser.** A tab closed mid-adjustment must not lose the point.
+- **The manual brightness is never overwritten** while the automatic is on, so switching it off gives back the value chosen by hand rather than the last thing the learning was told.
+- **The colour tab must not follow `brightness` while `adjusting` is true.** During those ten seconds `brightness` is still what the *old* line says; following it would snap the slider back to a value the clock is not showing and is about to revise. The tab has a 2 s local guard as well, for fingers — the two are different problems and both are needed.
 
-`POST /light` also accepts `{reset: true}`, which restores the curve from a freshly constructed `Settings` rather than repeating those four numbers in a second place.
+#### What keeps the fit from going somewhere silly
 
-**The colour tab polls `/light` every 2 s while it is open** — matching the sampling interval, so the number moves as fast as it can and no faster. It is the only tab that polls; the clock's web server is single-threaded.
+- **Too little spread, and only the offset moves.** Ten corrections made in one evening say nothing about steepness; least squares through them is noise multiplied by a large number. Below `LUM_FIT_MIN_DECADES` (0.6, a factor of four) the slope stands and only the level is re-fitted. That is exactly what the old "shift the whole curve" did — it was never wrong, it was just done *always* instead of only when it is all one can honestly do. `fitted` in `/light` and `/luminance` says which happened.
+- **A slope of zero or less is refused** the same way. Darker room, brighter clock is not a thing anybody wants, and one careless nudge in daylight produces it.
+- **A new point replaces a near neighbour** (within `LUM_SAME_LIGHT_RATIO`, 1.3) instead of joining the queue. Without that, ten evening corrections push the one daylight point out of the ring and the line collapses onto a single lighting condition — which is the failure this whole scheme has to survive, because people adjust their clock while sitting in front of it, usually in the same room at the same time of day.
+- The ring holds `LUM_POINTS` (10). Enough to describe a home, small enough that a bad point is forgotten within a week of ordinary use.
 
-The roadmap agreed for this: (1) interface and sensor, (2) measure and display, (3) the curve and two-point calibration — all done — and (4) passive learning with a "geek" tab showing the curves and allowing backup/restore. Step 4 is where the slider could re-anchor the nearer point live, which would remove the "switch the automatic off to calibrate" step.
+#### Storage, and what replaced what
+
+- **Its own NVS namespace `qlocklight`**, one JSON string under one key — the same shape the settings use, and next to them rather than in them: a settings record is rewritten whole on every change, and this is written from a timer on a completely different schedule.
+- **The points are the record; the line is derived.** The coefficients are stored too, for the read-out and for a future tool, but `begin()` re-fits from the points rather than trusting them. If the two ever disagree, the points win.
+- The four `AutoLux*`/`AutoBright*` fields are **gone from `Settings`**, along with `brightnessForLux()`, `luxPosition()` and `CALIBRATION_MIN_RATIO` in `LightSensor`. No `SETTINGS_SCHEMA` bump: an old record simply carries four keys nobody reads, which is not the same as misreading one.
+- **`POST /light` now only takes `{reset: true}`.** The two calibration points and the `{want}` shift are gone. The defaults it restores (`LUM_DEFAULT_*`, 0.3 lx → 20 %, 9 lx → 100 %) are cautious rather than good: they assume a sensor in the open, and behind a front panel both readings shrink by the same factor — which in log space only shifts the line sideways, so an uncalibrated clock still dims in the right direction, just not by the right amount.
+
+#### The workbench at `#luminance`
+
+`GET /luminance` reports the line, every point with what the line makes of *its* light, the current reading, and whether a nudge is in flight. [Luminance.svelte](web/src/sections/Luminance.svelte) draws it: the points against the fitted line, in log light — plotted against plain lux it would be a curve, hiding the one thing worth seeing, which is whether the points sit on a line at all.
+
+- Reached through `#luminance` in the address, with **no chip in the tab row** — same pattern as `#expert`. It is a workbench, not a setting.
+- **Deliberately not behind expert mode.** There is no secret in a brightness curve, and needing to unlock the clock to look at one would put a lock in the way of something it has nothing to do with. Read-only for the same reason; the one write is the reset button in the colour tab, which is where somebody would look for it.
+- Polled once a second, faster than the colour tab, because this is the screen somebody watches *while* dragging the slider.
+
+`brightnessToApply()` in `main .cpp` still decides what reaches the driver each tick: the manual setting immediately with the automatic off, the nudge outright while one is being waited out, and otherwise the computed value approached by an eighth of the remaining distance per second — about twenty seconds for a full swing. The reading is already smoothed over 30 s, so that easing is not about noise: it is about the step when a lamp is switched on.
 
 ### Debugging
 
@@ -428,7 +444,7 @@ The clock keeps its last 200 log lines in RAM and serves them through `GET /log`
 - The ring is written from both cores — `loop()` and the web server on core 1, the light sampler and the OTA download on core 0 — so `Log::line()` takes a spinlock for the length of a `memcpy`. The terminator is written **before** the body, so a reader catching a slot mid-overwrite sees a truncated line rather than one running off the end of the array. RemoteDebug itself is not thread-safe and never was; that is untouched here.
 - The response is built into one `String` with the room reserved up front rather than through ArduinoJson, which would put every line into a document and serialise that into a second buffer — on the same heap an update wants. `LOG_BATCH` caps one response at about 11 KB.
 
-The tab also carries the state block the update history keeps pointing at: uptime, reset reason, and free / lowest-ever / largest-block heap. **This is the tab the light sensor's roadmap calls the "geek" tab** — the curves and backup/restore of step 4 belong here too, rather than in a second tab beside it.
+The tab also carries the state block the update history keeps pointing at: uptime, reset reason, and free / lowest-ever / largest-block heap. The brightness curves that were once meant to land here went to `#luminance` instead, outside the lock: the debug tab is behind expert mode and a brightness curve has no business needing a password.
 
 #### The face in the colour tab
 
