@@ -254,12 +254,35 @@
    */
   const face = $derived(cells(panel));
 
-  const ledColor = $derived(
-    css(
-      hsvRgb(clock.hue, clock.sat, 100).map(
-        (part, i) => FACE[i] + (part - FACE[i]) * (wantedNow / 100)
-      )
-    )
+  /** Blends a full-intensity colour towards the face, the way a lit letter is. */
+  const asLit = (rgb) =>
+    css(rgb.map((part, i) => FACE[i] + (part - FACE[i]) * (wantedNow / 100)));
+
+  const ledColor = $derived(asLit(hsvRgb(clock.hue, clock.sat, 100)));
+
+  /**
+   * The four corner LEDs, in reading order.
+   *
+   * With the coloured corners switched on they are not in the display colour:
+   * the newest one walks the hue wheel with the seconds, so its colour says
+   * roughly how far into the minute the clock is. The clock computes that -
+   * `cornerColors` in /panel - because the driver is the only place that knows
+   * it, and a second implementation here would be one to keep in step.
+   *
+   * Absent means the mode is off, and then a lit corner is simply the display
+   * colour, as before. The colour arrives at full intensity and is blended
+   * down here, the same as the letters: how bright the clock runs is the
+   * preview's business, not the firmware's.
+   */
+  const corners = $derived.by(() =>
+    [0, 1, 2, 3].map((i) => {
+      const hex = panel?.cornerColors?.[i];
+      if (hex === undefined) return { on: panel?.corners?.[i] === true, color: null };
+      if (!hex) return { on: false, color: null };
+
+      const rgb = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+      return { on: true, color: asLit(rgb) };
+    })
   );
 </script>
 
@@ -281,10 +304,15 @@
       role="img"
       aria-label={panel?.text || t.colorTitle}
     >
-      <span class="corner tl" class:on={panel?.corners?.[0]}></span>
-      <span class="corner tr" class:on={panel?.corners?.[1]}></span>
-      <span class="corner br" class:on={panel?.corners?.[2]}></span>
-      <span class="corner bl" class:on={panel?.corners?.[3]}></span>
+      <!-- Keyed by position; `--led` is overridden per corner only when the
+           clock says that corner is showing a colour of its own. -->
+      {#each ['tl', 'tr', 'br', 'bl'] as where, i (where)}
+        <span
+          class="corner {where}"
+          class:on={corners[i].on}
+          style={corners[i].color ? `--led: ${corners[i].color}` : ''}
+        ></span>
+      {/each}
 
       <!-- Keyed by position, not by letter: a panel carries the same letter
            many times over and a keyed each would throw on the repeat. -->

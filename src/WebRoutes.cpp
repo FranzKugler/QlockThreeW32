@@ -38,6 +38,7 @@
 #include "Expert.h"
 #include "languages/Language.h"
 #include "DisplayModes.h"
+#include "LedDriverWS2812FastLED.h"   // the corner colours in sendPanel()
 #include "Renderer.h"
 
 // Debug and the debugX macros, plus the ring the web UI reads them out of.
@@ -61,6 +62,10 @@ extern bool needsUpdateFromRtc;
 // The frame buffer itself, and the sentence read back out of it. Both are
 // owned by the render loop; /panel only ever looks.
 extern word matrix[16];
+
+// Only for the corner colours in sendPanel(): the coloured corners bypass
+// the frame buffer, so the driver is the only place that knows them.
+extern LedDriverWS2812FastLED ledDriver;
 String displayedWords(byte language);
 
 // Rebuilds the Timezone object after POST /timezone changed the rules.
@@ -1023,6 +1028,17 @@ void sendLanguages()
  * the order the strip is soldered. Which row is which corner is written down
  * at Renderer::setCorners, and comes from the clock rather than from the code:
  * following the pixel remapping through the driver gives the wrong answer.
+ *
+ * With the coloured corners switched on they are not in the display colour at
+ * all - the newest one walks the hue wheel with the seconds - so `cornerColors`
+ * carries what each is actually showing. The browser cannot work that out and
+ * must not try: it asks the driver, through here. The colours are the pure hue
+ * at full value; how bright the clock is running is the preview's own business,
+ * as it already is for the letters.
+ *
+ * The field is absent, not empty, when the mode is off. An older web UI then
+ * behaves exactly as it did, and a newer one can tell "no colours" from "four
+ * dark corners" without a second flag.
  */
 void sendPanel()
 {
@@ -1061,6 +1077,30 @@ void sendPanel()
     for (uint8_t i = 0; i < 4; i++)
     {
         corners.add((matrix[CORNER_ROW[i]] & 0b11111) == 0b11111);
+    }
+
+    if (settings.getRenderColorCorner() && mode == STD_MODE_NORMAL)
+    {
+        JsonArray colors = doc["cornerColors"].to<JsonArray>();
+        for (uint8_t i = 0; i < 4; i++)
+        {
+            byte hue;
+            if (!ledDriver.cornerHue(i, hue))
+            {
+                colors.add("");
+                continue;
+            }
+
+            // hsv2rgb_rainbow, not a plain HSV conversion: FastLED's wheel is
+            // deliberately not the geometric one, and the preview should show
+            // the colour the LED shows.
+            CRGB rgb;
+            hsv2rgb_rainbow(CHSV(hue, 255, 255), rgb);
+
+            char hex[8];
+            snprintf(hex, sizeof(hex), "#%02x%02x%02x", rgb.r, rgb.g, rgb.b);
+            colors.add(hex);
+        }
     }
 
     // The same sentence the once-a-minute log line carries, so the browser can

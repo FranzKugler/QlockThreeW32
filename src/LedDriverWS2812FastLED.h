@@ -49,6 +49,17 @@ public:
     void setColorCorners(boolean flag, boolean cw) {_colorCorners = flag; _cw = cw;}
     void setTimeForCorners(byte Minute, byte Second) {_minute = Minute; _second = Second;}
 
+    /**
+     * The hue one corner shows in the coloured-corner mode, by its place on
+     * the face - 0 top left, 1 top right, 2 bottom right, 3 bottom left, which
+     * is reading order. False for a dark corner, and `hue` is then untouched.
+     *
+     * Public because GET /panel needs it: the web UI's preview drew the
+     * corners in the plain display colour, having no way to ask what they
+     * actually show. The implementation says the rest.
+     */
+    boolean cornerHue(byte corner, byte &hue) const;
+
 	void setBrightness(byte brightnessInPercent);
     byte getBrightness();
 

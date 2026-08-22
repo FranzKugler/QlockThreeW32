@@ -59,7 +59,13 @@
 #define CORNER_BOTTOM_LEFT  113
 
 // The colour a corner settles on once the next one has lit; the newest one
-// is the one that moves. Cyan on FastLED's wheel.
+// is the one that moves. Violet, on FastLED's rainbow wheel - which runs
+// blue to purple over 160..191, not the cyan a geometric HSV would give.
+//
+// Note that the moving corner ends its minute at 3*59 = 177, just short of
+// this, so in the last seconds of a minute the newest corner and the
+// settled ones are nearly the same colour. That is how this mode has
+// always behaved and is left alone.
 #define CORNER_SETTLED_HUE 180
 
 #ifndef LED_OUTPUT_PIN
@@ -154,46 +160,23 @@ void LedDriverWS2812FastLED::writeScreenBufferToMatrix(word matrix[16], boolean 
 		else
 		{
 			/*
-			 * The coloured corners: the same count of minutes the plain corners
-			 * show, but with the newest one cycling through the hues once a
-			 * minute and the ones before it held at a fixed colour.
+			 * The coloured corners. What each one shows is cornerHue()'s to
+			 * say - this only puts it on the strip, at the same gamma the
+			 * letters get.
 			 *
-			 * It has to count the same as Renderer::setCorners does, and used
-			 * to count one too many - a remainder of 0 lit a corner, so every
-			 * corner came on a minute early and the fourth never went out. It
-			 * also ignored the direction: the only branch that asked about it
-			 * had an empty else, so counter-clockwise ran clockwise. Both are
-			 * gone now that the order is a table rather than a switch.
-			 *
-			 * This is the one place that writes corner pixels directly. It
-			 * cannot go through the frame buffer, because the hue differs per
-			 * corner and a row is one bit.
+			 * It cannot go through the frame buffer, because the hue differs
+			 * per corner and a row of that buffer is one bit.
 			 */
-			const byte clockwise[4] = {
+			const byte PIXEL[4] = {
 				CORNER_TOP_LEFT, CORNER_TOP_RIGHT, CORNER_BOTTOM_RIGHT, CORNER_BOTTOM_LEFT
 			};
-			const byte counterClockwise[4] = {
-				CORNER_TOP_RIGHT, CORNER_TOP_LEFT, CORNER_BOTTOM_LEFT, CORNER_BOTTOM_RIGHT
-			};
-			const byte *order = _cw ? clockwise : counterClockwise;
 
-			int brightness = _brightnessScaled;  // same gamma as the letters
-			byte lit = _minute % 5;
-
-			for (byte i = 0; i < 4; i++)
+			for (byte corner = 0; corner < 4; corner++)
 			{
-				if (i + 1 < lit)
-				{
-					_leds[order[i]] = CHSV(CORNER_SETTLED_HUE, 255, brightness);
-				}
-				else if (i + 1 == lit)
-				{
-					_leds[order[i]] = CHSV(3 * _second, 255, brightness);
-				}
-				else
-				{
-					_leds[order[i]] = CHSV(0, 0, 0);
-				}
+				byte hue;
+				_leds[PIXEL[corner]] = cornerHue(corner, hue)
+					? CHSV(hue, 255, _brightnessScaled)
+					: CHSV(0, 0, 0);
 			}
 		}
 
@@ -326,6 +309,49 @@ void LedDriverWS2812FastLED::_setPixel(byte x, byte y, CRGB c)
 /**
  * Set a pixel in the strip (the corner LEDs come last).
  */
+boolean LedDriverWS2812FastLED::cornerHue(byte corner, byte &hue) const
+{
+	/*
+	 * What one corner shows in the coloured-corner mode, by its place on the
+	 * face: 0 top left, 1 top right, 2 bottom right, 3 bottom left. That is
+	 * reading order, and reading order is clockwise, so the order the corners
+	 * light in is 0,1,2,3 one way and 1,0,3,2 the other - the same two
+	 * sequences Renderer::setCorners uses, and for the same reason. Where a
+	 * frame buffer row is which corner is written down there.
+	 *
+	 * The newest corner walks the hue wheel with the seconds and the ones
+	 * before it sit still, so the moving one says roughly how far into the
+	 * minute the clock is: red at :00 through to blue at :59.
+	 *
+	 * This is the answer to "what colour is that corner", and both askers get
+	 * it from here - the strip, and GET /panel for the web UI's preview. The
+	 * preview showed the plain display colour for a long time because it had
+	 * no way to ask; a second implementation in the browser would have been
+	 * the wrong fix.
+	 *
+	 * It counts the same minutes Renderer::setCorners does, which the hand
+	 * written switch this replaced did not: a remainder of 0 lit a corner, so
+	 * every corner came on a minute early and the fourth never went out.
+	 */
+	const byte CLOCKWISE[4]         = { 0, 1, 2, 3 };
+	const byte COUNTER_CLOCKWISE[4] = { 1, 0, 3, 2 };
+	const byte *order = _cw ? CLOCKWISE : COUNTER_CLOCKWISE;
+
+	byte lit = _minute % 5;
+
+	for (byte step = 0; step < 4; step++)
+	{
+		if (order[step] != corner) continue;
+
+		if (step + 1 > lit) return false;                       // not yet
+		hue = (step + 1 == lit) ? (byte)(3 * _second)           // the newest
+		                        : (byte)CORNER_SETTLED_HUE;     // and settled
+		return true;
+	}
+
+	return false;
+}
+
 void LedDriverWS2812FastLED::_setPixel(byte num, CRGB c)
 {
 	if (num < 110)

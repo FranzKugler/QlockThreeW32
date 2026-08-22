@@ -402,6 +402,20 @@ const W = {
   ]
 };
 
+/** A FastLED hue (0..255) as #rrggbb, near enough for the mock. */
+function hueHex(hue) {
+  const h = (hue / 255) * 360;
+  const c = 1;
+  const x = 1 - Math.abs(((h / 60) % 2) - 1);
+  const rgb =
+    h < 60 ? [c, x, 0] :
+    h < 120 ? [x, c, 0] :
+    h < 180 ? [0, c, x] :
+    h < 240 ? [0, x, c] :
+    h < 300 ? [x, 0, c] : [c, 0, x];
+  return '#' + rgb.map((p) => Math.round(p * 255).toString(16).padStart(2, '0')).join('');
+}
+
 function panelState() {
   const now = new Date();
   const grid = PANEL_DE.map(() => Array(11).fill('.'));
@@ -432,12 +446,30 @@ function panelState() {
   if (full) light(W.UHR);
   light(W.H[hours % 12]);
 
-  // Reading order: top left, top right, bottom right, bottom left - clockwise,
-  // which is how the firmware hands them over.
+  // Reading order - top left, top right, bottom right, bottom left - which is
+  // also clockwise, so the corners light in that order one way and 1,0,3,2 the
+  // other. Same two sequences as Renderer::setCorners and cornerHue(); this
+  // used to run 3,0,1,2, written before the mapping was established against a
+  // real clock and never revisited.
   const remainder = now.getMinutes() % 5;
-  const order = [3, 0, 1, 2]; // corner index lit at remainder 1, 2, 3, 4
+  const order = state.cornerDirection ? [0, 1, 2, 3] : [1, 0, 3, 2];
   const corners = [false, false, false, false];
   for (let i = 0; i < remainder; i++) corners[order[i]] = true;
+
+  // With the coloured corners on, each lit corner shows a hue of its own: the
+  // newest walks the wheel with the seconds, the ones before it sit at cyan.
+  // The firmware reads these off the driver; the mock works them out from the
+  // wall clock, and converts the hue with a plain HSV rather than FastLED's
+  // rainbow - close enough to develop the layout against, and not a claim to
+  // be the same colour.
+  let cornerColors;
+  if (state.cornerColor) {
+    cornerColors = ['', '', '', ''];
+    for (let i = 0; i < remainder; i++) {
+      const hue = i + 1 === remainder ? (3 * now.getSeconds()) % 256 : 180;
+      cornerColors[order[i]] = hueHex(hue);
+    }
+  }
 
   const on = grid.map((row) => row.join(''));
   const text = on
@@ -453,6 +485,7 @@ function panelState() {
     .join(' ');
 
   return {
+    ...(cornerColors ? { cornerColors } : {}),
     language: 0,
     code: 'de-DE',
     name: 'Deutsch',
