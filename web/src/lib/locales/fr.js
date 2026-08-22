@@ -258,7 +258,12 @@ export default {
     'L\'horloge garde ses réglages en mémoire vive et les réécrit au ' +
     'changement suivant. Une modification faite ici ne survit qu\'à un ' +
     'redémarrage immédiat.',
-  fsEntries: (n) => `${n} entrées`,
+  fsUsageEntries: (used, total) => `${used} entrées sur ${total} utilisées`,
+  fsKeys: (n) => `${n} clés`,
+  fsRestart: 'Redémarrer',
+  fsRestarting: 'Redémarrage …',
+  fsConfirmRestart: 'Redémarrer l’horloge maintenant ? Elle sera injoignable quelques secondes.',
+  fsRestarted: 'Redémarrage demandé — rechargez la page dans quelques secondes.',
   fsGesture: 'Clic droit, ou appui long, pour ouvrir le menu.',
   fsNewFolderHere: 'Nouveau dossier dedans',
   fsProtected: 'Illisible (empreinte du mot de passe)',

@@ -258,7 +258,12 @@ export default {
     'Die Uhr hält ihre Einstellungen im Arbeitsspeicher und schreibt sie ' +
     'bei der nächsten Änderung zurück. Eine Bearbeitung hier überlebt nur ' +
     'ein sofortiger Neustart.',
-  fsEntries: (n) => `${n} Einträge`,
+  fsUsageEntries: (used, total) => `${used} von ${total} Einträgen belegt`,
+  fsKeys: (n) => `${n} Schlüssel`,
+  fsRestart: 'Jetzt neu starten',
+  fsRestarting: 'Startet neu …',
+  fsConfirmRestart: 'Die Uhr jetzt neu starten? Sie ist ein paar Sekunden lang nicht erreichbar.',
+  fsRestarted: 'Neustart angefordert — die Seite in ein paar Sekunden neu laden.',
   fsGesture: 'Rechte Maustaste oder langes Antippen öffnet das Menü.',
   fsNewFolderHere: 'Ordner darin anlegen',
   fsProtected: 'Nicht lesbar (Kennwort-Hash)',

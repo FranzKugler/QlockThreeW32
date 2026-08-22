@@ -255,7 +255,12 @@ export default {
   storageNvsWarn:
     'The clock keeps its settings in RAM and writes them back on the ' +
     'next change. An edit made here survives only an immediate restart.',
-  fsEntries: (n) => `${n} entries`,
+  fsUsageEntries: (used, total) => `${used} of ${total} entries used`,
+  fsKeys: (n) => `${n} keys`,
+  fsRestart: 'Restart now',
+  fsRestarting: 'Restarting …',
+  fsConfirmRestart: 'Restart the clock now? It will be unreachable for a few seconds.',
+  fsRestarted: 'Restart asked for — reload the page in a few seconds.',
   fsGesture: 'Right-click, or press and hold, to open the menu.',
   fsNewFolderHere: 'New folder inside',
   fsProtected: 'Not readable (password hash)',

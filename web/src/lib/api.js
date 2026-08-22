@@ -466,3 +466,20 @@ export const deleteNvs = (ns, key) => fsWrite('/nvs/delete', { ns, key });
 
 const nvsQuery = (ns, key) =>
   `/nvs/read?ns=${encodeURIComponent(ns)}&key=${encodeURIComponent(key)}`;
+
+/**
+ * Restarts the clock.
+ *
+ * Its one caller is the NVS panel, where it is the answer to that panel's own
+ * warning: the firmware holds its records in RAM and writes them back on the
+ * next settings change, so an edit made there is only durable if the clock is
+ * restarted before anything else touches it.
+ *
+ * Throws, so the button can say what went wrong. The connection dying right
+ * afterwards is not a failure - the answer goes out before the restart.
+ */
+export async function restartClock() {
+  const res = await fetch('/restart', { method: 'POST' });
+  if (!res.ok) throw new Error(await fsFailure(res, '/restart'));
+  return res.json();
+}

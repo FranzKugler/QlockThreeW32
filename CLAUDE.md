@@ -116,6 +116,7 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /fs/save` — `{path, content}`, for the in-browser editor; buffered, so capped at `FS_EDIT_MAX`. **Behind the lock.**
 - `POST /fs/delete` — `{path}`; one file, or one *empty* directory. **Behind the lock.**
 - `POST /fs/mkdir` — `{path}`; one directory, parent must exist. **Behind the lock.**
+- `POST /restart` — restarts the clock and nothing else, through the same `Ota::scheduleRestart()` a rename uses. It exists for the storage tab, where it is the answer to that tab's own warning about records held in RAM. **Behind the lock**: `/hostname` restarts without a guard and predates it, but there is no reason for a new reboot button to be open to the network.
 - `GET /nvs/list` — every entry in the partition as `{ns, key, type, size, suffix, edit|protected}`, plus `used`/`total` in entries. One answer, not one per namespace: the iterator walks the whole partition anyway. **Behind the lock.**
 - `GET /nvs/read?ns=&key=` — one value as text, or as bytes where it has no text form. `&download=1` names the file. **Behind the lock.**
 - `POST /nvs/save` — `{ns, key, content}`, in the type the key already has. **Behind the lock.**
@@ -345,10 +346,13 @@ It is stored in **NVS**, not in the filesystem, because the filesystem partition
 
 ### Light sensor
 
-[src/LightSensor.h](src/LightSensor.h)/[.cpp](src/LightSensor.cpp) replaced the old `LDR`/BH1750 pair, which had been commented out rather than used for a long time. Three parts:
+[src/LightSensor.h](src/LightSensor.h)/[.cpp](src/LightSensor.cpp) replaced the old `LDR`/BH1750 pair, which had been commented out rather than used for a long time. Four parts:
 
-- **`LightSensor`** — an interface of one meaningful method, `readLux()`. A TSL2591 or OPT3001 would be another class beside `Veml7700Sensor` and one changed line in `AmbientLight::begin()`.
-- **`Veml7700Sensor`** — Vishay VEML7700 on I²C at the fixed address 0x10, read through the library's `VEML_LUX_AUTO` mode. **The BH1750 was dropped because it resolves 1 lx** and behind a dark front panel a lit living room arrives as a handful of lux — the interesting range is fractions of one. The `Adafruit_VEML7700` object is held as a `void *` so the header does not drag the library into every translation unit.
+- **`LightSensor`** — an interface of one meaningful method, `readLux()`. An OPT3001 would be another class beside the two below and one more entry in the candidate list.
+- **Two chips, and the choice is made at run time**, not in a build flag: `AmbientLight::begin()` tries each candidate in turn and keeps the first that answers. One firmware serves every build of the clock and they do not all carry the same sensor, and a chip swapped on the bench then needs no rebuild. **The TSL2591 is asked first on purpose** — the two do not share an address (0x29 against 0x10), so a clock with both wired up answers twice, and the more sensitive one is the one to keep.
+- **`Veml7700Sensor`** — Vishay VEML7700 on I²C at the fixed address 0x10, read through the library's `VEML_LUX_AUTO` mode. **The BH1750 was dropped because it resolves 1 lx** and behind a dark front panel a lit living room arrives as a handful of lux — the interesting range is fractions of one.
+- **`Tsl2591Sensor`** — ams TSL2591 at 0x29, and what the board in [hardware/](hardware/) actually carries (`TSL25911FN`). Resolves to roughly 188 µlx — twenty times finer than the VEML7700 and six hundred times finer than the BH1750. That only matters at the dark end, and **the dark end is the whole point**: behind a front panel an evening living room arrives as a fraction of a lux, and a sensor reporting a flat 0 there cannot tell dusk from night, so the automatic sits at its floor all evening. Its library has **no auto-ranging**, so the class walks a sensitivity ladder itself — a reading taken while changing rung is dropped rather than reported, which is why `readLux()` may answer -1.
+- Both hold their Adafruit object as a `void *`, so neither header drags its library into every translation unit.
 - **`AmbientLight`** — owns the sensor and samples it **in a FreeRTOS task pinned to core 0**, every 2 s, smoothed with an EMA over 30 s (`dt/(tau+dt)`, seeded from the first reading so it does not crawl up from zero).
 
 **The task is not optional.** Auto-ranging walks gain and integration time and waits for a fresh measurement at each step, which can block well over a second, and the web server here is synchronous — a blocked `loop()` is a clock that stops answering. `smoothed`/`lastRaw`/`sampleCount` are `volatile` 32-bit values written on core 0 and read on core 1; a torn read is not possible for those, so they carry no lock.
@@ -421,6 +425,9 @@ The seventh tab, behind expert mode, holds an explorer over the clock's two pers
 
 It began inside the debug tab and moved out: a file tree next to a log window is two unrelated jobs sharing a screen, and the log is the one that needs the room.
 
+- **The switch between them is a pair of underlined tabs**, the same idiom as the tab row at the top of the page. A segmented control was tried first and read badly on a real screen: two greys on a third grey, with the selected one told apart only by a faint shadow.
+- **Three different quantities get a number beside them, and conflating them shows.** A value is always in bytes; the volume is bytes on the filesystem and 32-byte entries in NVS; a folder says nothing on the filesystem and its key count in NVS. One shared formatter labelled an 80-byte value as "80 entries" until a screenshot caught it.
+- **The colour tokens are `--surface` and `--text`.** `--card` and `--fg` do not exist, and a `var()` naming neither falls back to nothing — which is how the context menu shipped transparent and unreadable, and how the `#luminance` chart lost its background at the same time.
 - **They are named by what they are.** "LittleFS" and "NVS" are the words in every ESP32 document and in this project's own logs, so somebody searching for where their settings went finds the panel holding them. A friendlier metaphor would have to be un-learned the first time anything goes wrong.
 - **The difference between them is the whole reason both exist**, and each panel says so in a line: a filesystem update overwrites LittleFS wholesale, and leaves NVS untouched. That is why the settings, the expert password and the brightness curve are in NVS — see "Settings persistence".
 
@@ -438,7 +445,7 @@ Two more, from building it:
 - **Raw `nvs_*` calls, not `Preferences`.** This has to walk namespaces whose names it does not know and read values whose type it learns while walking; `Preferences` wraps one namespace of a known shape, which is right everywhere else in this firmware and wrong here.
 - **The stored type decides what a write may be.** Putting a string over a `u8` would leave the firmware's `nvs_get_u8` finding nothing and the setting silently reverting to its default — the worst way for this to fail. A number that will not parse is refused with `nvsNotANumber` instead.
 - **One value is deliberately unreadable: the expert password hash, and its salt.** Everything else here is exactly as open as the unlock that reached it and closes again when the clock is locked; a hash carried off during a borrowed thirty seconds is crackable offline forever, and probably against a password used elsewhere too. The key is still *listed* — a tree that hides entries is a tree that lies — only the read and the write are refused.
-- **An edit to a cached namespace is only as durable as the next settings save.** The firmware holds `Settings` in RAM and writes the whole record back on any change, so editing `qlock/conf` and then touching a slider loses the edit. The panel warns, and `/nvs/save` answers `cached: true` so a curl user sees it too.
+- **An edit to a cached namespace is only as durable as the next settings save.** The firmware holds `Settings` in RAM and writes the whole record back on any change, so editing `qlock/conf` and then touching a slider loses the edit. The panel warns, and `/nvs/save` answers `cached: true` so a curl user sees it too. **The warning carries a restart button**, because saying "only an immediate restart makes this stick" and then leaving the reader to find a power socket is telling half the story.
 
 #### One explorer, two stores
 

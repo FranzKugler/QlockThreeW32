@@ -24,7 +24,7 @@
 
   const t = $derived(dict());
 
-  let { store, hint = '', warning = '' } = $props();
+  let { store, hint = '', warning = '', onRestart = null } = $props();
 
   let dirs = $state({});
   let open = $state({ '/': true });
@@ -267,6 +267,23 @@
     }
   });
 
+  let restarting = $state(false);
+
+  async function restart() {
+    if (!confirm(t.fsConfirmRestart)) return;
+    restarting = true;
+    try {
+      await onRestart();
+      note = t.fsRestarted;
+      error = null;
+    } catch (err) {
+      error = err.message;
+      restarting = false;
+    }
+    // Left true on success: the clock is going away for a few seconds, and the
+    // button must not invite a second press while it does.
+  }
+
   // ------ the two writes only LittleFS has ------
 
   async function upload(event) {
@@ -307,26 +324,56 @@
     }
   }
 
-  /** Bytes for a filesystem, entries for NVS - the unit each store counts in. */
-  const amount = (n) => {
-    if (store.unit === 'entries') return t.fsEntries(n);
-    return n < 1024 ? `${n} B`
-         : n < 1048576 ? `${(n / 1024).toFixed(1)} kB`
-         : `${(n / 1048576).toFixed(2)} MB`;
-  };
+  /*
+   * Three different things get a number beside them, and conflating them is
+   * how `curve.json  80 entries` happened: a value 80 bytes long, labelled
+   * with the unit the volume is measured in.
+   *
+   *   a value      always bytes, in both stores
+   *   the volume   bytes on a filesystem, 32-byte entries in NVS
+   *   a folder     nothing on a filesystem, its key count in NVS
+   */
+  const bytes = (n) =>
+    n < 1024 ? `${n} B`
+    : n < 1048576 ? `${(n / 1024).toFixed(1)} kB`
+    : `${(n / 1048576).toFixed(2)} MB`;
+
+  const usage = $derived(
+    !volume
+      ? ''
+      : store.unit === 'entries'
+        ? t.fsUsageEntries(volume.used, volume.total)
+        : t.fsUsage(bytes(volume.used), bytes(volume.total))
+  );
+
+  /** What sits at the right of a row. A folder only has something to say in NVS. */
+  const sizeOf = (row) =>
+    !row.dir ? bytes(row.size) : store.unit === 'entries' ? t.fsKeys(row.size) : '';
 </script>
 
 <svelte:window onkeydown={onWindowKey} onclick={closeOnOutside} onscroll={closeOnOutside} />
 
 <p class="hint">{hint}</p>
-{#if warning}<p class="hint warn">{warning}</p>{/if}
+{#if warning}
+  <p class="hint warn">
+    {warning}
+    <!-- Beside the sentence rather than in a row of its own: it is the answer
+         to what the sentence just said, and a restart button anywhere else on
+         this page would be an invitation rather than a remedy. -->
+    {#if onRestart}
+      <button type="button" class="restart" onclick={restart} disabled={restarting}>
+        {restarting ? t.fsRestarting : t.fsRestart}
+      </button>
+    {/if}
+  </p>
+{/if}
 
 {#if error}<p class="banner">{error}</p>{/if}
 {#if note}<p class="hint ok">{note}</p>{/if}
 
 {#if volume}
   <div class="field">
-    <span class="key">{t.fsUsage(amount(volume.used), amount(volume.total))}</span>
+    <span class="key">{usage}</span>
     <span class="bar" aria-hidden="true">
       <span style="width: {Math.min(100, (volume.used / volume.total) * 100)}%"></span>
     </span>
@@ -389,7 +436,7 @@
         {:else}
           <span class="name file"><span class="twist"></span>{row.name}</span>
         {/if}
-        <span class="size">{row.dir ? '' : amount(row.size)}</span>
+        <span class="size">{sizeOf(row)}</span>
       </div>
     {/if}
   {/each}
@@ -575,7 +622,7 @@
     padding: 0.25rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: var(--card);
+    background: var(--surface);
     box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
   }
 
@@ -661,6 +708,15 @@
     white-space: pre;
     overflow-wrap: normal;
     overflow-x: auto;
+  }
+
+  .restart {
+    /* Inline with the warning it answers, so it reads as part of the sentence
+       rather than as a control that happens to sit nearby. */
+    margin-left: 0.5rem;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.78rem;
+    vertical-align: baseline;
   }
 
   .hint.ok {

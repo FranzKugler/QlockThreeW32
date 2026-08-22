@@ -257,7 +257,12 @@ export default {
     'De klok houdt haar instellingen in het werkgeheugen en schrijft ze ' +
     'bij de volgende wijziging terug. Een bewerking hier overleeft alleen ' +
     'een onmiddellijke herstart.',
-  fsEntries: (n) => `${n} items`,
+  fsUsageEntries: (used, total) => `${used} van ${total} items in gebruik`,
+  fsKeys: (n) => `${n} sleutels`,
+  fsRestart: 'Nu herstarten',
+  fsRestarting: 'Herstart …',
+  fsConfirmRestart: 'De klok nu herstarten? Ze is een paar seconden niet bereikbaar.',
+  fsRestarted: 'Herstart aangevraagd — laad de pagina over een paar seconden opnieuw.',
   fsGesture: 'Rechtermuisknop, of lang indrukken, opent het menu.',
   fsNewFolderHere: 'Nieuwe map hierin',
   fsProtected: 'Niet leesbaar (wachtwoord-hash)',

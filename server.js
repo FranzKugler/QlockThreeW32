@@ -1263,4 +1263,16 @@ app.post('/nvs/delete', (req, res) => {
   res.json({ ns, key });
 });
 
+
+/*
+ * Restart, which the NVS panel offers beside its warning about the firmware
+ * keeping records in RAM. Nothing to restart here, so it answers the same
+ * shape and says so in the console - enough for the button to be exercised.
+ */
+app.post('/restart', (req, res) => {
+  if (!expert.on) return res.status(403).json({ error: 'expertLocked' });
+  console.log('mock: restart asked for');
+  res.json({ restarting: true });
+});
+
 app.listen(8080, () => console.log('QlockThreeW32 mock API on http://localhost:8080'));

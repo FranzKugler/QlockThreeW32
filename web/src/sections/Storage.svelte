@@ -24,6 +24,7 @@
   import Explorer from './Explorer.svelte';
   import { littleFs, nvs } from '../lib/explorers.js';
   import { dict } from '../lib/i18n.svelte.js';
+  import { restartClock } from '../lib/api.js';
 
   const t = $derived(dict());
 
@@ -51,38 +52,53 @@
   {#if which === 'littlefs'}
     <Explorer store={stores.littlefs} hint={t.storageFsHint} warning={t.storageFsWarn} />
   {:else}
-    <Explorer store={stores.nvs} hint={t.storageNvsHint} warning={t.storageNvsWarn} />
+    <!-- Only NVS gets the restart button: it is the answer to that panel's
+         warning, and nothing on the filesystem side needs one. -->
+    <Explorer store={stores.nvs} hint={t.storageNvsHint} warning={t.storageNvsWarn}
+              onRestart={restartClock} />
   {/if}
 </section>
 
 <style>
+  /*
+   * Underlined tabs, the same idiom as the tab row at the top of the page.
+   * A segmented control was tried first and read badly: two greys on a third
+   * grey, with the selected one told apart only by a faint shadow. Tabs say
+   * "these are two views of one thing" without needing contrast to carry the
+   * whole message, and the page already teaches the gesture once.
+   */
   .switch {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.25rem;
     margin: 0 0 1rem;
-    padding: 0.2rem;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    /* Two of them, so they share the width rather than huddling on the left. */
-    width: fit-content;
+    border-bottom: 1px solid var(--border);
   }
 
   .switch button {
+    appearance: none;
     background: none;
     border: none;
-    border-radius: calc(var(--radius) - 3px);
-    padding: 0.35rem 0.9rem;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 0.5rem 0.9rem;
     font: inherit;
     font-size: 0.9rem;
     color: var(--muted);
     cursor: pointer;
   }
 
+  .switch button:hover {
+    color: var(--text);
+  }
+
   .switch button.on {
-    background: var(--card);
-    color: var(--fg);
+    color: var(--accent);
+    border-bottom-color: var(--accent);
     font-weight: 600;
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  }
+
+  .switch button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 </style>

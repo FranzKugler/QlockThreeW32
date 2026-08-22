@@ -258,7 +258,12 @@ export default {
     'L\'orologio tiene le impostazioni in RAM e le riscrive alla prossima ' +
     'modifica. Una modifica fatta qui sopravvive solo a un riavvio ' +
     'immediato.',
-  fsEntries: (n) => `${n} voci`,
+  fsUsageEntries: (used, total) => `${used} voci su ${total} occupate`,
+  fsKeys: (n) => `${n} chiavi`,
+  fsRestart: 'Riavvia ora',
+  fsRestarting: 'Riavvio …',
+  fsConfirmRestart: 'Riavviare l’orologio adesso? Sarà irraggiungibile per qualche secondo.',
+  fsRestarted: 'Riavvio richiesto: ricarica la pagina fra qualche secondo.',
   fsGesture: 'Tasto destro, o pressione prolungata, per il menu.',
   fsNewFolderHere: 'Nuova cartella dentro',
   fsProtected: 'Non leggibile (hash della password)',

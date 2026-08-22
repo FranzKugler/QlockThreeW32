@@ -22,6 +22,7 @@ const API_ROUTES = [
   '/configuration',
   '/timezone',
   '/hostname',
+  '/restart',
   '/light',
   '/luminance',
   '/log',

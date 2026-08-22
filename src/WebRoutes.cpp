@@ -406,6 +406,32 @@ void updateHostname()
 }
 
 /**
+ * Restarts the clock, and nothing else.
+ *
+ * It exists for one situation, which is the storage tab: the firmware holds
+ * its records in RAM and writes them back on the next settings change, so an
+ * edit made to `qlock/conf` in NVS is only durable if the clock is restarted
+ * before anything else touches it. Saying that in a warning and then leaving
+ * the reader to find a power socket would be telling half the story.
+ *
+ * Behind the lock like the tab it serves. `/hostname` restarts without a guard
+ * and predates it; there is no reason for a new reboot button to be open to
+ * whoever is on the network.
+ *
+ * The answer goes out first and the restart happens in loop() through the same
+ * Ota::scheduleRestart() a rename uses - it is not an update, but it needs
+ * exactly the same delay, or the response never reaches the browser.
+ */
+void restartClock()
+{
+    if (!Expert::guard()) return;
+
+    debugA("Restart asked for over HTTP");
+    server.send(200, "application/json", "{\"restarting\":true}");
+    Ota::scheduleRestart();
+}
+
+/**
  * The web app manifest, which is how Android decides what to put on a home
  * screen - it ignores the apple-touch-icon iOS uses.
  *
@@ -1118,6 +1144,7 @@ void Web::begin()
     server.on("/light", HTTP_POST, updateLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);
+    server.on("/restart", HTTP_POST, restartClock);
     server.on("/wifi", HTTP_GET, sendWifiStatus);
     server.on("/wifi", HTTP_POST, updateWifi);
     server.on("/wifi/scan", HTTP_GET, sendWifiScan);

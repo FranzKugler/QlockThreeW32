@@ -172,7 +172,7 @@
     margin: 0.8rem 0;
     border: 1px solid var(--border);
     border-radius: 7px;
-    background: var(--card);
+    background: var(--surface);
   }
 
   .line {
@@ -182,7 +182,7 @@
   }
 
   .point {
-    fill: var(--fg);
+    fill: var(--text);
   }
 
   /* Where the clock is right now, so a point can be compared against it. */

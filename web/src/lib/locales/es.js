@@ -258,7 +258,12 @@ export default {
     'El reloj mantiene sus ajustes en memoria y los reescribe en el ' +
     'siguiente cambio. Una edición hecha aquí solo sobrevive a un ' +
     'reinicio inmediato.',
-  fsEntries: (n) => `${n} entradas`,
+  fsUsageEntries: (used, total) => `${used} de ${total} entradas ocupadas`,
+  fsKeys: (n) => `${n} claves`,
+  fsRestart: 'Reiniciar ahora',
+  fsRestarting: 'Reiniciando …',
+  fsConfirmRestart: '¿Reiniciar el reloj ahora? Estará inaccesible unos segundos.',
+  fsRestarted: 'Reinicio solicitado: recarga la página en unos segundos.',
   fsGesture: 'Clic derecho, o pulsación larga, para abrir el menú.',
   fsNewFolderHere: 'Carpeta nueva dentro',
   fsProtected: 'No legible (hash de la contraseña)',
