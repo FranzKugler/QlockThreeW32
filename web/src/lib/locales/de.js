@@ -61,6 +61,7 @@ export default {
   lumHint:
     'Was die Automatik gelernt hat und was sie daraus schließt. Nur zum ' +
     'Ansehen — zurückgesetzt wird im Farbreiter.',
+  lumApplied: 'Angezeigt',
   lumLine: 'Gerade',
   lumSlope: 'Steigung',
   lumSlopeFitted: 'aus den Punkten berechnet',

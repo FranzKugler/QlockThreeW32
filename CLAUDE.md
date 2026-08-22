@@ -391,6 +391,10 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 
 #### What keeps the fit from going somewhere silly
 
+- **The slope is the room; the level is the instruction.** Least squares gives the slope, over every point. The offset does *not* come from least squares — the line is moved so it passes exactly through the **newest** point. The intercept used to come from the fit too, which put the line through the centroid, and that had two consequences that were felt rather than seen: asking for 55 % and waiting ten seconds gave back 47 %, and nudging again at the same light replaced the same point and produced the same 47 %. A correction that cannot converge is not a correction. Older points have already had their say in the slope; what somebody asked for last is what the clock owes them at that light.
+- **The points are therefore held oldest-first, not in a ring with a write cursor.** A replaced point is taken out and re-appended rather than overwritten in place, so "newest" means something and the stored order really is the order things happened — which the store comment had been claiming while the ring quietly broke it.
+- **`applied` in `/light` and `/luminance` is what actually reached the driver**, and it is not the same number as `brightness`: during a nudge the clock shows the nudge, and afterwards it eases towards the curve by an eighth a second. Without it the workbench could say what the curve wants and what the sensor sees but not what the clock is doing, which is exactly the number missing when the automatic first felt wrong.
+- **`POST /color` used to drop `"lum": "55"` in silence.** `doc["lum"].is<int>()` refused a string while the manual branch beside it converted one happily, so the automatic looked broken in a way it had not earned. It is `isNull()` now.
 - **Too little spread, and only the offset moves.** Ten corrections made in one evening say nothing about steepness; least squares through them is noise multiplied by a large number. Below `LUM_FIT_MIN_DECADES` (0.6, a factor of four) the slope stands and only the level is re-fitted. That is exactly what the old "shift the whole curve" did — it was never wrong, it was just done *always* instead of only when it is all one can honestly do. `fitted` in `/light` and `/luminance` says which happened.
 - **A slope of zero or less is refused** the same way. Darker room, brighter clock is not a thing anybody wants, and one careless nudge in daylight produces it.
 - **A new point replaces a near neighbour** (within `LUM_SAME_LIGHT_RATIO`, 1.3) instead of joining the queue. Without that, ten evening corrections push the one daylight point out of the ring and the line collapses onto a single lighting condition — which is the failure this whole scheme has to survive, because people adjust their clock while sitting in front of it, usually in the same room at the same time of day.
@@ -410,6 +414,19 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 - Reached through `#luminance` in the address, with **no chip in the tab row** — same pattern as `#expert`. It is a workbench, not a setting.
 - **Deliberately not behind expert mode.** There is no secret in a brightness curve, and needing to unlock the clock to look at one would put a lock in the way of something it has nothing to do with. Read-only for the same reason; the one write is the reset button in the colour tab, which is where somebody would look for it.
 - Polled once a second, faster than the colour tab, because this is the screen somebody watches *while* dragging the slider.
+
+#### The sensor must not see the display
+
+Measured on the clock, automatic off, room unchanged:
+
+```
+display  20 %  ->  raw  0.42 lx
+display 100 %  ->  raw 16.79 lx
+```
+
+A factor of forty, all of it the clock's own light. That closes a positive feedback loop — brighter face, more measured light, the curve asks for brighter still — and it runs to whichever end it is nearer. It also poisons what is learned: the lux kept ten seconds after a nudge is mostly the display's contribution at the brightness just chosen, so the point describes the clock rather than the room.
+
+**No amount of fitting survives this.** Solving the two readings above for ambient plus a display term proportional to the gamma-corrected drive leaves an ambient of roughly zero, so a compensation term would be subtracting two nearly equal numbers and keeping the noise. The fix is optical: the sensor has to be shielded from the LEDs or moved out of their light. Check this first on any clock where the automatic behaves oddly — the numbers above take four minutes to reproduce with `/light` and the automatic switched off.
 
 `brightnessToApply()` in `main .cpp` still decides what reaches the driver each tick: the manual setting immediately with the automatic off, the nudge outright while one is being waited out, and otherwise the computed value approached by an eighth of the remaining distance per second — about twenty seconds for a full swing. The reading is already smoothed over 30 s, so that easing is not about noise: it is about the step when a lamp is switched on.
 

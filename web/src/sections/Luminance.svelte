@@ -117,6 +117,16 @@
       </span>
     </div>
 
+    <!-- What the curve wants, and what the clock is actually showing. The two
+         differ on purpose - during a nudge the clock shows the nudge, and
+         afterwards it eases towards the curve by an eighth a second - and
+         without both numbers there is no way to tell either apart from a
+         fault. -->
+    <div class="field">
+      <span class="key">{t.lumApplied}</span>
+      <span class:off={data.applied !== data.brightness}>{data.applied} %</span>
+    </div>
+
     <div class="field">
       <span class="key">{t.lumLine}</span>
       <!-- Per decade, because that is the unit the slope is in: ten times the

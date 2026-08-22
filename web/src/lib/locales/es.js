@@ -60,6 +60,7 @@ export default {
   lumHint:
     'Lo que el automático ha aprendido y lo que deduce de ello. Solo ' +
     'lectura: el restablecimiento está en la pestaña de color.',
+  lumApplied: 'En la esfera',
   lumLine: 'Recta',
   lumSlope: 'Pendiente',
   lumSlopeFitted: 'calculada a partir de los puntos',

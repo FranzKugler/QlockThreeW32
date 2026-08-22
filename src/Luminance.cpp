@@ -26,9 +26,13 @@
 
 namespace
 {
-    Luminance::Point ring[LUM_POINTS];
-    uint8_t count = 0;          // how many of the ring are real
-    uint8_t next = 0;           // where the next appended point goes
+    // Oldest first, newest last, always. It was a ring with a write cursor,
+    // which cost nothing to shift and made two things untrue: a replaced point
+    // kept the position of the one it replaced, so "the order it happened in"
+    // was not the order stored - and there was no way to say which point is
+    // the newest, which is now what the line is anchored on.
+    Luminance::Point points_[LUM_POINTS];
+    uint8_t count = 0;          // how many of the array are real
 
     float lineSlope = 0.0f;
     float lineOffset = 0.0f;
@@ -60,11 +64,19 @@ namespace
     /**
      * Fits the line through whatever points there are.
      *
-     * Least squares on (log10 lux, percent), but only for the slope and only
-     * when the points are spread far enough apart to carry one - see the
-     * header. Otherwise the slope stands and the offset is the mean residual,
-     * which moves the whole line up or down without changing how hard the
-     * clock reacts to a change in light.
+     * The two halves come from different places, and that is the point.
+     *
+     * **The slope is the room**, and it is learned slowly: least squares on
+     * (log10 lux, percent) over every point, and only when they are spread far
+     * enough apart to carry a slope at all - otherwise the old one stands.
+     *
+     * **The level is the instruction**, and it comes from the newest point
+     * alone: the line is moved so it passes exactly through it. Least squares
+     * put the line through the centroid instead, which meant that asking for
+     * 55 % and waiting ten seconds gave back 47 % - and that nudging again at
+     * the same light replaced the same point and produced the same 47 %. A
+     * correction that cannot converge is not a correction; it was being
+     * averaged away against older statements about a room that has changed.
      */
     void fit()
     {
@@ -77,11 +89,11 @@ namespace
         float sumX = 0.0f, sumY = 0.0f, lowest = 0.0f, highest = 0.0f;
         for (uint8_t i = 0; i < count; i++)
         {
-            float x = logLux(ring[i].lux);
+            float x = logLux(points_[i].lux);
             if (i == 0 || x < lowest) lowest = x;
             if (i == 0 || x > highest) highest = x;
             sumX += x;
-            sumY += (float)ring[i].percent;
+            sumY += (float)points_[i].percent;
         }
         float meanX = sumX / count;
         float meanY = sumY / count;
@@ -92,8 +104,8 @@ namespace
             float top = 0.0f, bottom = 0.0f;
             for (uint8_t i = 0; i < count; i++)
             {
-                float dx = logLux(ring[i].lux) - meanX;
-                top += dx * ((float)ring[i].percent - meanY);
+                float dx = logLux(points_[i].lux) - meanX;
+                top += dx * ((float)points_[i].percent - meanY);
                 bottom += dx * dx;
             }
 
@@ -106,10 +118,11 @@ namespace
             else canFitSlope = false;
         }
 
-        // Either way the level comes from the points: with a fitted slope this
-        // is the least-squares intercept, without one it slides the old line up
-        // or down to sit among them.
-        lineOffset = meanY - lineSlope * meanX;
+        // Through the newest point, whatever the slope turned out to be. What
+        // somebody asked for last is what the clock owes them at that light,
+        // and the older points have already had their say in the slope.
+        const Luminance::Point &newest = points_[count - 1];
+        lineOffset = (float)newest.percent - lineSlope * logLux(newest.lux);
         fittedSlope = canFitSlope;
     }
 
@@ -123,13 +136,13 @@ namespace
         JsonArray list = doc["points"].to<JsonArray>();
         for (uint8_t i = 0; i < count; i++)
         {
-            // Oldest first, so the order survives a reload and the read-out
-            // shows what happened in the order it happened.
-            uint8_t at = (count < LUM_POINTS) ? i : (uint8_t)((next + i) % LUM_POINTS);
+            // Already oldest first, so the order survives a reload and the
+            // read-out shows what happened in the order it happened - which is
+            // also what makes the last one the anchor again after a restart.
             JsonArray one = list.add<JsonArray>();
-            one.add(ring[at].lux);
-            one.add(ring[at].percent);
-            one.add(ring[at].seconds);
+            one.add(points_[i].lux);
+            one.add(points_[i].percent);
+            one.add(points_[i].seconds);
         }
 
         String out;
@@ -159,21 +172,31 @@ namespace
     {
         for (uint8_t i = 0; i < count; i++)
         {
-            float ratio = (lux > ring[i].lux) ? (lux / ring[i].lux) : (ring[i].lux / lux);
-            if (ring[i].lux > 0.0f && lux > 0.0f && ratio <= LUM_SAME_LIGHT_RATIO)
+            float ratio = (lux > points_[i].lux) ? (lux / points_[i].lux) : (points_[i].lux / lux);
+            if (points_[i].lux > 0.0f && lux > 0.0f && ratio <= LUM_SAME_LIGHT_RATIO)
             {
-                ring[i].lux = lux;
-                ring[i].percent = percent;
-                ring[i].seconds = seconds;
-                return;
+                // Taken out rather than overwritten in place, so that what
+                // goes in below is always the last element. The line is
+                // anchored on the newest point, and "newest" has to mean
+                // something.
+                for (uint8_t j = i; j + 1 < count; j++) points_[j] = points_[j + 1];
+                count--;
+                break;   // at most one neighbour; they cannot overlap
             }
         }
 
-        ring[next].lux = lux;
-        ring[next].percent = percent;
-        ring[next].seconds = seconds;
-        next = (uint8_t)((next + 1) % LUM_POINTS);
-        if (count < LUM_POINTS) count++;
+        // Full means the oldest goes. Ten shifts of a twelve byte struct, at
+        // the very most once every ten seconds.
+        if (count == LUM_POINTS)
+        {
+            for (uint8_t j = 0; j + 1 < count; j++) points_[j] = points_[j + 1];
+            count--;
+        }
+
+        points_[count].lux = lux;
+        points_[count].percent = percent;
+        points_[count].seconds = seconds;
+        count++;
     }
 }
 
@@ -181,7 +204,6 @@ void Luminance::begin()
 {
     defaultLine();
     count = 0;
-    next = 0;
 
     Preferences preferences;
     if (!preferences.begin(LUM_NAMESPACE, true))
@@ -208,12 +230,11 @@ void Luminance::begin()
     for (JsonArray one : doc["points"].as<JsonArray>())
     {
         if (count >= LUM_POINTS) break;
-        ring[count].lux = one[0] | 0.0f;
-        ring[count].percent = one[1] | (uint8_t)LUM_MIN_PERCENT;
-        ring[count].seconds = one[2] | (uint32_t)0;
+        points_[count].lux = one[0] | 0.0f;
+        points_[count].percent = one[1] | (uint8_t)LUM_MIN_PERCENT;
+        points_[count].seconds = one[2] | (uint32_t)0;
         count++;
     }
-    next = (uint8_t)(count % LUM_POINTS);
 
     // Re-fitted rather than trusted: the stored coefficients are there so the
     // read-out and a future tool can see them, but the points are the record
@@ -273,7 +294,6 @@ bool Luminance::poll(float lux)
 void Luminance::reset()
 {
     count = 0;
-    next = 0;
     waiting = false;
     defaultLine();
     store();
@@ -289,8 +309,7 @@ uint8_t Luminance::points(Point *out, uint8_t max)
     uint8_t given = 0;
     for (uint8_t i = 0; i < count && given < max; i++)
     {
-        uint8_t at = (count < LUM_POINTS) ? i : (uint8_t)((next + i) % LUM_POINTS);
-        out[given++] = ring[at];
+        out[given++] = points_[i];
     }
     return given;
 }

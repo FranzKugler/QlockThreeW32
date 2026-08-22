@@ -60,6 +60,7 @@ export default {
   lumHint:
     'Ce que l’automatisme a appris et ce qu’il en déduit. En lecture seule ' +
     '— la réinitialisation est dans l’onglet couleur.',
+  lumApplied: 'Affiché',
   lumLine: 'Droite',
   lumSlope: 'Pente',
   lumSlopeFitted: 'calculée à partir des points',

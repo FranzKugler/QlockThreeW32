@@ -60,6 +60,7 @@ export default {
   lumHint:
     'What the automatic has been taught and what it makes of it. Read-only ' +
     '— resetting is in the colour tab.',
+  lumApplied: 'On the face',
   lumLine: 'Line',
   lumSlope: 'Slope',
   lumSlopeFitted: 'fitted from the points',

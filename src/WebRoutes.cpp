@@ -60,6 +60,11 @@ extern byte mode;
 // Set to have the face redrawn on the next pass through loop().
 extern bool needsUpdateFromRtc;
 
+// What the render loop last handed the LED driver. Reported beside the curve's
+// own answer, because the two differ on purpose: while a nudge is being waited
+// out the clock shows the nudge, and afterwards it eases towards the curve.
+extern byte appliedBrightness;
+
 // The frame buffer itself, and the sentence read back out of it. Both are
 // owned by the render loop; /panel only ever looks.
 extern word matrix[16];
@@ -201,7 +206,10 @@ void updateColor()
 
     if (settings.getUseLdr() && ambientLight.present())
     {
-        if (doc["lum"].is<int>()) Luminance::nudged((byte)(int)doc["lum"]);
+        // is<int>() was too strict, and failed silently: "lum": "55" went
+        // nowhere while the manual branch below converted it happily, so the
+        // automatic looked broken in exactly the way it did not deserve.
+        if (!doc["lum"].isNull()) Luminance::nudged((byte)doc["lum"].as<int>());
     }
     else
     {
@@ -500,6 +508,7 @@ void sendLight()
     doc["offset"]     = Luminance::offset();
     doc["fitted"]     = Luminance::slopeFitted();
     doc["brightness"] = Luminance::forLux(ambientLight.lux());
+    doc["applied"]    = appliedBrightness;
     doc["minPercent"] = LUM_MIN_PERCENT;
     doc["maxPercent"] = LUM_MAX_PERCENT;
 
@@ -568,6 +577,7 @@ void sendLuminance()
     doc["offset"]     = Luminance::offset();
     doc["fitted"]     = Luminance::slopeFitted();
     doc["brightness"] = Luminance::forLux(ambientLight.lux());
+    doc["applied"]    = appliedBrightness;
     doc["minPercent"] = LUM_MIN_PERCENT;
     doc["maxPercent"] = LUM_MAX_PERCENT;
     doc["capacity"]   = LUM_POINTS;

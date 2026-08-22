@@ -60,6 +60,7 @@ export default {
   lumHint:
     'Wat de automaat geleerd heeft en wat ze eruit afleidt. Alleen lezen — ' +
     'herstellen doe je op het tabblad kleur.',
+  lumApplied: 'Weergegeven',
   lumLine: 'Lijn',
   lumSlope: 'Helling',
   lumSlopeFitted: 'uit de punten berekend',

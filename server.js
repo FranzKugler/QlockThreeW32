@@ -411,6 +411,10 @@ function lightState() {
     offset: curve.offset,
     fitted: curve.fitted,
     brightness: brightnessForLux(lux),
+    // The clock shows the nudge outright while one is being waited out, so
+    // the mock has to as well: `applied` is the number somebody compares
+    // against the wall, and it must not quietly follow the curve instead.
+    applied: nudge ? nudge.percent : brightnessForLux(lux),
     minPercent: LUM_MIN_PERCENT,
     maxPercent: LUM_MAX_PERCENT,
     taught: curve.points.length,
@@ -448,6 +452,10 @@ app.get('/luminance', (req, res) => {
     offset: curve.offset,
     fitted: curve.fitted,
     brightness: brightnessForLux(lux),
+    // The clock shows the nudge outright while one is being waited out, so
+    // the mock has to as well: `applied` is the number somebody compares
+    // against the wall, and it must not quietly follow the curve instead.
+    applied: nudge ? nudge.percent : brightnessForLux(lux),
     minPercent: LUM_MIN_PERCENT,
     maxPercent: LUM_MAX_PERCENT,
     capacity: LUM_POINTS,

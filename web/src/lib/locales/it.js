@@ -60,6 +60,7 @@ export default {
   lumHint:
     'Cosa ha imparato l’automatismo e cosa ne deduce. Sola lettura — il ' +
     'ripristino è nella scheda colore.',
+  lumApplied: 'Sul quadrante',
   lumLine: 'Retta',
   lumSlope: 'Pendenza',
   lumSlopeFitted: 'calcolata dai punti',

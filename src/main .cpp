@@ -142,6 +142,13 @@ WiFiManager wifiManager;
 // mark for initial update
 bool needsUpdateFromRtc = true;
 
+// What last reached the LED driver, published through /light and /luminance.
+// Without it the workbench could say what the curve wants and what the sensor
+// sees, but not what the clock is actually doing - which is the one number
+// somebody comparing the wall against the screen needs, and the one that was
+// missing when the automatic first felt wrong.
+byte appliedBrightness = 0;
+
 #define WIFISTATUS_OFF   0
 #define WIFISTATUS_GREEN 1
 #define WIFISTATUS_RED   2
@@ -472,6 +479,7 @@ byte brightnessToApply()
         // Remembered, so switching the automatic on fades from what is lit now
         // instead of stepping.
         applied = settings.getBrightness();
+        appliedBrightness = (byte)applied;
         return settings.getBrightness();
     }
 
@@ -479,6 +487,7 @@ byte brightnessToApply()
     if (Luminance::adjusting(nudge))
     {
         applied = nudge;
+        appliedBrightness = nudge;
         return nudge;
     }
 
@@ -493,6 +502,7 @@ byte brightnessToApply()
         if (step < 1) step = 1;
         applied += (distance > 0) ? step : -step;
     }
+    appliedBrightness = (byte)applied;
     return (byte)applied;
 }
 
