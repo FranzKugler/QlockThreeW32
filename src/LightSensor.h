@@ -30,6 +30,8 @@
 #define LIGHTSENSOR_H
 
 #include "Arduino.h"
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>   // one bus, two tasks; see AmbientLight below
 
 // The XIAO ESP32-S3 brings these out as D4 and D5 and the core already
 // defaults to them; overridable because the firmware serves every build of the
@@ -60,6 +62,42 @@ public:
 
     /** For the web UI, so it can say what it is talking to. */
     virtual const char *name() const = 0;
+
+    // ------ what the lab interface needs, and nothing else uses ------
+    //
+    // Optional, because they are not things every chip can do. The default
+    // answers say "not this one" rather than pretending, so a lab client can
+    // ask and be told no instead of reading a number that means nothing.
+
+    /**
+     * The raw channel counts behind the last readLux().
+     *
+     * The point of having them is that the two channels see the world
+     * differently: WS2812B put out almost no infrared, room light and daylight
+     * put out plenty. If the infrared channel barely moves when the display
+     * does, it is an ambient reading the clock cannot pollute - which is worth
+     * a great deal on a clock whose sensor can see its own face.
+     */
+    virtual bool readChannels(uint16_t &full, uint16_t &infrared) { (void)full; (void)infrared; return false; }
+
+    /** How many sensitivity steps this chip is driven through. 0 for none. */
+    virtual uint8_t rungCount() const { return 0; }
+
+    /** Where it is standing now. */
+    virtual uint8_t rung() const { return 0; }
+
+    /**
+     * Pins the sensitivity, or -1 to let it range again.
+     *
+     * A measurement series wants this: auto-ranging changes gain and
+     * integration time underneath a scan, and two readings taken on different
+     * rungs are not comparable in counts, only in lux - and the lux
+     * calculation is exactly what we are trying to check.
+     */
+    virtual bool pinRung(int8_t which) { (void)which; return false; }
+
+    /** Integration time of the current rung, in milliseconds. */
+    virtual uint16_t integrationMs() const { return 0; }
 };
 
 /**
@@ -107,12 +145,20 @@ public:
     float readLux() override;
     const char *name() const override { return "TSL2591"; }
 
+    bool readChannels(uint16_t &full, uint16_t &infrared) override;
+    uint8_t rungCount() const override;
+    uint8_t rung() const override { return _rung; }
+    bool pinRung(int8_t which) override;
+    uint16_t integrationMs() const override;
+
 private:
     /** Pushes the current rung's gain and integration time to the chip. */
     void applyRung();
 
     void *device = nullptr; // Adafruit_TSL2591, kept out of the header
-    byte rung = 0;          // position on the sensitivity ladder in the .cpp
+    byte _rung = 0;         // position on the sensitivity ladder in the .cpp
+    bool _pinned = false;   // the lab is holding it still
+    uint16_t _lastFull = 0, _lastIr = 0;
 };
 
 /**
@@ -138,6 +184,31 @@ public:
 
     const char *name() const { return sensor ? sensor->name() : "none"; }
 
+    /** The sensor itself, for the lab. Null when none is fitted. */
+    LightSensor *device() const { return sensorOk ? sensor : nullptr; }
+
+    /**
+     * Takes one measurement now, on the calling task, unsmoothed.
+     *
+     * The background sampler exists because auto-ranging blocks, and the
+     * smoothing exists because a regulator should not chase noise. Both are
+     * wrong for a measurement: a scan wants the value belonging to the frame
+     * that is on the strip at this moment, not a thirty-second average of the
+     * frames before it. This blocks for one integration time, up to about
+     * 600 ms - which is why it is only ever called from a lab request.
+     */
+    float readNow();
+
+    /**
+     * Keeps the background sampler off the bus.
+     *
+     * Two tasks on one I2C bus need a lock in any case, and the sampler would
+     * also undo a pinned rung between two frames of a scan. While held it
+     * skips its turn entirely.
+     */
+    void hold(bool on) { held = on; }
+    bool isHeld() const { return held; }
+
 private:
     static void sampleTask(void *self);
 
@@ -150,6 +221,11 @@ private:
     volatile float smoothed = 0.0f;
     volatile float lastRaw = 0.0f;
     volatile uint32_t sampleCount = 0;
+
+    // The bus is shared between the sampler on core 0 and a lab request on
+    // core 1, and a half-finished I2C transaction is not a small problem.
+    SemaphoreHandle_t busLock = nullptr;
+    volatile bool held = false;
 };
 
 #endif

@@ -56,6 +56,7 @@
 #include "WebRoutes.h"
 #include "FileRoutes.h"
 #include "NvsRoutes.h"
+#include "LabRoutes.h"
 #include "Expert.h"
 #include "languages/Language.h"
 // Credentials of this particular clock, not in version control. Without it the
@@ -659,6 +660,7 @@ void setup()
     Web::begin();
     Files::begin();
     Nvs::begin();
+    Lab::begin();
     server.begin();
 
 ArduinoOTA.setPort(8266);
@@ -812,6 +814,12 @@ void loop()
         Luminance::poll(ambientLight.lux());
     }
     
+    // The lab owns the strip while a script is measuring, so the render loop
+    // must not push a frame over what was just written - every reading would
+    // otherwise be of the clock face rather than of the frame under test. The
+    // flag is cleared all the same, so leaving lab mode redraws at once.
+    if (Lab::active()) needsUpdateFromRtc = false;
+
 	// we have to change something at the display
     if (needsUpdateFromRtc)
 	{

@@ -17,16 +17,25 @@
  * V 1.2:  - Removed support for the old Arduino IDE (up to 1.0.6).
  * V 2.0:  - Consolidated for ESP32-S3 / WS2812B, comments translated to English.
  *
- * Wiring: fed in at the top left, then serpentine downwards, then the four
- * corner LEDs.
+ * Wiring, from the owner of the clock and confirmed against the code and then
+ * against the strip itself:
  *
- * The corner order in this comment used to read "bottom left, top left, top
- * right, bottom right" and that is not what the clock does. It is also not
- * worth restating here, because the path from a frame buffer row to a lit
- * corner passes through _setPixel(), which swaps 110 with 112 on top of the
- * mapping in writeScreenBufferToMatrix. The one place that says which row is
- * which corner of the face is Renderer::setCorners, and it says so from
- * having been checked against the clock.
+ *     index 0    bottom right  (the R of the German panel)
+ *     ...        meandering left, then up one row and back to the right
+ *     index 109  top right     (the F)
+ *     110..113   the corners: bottom right, top right, top left, bottom left
+ *
+ * This comment used to say "fed in at the top left, then serpentine downwards"
+ * with the corners in a fourth order again, and all of it was wrong while the
+ * code beneath it was right. It is restated here now because physicalFor()
+ * gives the mapping a single home and /lab lets any claim about it be checked
+ * in seconds - lighting cell (9,10) and lighting pixel 0 have to be the same
+ * lamp, and now they can be seen to be.
+ *
+ * Which frame buffer row is which corner is still a separate question, because
+ * the path there passes through _setPixel(), which swaps 110 with 112 on top
+ * of the mapping in writeScreenBufferToMatrix. That one is written down at
+ * Renderer::setCorners, from having been watched on the clock.
  *
  */
 #include "LedDriverWS2812FastLED.h"
@@ -95,8 +104,30 @@ LedDriverWS2812FastLED::LedDriverWS2812FastLED(void)
  * The LED driver should be brought into a defined
  * initial state here.
  */
+/*
+ * What the supply can give, minus room for the ESP32 and its radio.
+ *
+ * 114 WS2812B on white at full scale want about 6.8 A, which no sensible
+ * supply for this clock provides - the normal face lights a fraction of them,
+ * so it never comes up, but the lab interface can address every pixel and
+ * would walk straight into it.
+ *
+ * Know how the cap works before trusting a measurement taken near it: FastLED
+ * enforces it by scaling the *global* brightness down, so a frame over budget
+ * is not the frame that was asked for. That is why /lab reports the estimated
+ * draw beside every reading rather than only capping and staying quiet.
+ */
+#define SUPPLY_VOLTS 5
+// 2.5 A of a 5 A supply. Measured: the normal face draws about 170 mA, so this
+// never engages in use - it is a backstop against a lab frame, and it is set
+// this low because 4 A was not: the first whole-face white frame browned the
+// clock out and reset it. The real protection is LAB_MAX_DRAW_MW, which
+// refuses such a frame instead of dimming it.
+#define SUPPLY_MILLIAMPS 2500
+
 void LedDriverWS2812FastLED::init()
 {
+	FastLED.setMaxPowerInVoltsAndMilliamps(SUPPLY_VOLTS, SUPPLY_MILLIAMPS);
 	setBrightness(50);
 	clearData();
 	wakeUp();
@@ -304,6 +335,63 @@ void LedDriverWS2812FastLED::clearData()
 void LedDriverWS2812FastLED::_setPixel(byte x, byte y, CRGB c)
 {
 	_setPixel((10 - x) + 11 * (9 - y), c);
+}
+
+/**
+ * Where a letter cell sits on the strip - the wiring, worked out once.
+ *
+ * This is the same arithmetic _setPixel() does in two steps, gathered into one
+ * place because the lab interface has to answer "which pixel is cell (r,c)"
+ * and because the wiring had been described wrongly in three files. It is not
+ * derived from the comment that used to sit at the top of this file; it is the
+ * code that has always been driving the clock, checked against the owner's
+ * description of the strip:
+ *
+ *     index 0   bottom right   ("R" on the German panel)
+ *     ...       meandering left, then up one row and back to the right
+ *     index 109 top right      ("F")
+ *     110..113  the corners: bottom right, top right, top left, bottom left
+ */
+byte LedDriverWS2812FastLED::physicalFor(byte row, byte col)
+{
+	if (row > 9 || col > 10) return 255;
+
+	// Reading order to strip order: the first cell is the bottom right one.
+	byte num = (byte)((10 - col) + 11 * (9 - row));
+
+	// Every other row runs the other way, which is what "meander" means.
+	if ((num / 11) % 2 == 0) return num;
+	return (byte)(((num / 11) * 11) + 10 - (num % 11));
+}
+
+void LedDriverWS2812FastLED::setPixelRaw(byte index, CRGB colour)
+{
+	if (index >= NUM_PIXEL) return;
+	_leds[index] = colour;
+}
+
+CRGB LedDriverWS2812FastLED::getPixelRaw(byte index) const
+{
+	if (index >= NUM_PIXEL) return CRGB::Black;
+	return _leds[index];
+}
+
+void LedDriverWS2812FastLED::clearRaw()
+{
+	for (byte i = 0; i < NUM_PIXEL; i++) _leds[i] = CRGB::Black;
+}
+
+void LedDriverWS2812FastLED::showRaw()
+{
+	// Marked dirty so that leaving the lab redraws the face from the frame
+	// buffer even if nothing else changed in the meantime.
+	_dirty = true;
+	FastLED.show();
+}
+
+uint32_t LedDriverWS2812FastLED::estimatedDrawMilliwatts() const
+{
+	return calculate_unscaled_power_mW(_leds, NUM_PIXEL);
 }
 
 /**

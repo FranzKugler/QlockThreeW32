@@ -30,6 +30,12 @@
 // may still have 4 stored as its mode.
 #define EXT_MODE_NORMAL_WIFISTATUS 6
 
+// The lab holds the strip while a script measures the clock - see LabRoutes.h.
+// isKnownMode() deliberately says no to it, which is what keeps it out of
+// POST /display, out of NVS and out of the picker: it is entered only through
+// /lab/mode, and a restart ends it.
+#define EXT_MODE_LAB        7
+
 /**
  * True for a mode the render switch still has a case for. Defined in
  * main .cpp, next to the switch it has to agree with.

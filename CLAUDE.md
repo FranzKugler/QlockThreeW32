@@ -65,6 +65,7 @@ on :8080 directly, which serves `data/` statically.
 | [src/Expert.cpp](src/Expert.cpp) | the lock on `/log`, `/ota/*`, `/fs/*` and `/nvs/*`: the password, the NVS flag, `Expert::guard()` |
 | [src/FileRoutes.cpp](src/FileRoutes.cpp) | `Files::` — the `/fs/*` handlers: the tree, the download, the streamed upload, the editor |
 | [src/NvsRoutes.cpp](src/NvsRoutes.cpp) | `Nvs::` — the `/nvs/*` handlers: NVS walked as a two-level tree |
+| [src/LabRoutes.cpp](src/LabRoutes.cpp) | `Lab::` — the `/lab/*` handlers: every pixel and the sensor, for measuring the clock |
 | [src/languages/](src/languages/) | one file per language: its panel letters, its words, and how it says the time |
 | [src/DisplayModes.h](src/DisplayModes.h) | the mode numbers, shared because `main .cpp` renders them and `WebRoutes.cpp` accepts them |
 
@@ -116,6 +117,7 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /fs/save` — `{path, content}`, for the in-browser editor; buffered, so capped at `FS_EDIT_MAX`. **Behind the lock.**
 - `POST /fs/delete` — `{path}`; one file, or one *empty* directory. **Behind the lock.**
 - `POST /fs/mkdir` — `{path}`; one directory, parent must exist. **Behind the lock.**
+- `GET /lab/state`, `POST /lab/mode`, `GET|POST /lab/leds`, `GET /lab/sensor`, `POST /lab/sweep` — the lab interface; see its own section. Raw pixels and unsmoothed readings, addressed by strip index or by cell. **Behind the lock**, and not mirrored in `server.js`: nothing in the web UI talks to it.
 - `POST /restart` — restarts the clock and nothing else, through the same `Ota::scheduleRestart()` a rename uses. It exists for the storage tab, where it is the answer to that tab's own warning about records held in RAM. **Behind the lock**: `/hostname` restarts without a guard and predates it, but there is no reason for a new reboot button to be open to the network.
 - `GET /nvs/list` — every entry in the partition as `{ns, key, type, size, suffix, edit|protected}`, plus `used`/`total` in entries. One answer, not one per namespace: the iterator walks the whole partition anyway. **Behind the lock.**
 - `GET /nvs/read?ns=&key=` — one value as text, or as bytes where it has no text form. `&download=1` names the file. **Behind the lock.**
@@ -426,6 +428,8 @@ display 100 %  ->  raw 16.79 lx
 
 A factor of forty, all of it the clock's own light. That closes a positive feedback loop — brighter face, more measured light, the curve asks for brighter still — and it runs to whichever end it is nearer. It also poisons what is learned: the lux kept ten seconds after a nudge is mostly the display's contribution at the brightness just chosen, so the point describes the clock rather than the room.
 
+Measured properly afterwards through the lab interface, the coupling turned out to be **local and steeply peaked** rather than diffuse: the sensor is behind row 7 column 5, its own cell reads 240 lx over dark, and the face falls away by roughly a factor of six per cell of distance. That makes a per-cell compensation map meaningful, which the paragraph below was written before knowing.
+
 **No amount of fitting survives this.** Solving the two readings above for ambient plus a display term proportional to the gamma-corrected drive leaves an ambient of roughly zero, so a compensation term would be subtracting two nearly equal numbers and keeping the noise. The fix is optical: the sensor has to be shielded from the LEDs or moved out of their light. Check this first on any clock where the automatic behaves oddly — the numbers above take four minutes to reproduce with `/light` and the automatic switched off.
 
 `brightnessToApply()` in `main .cpp` still decides what reaches the driver each tick: the manual setting immediately with the automatic off, the nudge outright while one is being waited out, and otherwise the computed value approached by an eighth of the remaining distance per second — about twenty seconds for a full swing. The reading is already smoothed over 30 s, so that easing is not about noise: it is about the step when a lamp is switched on.
@@ -486,6 +490,34 @@ Right-click, or press and hold for `LONG_PRESS_MS` (500 ms) on a touch screen. T
 JSON arrives from both stores as a single line — that is how the clock writes its records and how the build writes `version.json` — and one line is not something anyone can correct. So it is laid out on the way in.
 
 **What matters is the way back.** A record shown pretty and saved pretty is three times its size on a partition with a job to do, so a value that arrived compact goes back compact. The switch is visible rather than magic: hiding it would mean the editor silently deciding what to write. If the box stops being valid JSON it is saved exactly as shown, because refusing to save half-typed text is worse than not minifying it.
+
+### The lab interface
+
+`/lab/*` ([src/LabRoutes.cpp](src/LabRoutes.cpp)) gives a script direct control of every pixel and of the light sensor, and [scripts/lab.py](scripts/lab.py) is the client and the experiments run through it. It exists because of the feedback loop under "The sensor must not see the display": how strongly, from which cells, and whether the infrared channel escapes it are all questions with numbers for answers, and none of the numbers can be reasoned out of the source.
+
+**It is an instrument, not a feature**, and everything about its shape follows from that:
+
+- **Raw means raw.** No gamma, no brightness scaling, no colour setting — a pixel goes to the strip as the number it was given, because an instrument that applies two correction curves measures itself.
+- **The sensor is read synchronously and unsmoothed**, through `AmbientLight::readNow()`, with the sensitivity rung pinnable. The regulator's thirty-second average answers a different question, and a scan comparing frames cannot have the gain moving underneath it.
+- **A sweep is one request.** Frames, a settle, a reading, all in `POST /lab/sweep`. Three round trips per frame would put network jitter inside the measurement; the price is that the clock answers nothing else while a sweep runs, which is stated rather than worked around.
+- **Nothing here is a setting.** `EXT_MODE_LAB` (7) is never written to NVS, `isKnownMode()` says no to it so `POST /display` and the boot path cannot reach it, and it is left by a request or by a restart. It stays in the firmware because the coupling between a face and its sensor is a property of one clock's geometry, the same as its panel letters — every clock needs this measured, not just the one it was written on.
+
+Load-bearing details:
+
+- **Both addressings, on purpose.** `{"i": 0..113}` is the strip, `{"cell": [row, col]}` is the face. Having both is not convenience: lighting cell (9,10) and lighting pixel 0 must be the same lamp, so the mapping can be *checked* rather than believed — and this project has had it wrong before. `LedDriverWS2812FastLED::physicalFor()` is now the one place that computes it.
+- **The lab refuses an over-budget frame instead of dimming it.** FastLED's power cap works by scaling the *global* brightness down, so a frame over budget is not the frame that was asked for and every number taken from it is quietly wrong. `LAB_MAX_DRAW_MW` is 7.5 W, about 25 pixels of white. The number is not theoretical: the first whole-face white frame drew an estimated 23.6 W, browned the clock out and reset it. `SUPPLY_MILLIAMPS` came down from 4000 to 2500 at the same time — the normal face draws about 170 mW-equivalent, so the cap never engages in use.
+- **The sampling task is held off the bus while the lab has it**, and there is a mutex either way: two tasks on one I²C bus, and a half-finished transaction is not a small problem. Held means the sampler *skips its turn* rather than blocking, or a scan holding the bus for a minute would be followed by a stale reading pushed straight into the regulator's average.
+- **A restart ends the session.** That was designed in and then confirmed by accident: the brownout above left the clock showing the time again, not dark.
+- **No mock and no Vite proxy entry.** Nothing in the web UI talks to `/lab`; its only client is a Python script talking to a real clock over a real strip, and a mock of a light sensor measuring a mock of an LED would test nothing.
+
+#### What it found
+
+Within an hour of existing, on the clock it was written for:
+
+- **The wiring in three files was wrong** and the code was right. Confirmed by lighting cells and reading back which pixels they are.
+- **The coupling is local, not diffuse.** Row 0 gave nothing and row 7 gave 240 lx over dark — a ratio of thousands, which kills the "light piped through the front sheet" hypothesis and means a per-cell map is worth building.
+- **The sensor sits behind row 7, column 5** — the `N` of `SECHSNLACHT`, a filler letter no word uses, third row from the bottom and centre. Its neighbour at (7,6) is the `L`, also unused. The strongest cell that a word *does* light is (8,5), the `N` of `SIEBEN`, at 17 % of the peak.
+- **A scan without a pinned rung lies confidently.** The first run put the sensor two cells away: a bright row saturated, the ladder dropped a rung, and the dark reading taken beside the next frame was on a different scale — which came out as `-2.24 lx` for the row the sensor is actually in. `warn_saturated()` in the script now says when a reading is against the stop, and `find` pins the rung.
 
 ### Expert mode
 

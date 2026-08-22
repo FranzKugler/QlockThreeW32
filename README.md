@@ -44,15 +44,22 @@ internet access at all.
 | Layout | 11 × 10 letters = 110, plus 4 corner LEDs |
 | Light sensor | ams **TSL2591** (0x29) or Vishay **VEML7700** (0x10) on I²C, SDA/SCL default to GPIO 5/6 — optional |
 
-The strip is fed in at the top left and runs serpentine downwards, with the
-four corner LEDs last.
+The strip starts at the **bottom right** letter, meanders left, then up one row
+and back to the right, and ends at the **top right**. The four corner LEDs
+follow it, in the order bottom right, top right, top left, bottom left.
 
-> The wiring comment in
-> [`src/LedDriverWS2812FastLED.h`](src/LedDriverWS2812FastLED.h) names a corner
-> order that is **not** the one the clock lights. The mapping that holds is
-> written down at `Renderer::setCorners`, and it was established by watching a
-> real clock rather than by reading the code — the path from a frame buffer row
-> to a pixel goes through two remappings that partly cancel.
+```
+index 0    bottom right   (the R of the German panel)
+index 109  top right      (the F)
+110 … 113  the corners
+```
+
+> `LedDriverWS2812FastLED::physicalFor(row, col)` is the only place that
+> computes this, and the `/lab` interface can check any claim about it against
+> the strip in seconds. Which frame buffer *row* is which corner is a separate
+> question and lives at `Renderer::setCorners` — the path there goes through
+> two remappings that partly cancel, and it was settled by watching a clock
+> rather than by reading code.
 
 **Either light sensor works, and the choice is made at run time** — the firmware
 tries each in turn at boot and keeps the first that answers, so one build
@@ -160,6 +167,26 @@ Once unlocked:
 | Update | installed versions, browser upload, release channel and automatic installs |
 | Debug | uptime, reset reason, heap, and the clock's last 200 log lines |
 | Storage | a file explorer over LittleFS, and over NVS drawn as a tree |
+
+### The lab interface
+
+`/lab/*` hands a script direct control of every pixel and of the light sensor —
+raw colours, no gamma, no smoothing, and a whole measurement series in one
+request. [`scripts/lab.py`](scripts/lab.py) is the client:
+
+```sh
+python scripts/lab.py <address> find   # which cell is the light sensor in
+python scripts/lab.py <address> ir     # does the infrared channel see the room
+python scripts/lab.py <address> map    # coupling from every cell to the sensor
+```
+
+It is there because a word clock whose sensor can see its own face cannot
+regulate on it, and how badly is a question of geometry that differs from clock
+to clock. On the first clock it ran on it found the sensor in four minutes,
+behind an unused filler letter three rows from the bottom.
+
+Behind expert mode, and it never touches a setting: the mode it uses cannot be
+stored, cannot be picked in the display tab, and ends with a restart.
 
 Two more screens have no chip either. `#luminance` draws what the automatic
 brightness has learned — deliberately *outside* expert mode, since there is no

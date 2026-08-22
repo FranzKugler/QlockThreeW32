@@ -104,7 +104,7 @@ bool Tsl2591Sensor::begin()
         return false;
     }
     device = tsl;
-    rung = LADDER_START;
+    _rung = LADDER_START;
     applyRung();
     return true;
 }
@@ -112,8 +112,8 @@ bool Tsl2591Sensor::begin()
 void Tsl2591Sensor::applyRung()
 {
     if (!device) return;
-    ((Adafruit_TSL2591 *)device)->setGain(LADDER[rung].gain);
-    ((Adafruit_TSL2591 *)device)->setTiming(LADDER[rung].time);
+    ((Adafruit_TSL2591 *)device)->setGain(LADDER[_rung].gain);
+    ((Adafruit_TSL2591 *)device)->setTiming(LADDER[_rung].time);
 }
 
 /**
@@ -140,24 +140,35 @@ float Tsl2591Sensor::readLux()
     uint16_t ir = both >> 16;
     uint16_t full = both & 0xFFFF;
 
+    // Kept for readChannels(). The lab wants the counts these lux were
+    // computed from, because the whole question is whether the lux calculation
+    // is telling the truth about a face the sensor can see.
+    _lastFull = full;
+    _lastIr = ir;
+
     const uint16_t maxCounts =
-        LADDER[rung].time == TSL2591_INTEGRATIONTIME_100MS ? 36863 : 65535;
+        LADDER[_rung].time == TSL2591_INTEGRATIONTIME_100MS ? 36863 : 65535;
     const uint16_t ceiling = (uint16_t)(maxCounts * SATURATED_FRACTION);
+
+    // Pinned means pinned: a scan compares counts across frames, and a rung
+    // that moves between two of them makes them incomparable. Saturation is
+    // then reported as it is rather than ranged away from.
+    if (_pinned) return tsl->calculateLux(full, ir);
 
     if (full >= ceiling || ir >= ceiling)
     {
-        if (rung > 0)
+        if (_rung > 0)
         {
-            rung--;
+            _rung--;
             applyRung();
             return -1.0f;       // this one is not a measurement, drop it
         }
         // Already as blind as it gets - direct sun on the sensor. Fall through
         // and report what it says; the curve clamps at the calibrated end.
     }
-    else if (full < TOO_FEW_COUNTS && rung + 1 < LADDER_STEPS)
+    else if (full < TOO_FEW_COUNTS && _rung + 1 < LADDER_STEPS)
     {
-        rung++;
+        _rung++;
         applyRung();
         return -1.0f;
     }
@@ -167,6 +178,45 @@ float Tsl2591Sensor::readLux()
     // ceiling above catches - but it applies its own limits, so let it speak.
     if (lux < 0.0f) return -1.0f;
     return lux;
+}
+
+bool Tsl2591Sensor::readChannels(uint16_t &full, uint16_t &infrared)
+{
+    full = _lastFull;
+    infrared = _lastIr;
+    return true;
+}
+
+uint8_t Tsl2591Sensor::rungCount() const { return LADDER_STEPS; }
+
+uint16_t Tsl2591Sensor::integrationMs() const
+{
+    switch (LADDER[_rung].time)
+    {
+        case TSL2591_INTEGRATIONTIME_100MS: return 100;
+        case TSL2591_INTEGRATIONTIME_200MS: return 200;
+        case TSL2591_INTEGRATIONTIME_300MS: return 300;
+        case TSL2591_INTEGRATIONTIME_400MS: return 400;
+        case TSL2591_INTEGRATIONTIME_500MS: return 500;
+        default:                            return 600;
+    }
+}
+
+bool Tsl2591Sensor::pinRung(int8_t which)
+{
+    if (!device) return false;
+
+    if (which < 0)
+    {
+        _pinned = false;
+        return true;
+    }
+    if (which >= (int8_t)LADDER_STEPS) return false;
+
+    _rung = (byte)which;
+    _pinned = true;
+    applyRung();
+    return true;
 }
 
 
@@ -204,6 +254,8 @@ void AmbientLight::begin()
 
     debugA("%s found, sampling every %d ms", sensor->name(), SAMPLE_INTERVAL_MS);
 
+    busLock = xSemaphoreCreateMutex();
+
     // Core 0, next to the OTA download and away from loop() and the web
     // server on core 1 - a reading takes long enough to be felt otherwise.
     xTaskCreatePinnedToCore(sampleTask, "light", SAMPLE_TASK_STACK, this, 1, NULL, 0);
@@ -219,7 +271,19 @@ void AmbientLight::sampleTask(void *self)
 
     for (;;)
     {
+        // The lab holds the bus and the rung while it measures. Skipping the
+        // turn entirely is better than blocking on the lock: a scan can hold
+        // it for a minute, and a sampler queued up behind it would then push
+        // a stale frame's reading into the average the moment it is let go.
+        if (light->held)
+        {
+            vTaskDelay(pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
+            continue;
+        }
+
+        xSemaphoreTake(light->busLock, portMAX_DELAY);
         float lux = light->sensor->readLux();
+        xSemaphoreGive(light->busLock);
 
         if (lux >= 0.0f)
         {
@@ -235,3 +299,29 @@ void AmbientLight::sampleTask(void *self)
         vTaskDelay(pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
     }
 }
+
+
+/**
+ * One measurement, here and now, on the calling task.
+ *
+ * Everything the sampler does for the regulator is wrong for a measurement:
+ * the smoothing hides the frame that is actually on the strip, and the two
+ * second cadence is far too slow for a scan. This blocks for one integration
+ * time - up to about 600 ms on the most sensitive rung - which is why it is
+ * only ever reached from a lab request, and why the web server is unresponsive
+ * while a sweep runs.
+ *
+ * The lock is the same one the sampler takes. Even with hold() set, a sample
+ * may already be in flight when the lab arrives.
+ */
+float AmbientLight::readNow()
+{
+    if (!sensorOk || sensor == nullptr) return -1.0f;
+    if (busLock == nullptr) return sensor->readLux();
+
+    xSemaphoreTake(busLock, portMAX_DELAY);
+    float lux = sensor->readLux();
+    xSemaphoreGive(busLock);
+    return lux;
+}
+

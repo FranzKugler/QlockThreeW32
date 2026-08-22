@@ -75,6 +75,48 @@ public:
     byte getGreen();
     byte getBlue();
 
+    // ------ direct access, for the lab interface ------
+    //
+    // Raw means raw: no gamma, no brightness scaling, no colour setting. A
+    // measuring instrument has to put out the number it was given, or the
+    // reading measures this class instead of the clock.
+
+    /**
+     * Where a letter cell sits on the strip.
+     *
+     * The authority on the wiring, and the only place that computes it. The
+     * strip starts at the bottom right (the R of the German panel), meanders
+     * left, up one row, back right, and ends at the top right (the F); the
+     * four corner LEDs follow it as 110..113 in the order bottom right, top
+     * right, top left, bottom left.
+     *
+     * @param row  0 at the top, 9 at the bottom
+     * @param col  0 at the left, 10 at the right
+     * @return     0..109, or 255 for a cell that does not exist
+     */
+    static byte physicalFor(byte row, byte col);
+
+    /** Writes one physical pixel. Does not show; call showRaw() when done. */
+    void setPixelRaw(byte index, CRGB colour);
+
+    /** What is in one physical pixel right now. */
+    CRGB getPixelRaw(byte index) const;
+
+    /** All pixels black. Does not show. */
+    void clearRaw();
+
+    /** Pushes whatever is in the buffer to the strip. */
+    void showRaw();
+
+    /**
+     * Milliwatts the current buffer would draw, by FastLED's own estimate.
+     *
+     * Worth having next to a measurement: the power cap works by scaling the
+     * global brightness down, so a frame over budget is not the frame that was
+     * asked for, and a reading taken from it would be quietly wrong.
+     */
+    uint32_t estimatedDrawMilliwatts() const;
+
     void setPixelInScreenBuffer(byte x, byte y, word matrix[16]);
     boolean getPixelFromScreenBuffer(byte x, byte y, word matrix[16]);
 
