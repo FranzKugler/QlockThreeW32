@@ -38,7 +38,7 @@
 <section class="card">
   <h2>{t.storageTitle}</h2>
 
-  <div class="switch" role="tablist" aria-label={t.storageTitle}>
+  <div class="store-tabs" role="tablist" aria-label={t.storageTitle}>
     <button type="button" role="tab" class:on={which === 'littlefs'}
             aria-selected={which === 'littlefs'} onclick={() => (which = 'littlefs')}>
       {t.storageFs}
@@ -61,47 +61,50 @@
 
 <style>
   /*
+   * NOT `.switch`: app.css already gives that name to the on/off toggle, with
+   * a fixed `width: 2.6rem; height: 1.5rem`. Svelte's scoping adds a class, it
+   * does not stop the global rule matching too - so the row inherited a 24 px
+   * height it never asked for, the labels overflowed it, and the underline
+   * came out through the middle of the word. Any class name here has to be one
+   * app.css does not already use.
+   *
    * Underlined tabs, the same idiom as the tab row at the top of the page.
    * A segmented control was tried first and read badly: two greys on a third
    * grey, with the selected one told apart only by a faint shadow. Tabs say
    * "these are two views of one thing" without needing contrast to carry the
    * whole message, and the page already teaches the gesture once.
    */
-  .switch {
+  .store-tabs {
     display: flex;
     gap: 0.25rem;
     margin: 0 0 1rem;
     border-bottom: 1px solid var(--border);
   }
 
-  .switch button {
+  .store-tabs button {
     appearance: none;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
     margin-bottom: -1px;
-    /* Asymmetric on purpose. Padding proportional to the font left the rule
-       sitting on the word rather than under it - these tabs are a size below
-       the ones in the header, and the gap does not survive being scaled with
-       everything else. It is set by eye, not by ratio. */
-    padding: 0.45rem 0.9rem 0.8rem;
+    padding: 0.5rem 0.9rem;
     font: inherit;
     font-size: 0.9rem;
     color: var(--muted);
     cursor: pointer;
   }
 
-  .switch button:hover {
+  .store-tabs button:hover {
     color: var(--text);
   }
 
-  .switch button.on {
+  .store-tabs button.on {
     color: var(--accent);
     border-bottom-color: var(--accent);
     font-weight: 600;
   }
 
-  .switch button:focus-visible {
+  .store-tabs button:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
