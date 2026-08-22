@@ -27,3 +27,7 @@ __pycache__/
 
 # the mock server's stand-in for NVS, seeded on first run
 .mocknvs.json
+
+# per-clock measurement, not source: the coupling from each cell to that
+# clock's light sensor. Produced by scripts/lab.py calibrate.
+coupling.json

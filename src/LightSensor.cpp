@@ -43,13 +43,30 @@ bool Veml7700Sensor::begin()
     return true;
 }
 
+/**
+ * Passes a reading through, or refuses it.
+ *
+ * A NaN is not a small problem here. `lux < 0` is false for a NaN, so the old
+ * guard let one straight through into the exponential average, where it stays
+ * for ever - every later sample averaged against a NaN is a NaN, and the
+ * automatic brightness would be stuck with no sign of why. calculateLux()
+ * divides by CH0, so a genuinely dark room used to be enough to produce one:
+ * /lab/sensor reported `lux: null` on the seven least sensitive rungs, which
+ * is how this was found.
+ */
+static float sane(float lux)
+{
+    if (!isfinite(lux) || lux < 0.0f) return -1.0f;
+    return lux;
+}
+
 float Veml7700Sensor::readLux()
 {
     if (!device) return -1.0f;
     // Auto-ranging: picks gain and integration time, then applies Vishay's
     // correction for the non-linearity above roughly a thousand lux. Blocking,
     // which is why this is only ever called from the sampling task.
-    return ((Adafruit_VEML7700 *)device)->readLux(VEML_LUX_AUTO);
+    return sane(((Adafruit_VEML7700 *)device)->readLux(VEML_LUX_AUTO));
 }
 
 
@@ -150,10 +167,21 @@ float Tsl2591Sensor::readLux()
         LADDER[_rung].time == TSL2591_INTEGRATIONTIME_100MS ? 36863 : 65535;
     const uint16_t ceiling = (uint16_t)(maxCounts * SATURATED_FRACTION);
 
+    // Both channels at zero is not a failure, it is a room darker than the
+    // sensor can resolve - measured, in the dark, on the seven least sensitive
+    // rungs. It has to be reported as darkness rather than as an error, or the
+    // regulator stops updating exactly when it should be going to its floor.
+    // It also has to be caught before calculateLux(), which divides by CH0.
+    //
+    // Above the pinned return below, and that is the point: the first version
+    // of this guard sat underneath it, so a pinned rung - which is what every
+    // lab measurement uses - still handed out a NaN.
+    if (full == 0 && ir == 0) return 0.0f;
+
     // Pinned means pinned: a scan compares counts across frames, and a rung
     // that moves between two of them makes them incomparable. Saturation is
     // then reported as it is rather than ranged away from.
-    if (_pinned) return tsl->calculateLux(full, ir);
+    if (_pinned) return sane(tsl->calculateLux(full, ir));
 
     if (full >= ceiling || ir >= ceiling)
     {
@@ -173,11 +201,9 @@ float Tsl2591Sensor::readLux()
         return -1.0f;
     }
 
-    float lux = tsl->calculateLux(full, ir);
     // The library reports overflow as a negative, which is the same thing the
     // ceiling above catches - but it applies its own limits, so let it speak.
-    if (lux < 0.0f) return -1.0f;
-    return lux;
+    return sane(tsl->calculateLux(full, ir));
 }
 
 bool Tsl2591Sensor::readChannels(uint16_t &full, uint16_t &infrared)

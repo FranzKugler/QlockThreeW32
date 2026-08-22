@@ -517,6 +517,26 @@ Within an hour of existing, on the clock it was written for:
 - **The wiring in three files was wrong** and the code was right. Confirmed by lighting cells and reading back which pixels they are.
 - **The coupling is local, not diffuse.** Row 0 gave nothing and row 7 gave 240 lx over dark — a ratio of thousands, which kills the "light piped through the front sheet" hypothesis and means a per-cell map is worth building.
 - **The sensor sits behind row 7, column 5** — the `N` of `SECHSNLACHT`, a filler letter no word uses, third row from the bottom and centre. Its neighbour at (7,6) is the `L`, also unused. The strongest cell that a word *does* light is (8,5), the `N` of `SIEBEN`, at 17 % of the peak.
+- **The whole 40x feedback was one letter.** With the map in hand the original measurement made sense: it was taken around seven o'clock, and the `N` of `SIEBEN` at (8,5) sits directly below the sensor at 161/1000 of the peak. One word in white, room dark: SIEBEN 32.4 lx, SECHS 4.8, ZWOELF 4.7, ACHT 0.26, NEUN 0.14, ES IST 0.002. The clock regulates cleanly for eleven hours in twelve and loses its mind in the hour around seven. That is why it felt wrong rather than broken.
+- **The corner LEDs contribute nothing** - measured, 0 counts each.
+- **`lux` was `null` in a dark room**, which is how a real bug surfaced: `calculateLux()` divides by CH0, and `readLux()` guarded only `lux < 0`, which is false for a NaN. One NaN reaching the exponential average would have stayed there for ever. Now both channels at zero answer 0 lx - darkness is a reading, not a failure - and everything else goes through `sane()`. The first version of that fix sat *below* the pinned-rung early return, so every lab measurement still got a NaN; the guard has to come first.
+
+#### What the compensation rests on
+
+Three things were measured before the model was written rather than assumed, and all three hold:
+
+| | |
+|---|---|
+| superposition across channels | white came out 1.3 % from red + green + blue |
+| superposition across cells | the word SIEBEN came out 0.9 % from the sum of its six cells |
+| the far field really is zero | a whole row outside the map: 0.002 lx |
+
+- **Colour matters, and not slightly.** Normalised to the sensor's own cell, `(7,4)` couples at 36.6/1000 in red and 18.9/1000 in blue - almost a factor of two, systematic with wavelength. One white coefficient would be about 9 % out on this clock's green face. Hence **three coefficients per cell**, one per channel, for the ten cells above 1/1000.
+- **The drive response is neither linear nor a gamma.** Half drive gives 0.48 of full, a quarter 0.216, an eighth 0.082, and 16 gives 0.024 where a proportional lamp would give 0.063. An offset of twelve counts fits from 255 down to 24 and then breaks completely. It is stored as a **table**, because nothing fits it - and it is one table for all channels and cells, which was checked: white, red, green and blue gave the same curve to a few parts in a thousand, so it belongs to the LED and its driver.
+- **That table is not a nicety.** 20 % brightness through the clock's own gamma curve comes out as a drive of about seven, so the dim hours live entirely in the part of the curve where proportionality is 22 % wrong and worse.
+- **Verified against the strip** over a 150:1 range, including drive 7: 2-6.6 % throughout. The systematic part of that is the sensor, not the model - the same light reads 16.03 lx on rung 2 and 15.42 lx on rung 6, a 3.8 % spread across the ladder, and the calibration and the check ran on different rungs.
+- `coupling.json` is **per clock and gitignored**, the same as any other measurement of one particular piece of hardware.
+
 - **A scan without a pinned rung lies confidently.** The first run put the sensor two cells away: a bright row saturated, the ladder dropped a rung, and the dark reading taken beside the next frame was on a different scale — which came out as `-2.24 lx` for the row the sensor is actually in. `warn_saturated()` in the script now says when a reading is against the stop, and `find` pins the rung.
 
 ### Expert mode
