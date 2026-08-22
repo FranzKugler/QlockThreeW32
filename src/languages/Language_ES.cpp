@@ -22,10 +22,10 @@ namespace
     /*
      *   01234567890
      * 0 ESONELASUNA
-     * 1 DOSITRESORE
+     * 1 DOSITRESOAM
      * 2 CUATROCINCO
      * 3 SEISASIETEN
-     * 4 OCHONUEVEYO
+     * 4 OCHONUEVEPM
      * 5 LADIEZSONCE
      * 6 DOCELYMENOS
      * 7 OVEINTEDIEZ
@@ -162,10 +162,10 @@ extern const Language LANGUAGE_SPANISH = {
     "es", "Español", "es",
     {
         "ESONELASUNA",
-        "DOSITRESORE",
+        "DOSITRESOAM",
         "CUATROCINCO",
         "SEISASIETEN",
-        "OCHONUEVEYO",
+        "OCHONUEVEPM",
         "LADIEZSONCE",
         "DOCELYMENOS",
         "OVEINTEDIEZ",

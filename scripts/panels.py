@@ -52,6 +52,8 @@ DEFINITION = re.compile(r"extern\s+const\s+Language\s+(\w+)\s*=\s*\{")
 INDEXED = re.compile(r"(\w+)\s*\[\s*\d+\s*\]")
 WORD_ARRAY = re.compile(r"const\s+Word\s+WORDS\s*\[\s*\]\s*=\s*\{")
 WORD_ENTRY = re.compile(r'\{\s*(\d+)\s*,\s*(\d+)\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}')
+ENUM = re.compile(r"\benum\s*\{")
+DRAWN_ROW = re.compile(r"^\s*\*\s*(\d)\s+(\S+)", re.MULTILINE)
 
 
 def split_cells(text):
@@ -101,6 +103,68 @@ def words_in(source):
         raise ValueError("no WORDS array")
     body = braced(source, match.end() - 1)
     return [(int(r), int(c), unescape(t)) for r, c, t in WORD_ENTRY.findall(body)]
+
+
+def enum_names(source):
+    """
+    The names in the file's first enum, which index into WORDS by position.
+
+    If the two ever get out of step every face.light() in that language points
+    at the wrong word, and nothing says so - the code still compiles and the
+    clock still lights letters, just the wrong ones. Worth counting.
+    """
+    match = ENUM.search(source)
+    if match is None:
+        return None
+    body = re.sub(r"//.*", "", braced(source, match.end() - 1))
+    return [name.strip() for name in body.replace("\n", " ").split(",") if name.strip()]
+
+
+def drawn_rows(source):
+    """
+    The panel as the header comment draws it, or None if there is no drawing.
+
+    Only accepted as a drawing when all ten rows are there in order, so that a
+    stray "* 3 something" elsewhere in a comment cannot be mistaken for one.
+    """
+    found = DRAWN_ROW.findall(source)
+    if len(found) != PANEL_ROWS:
+        return None
+    if [int(n) for n, _ in found] != list(range(PANEL_ROWS)):
+        return None
+    return [row for _, row in found]
+
+
+def check_file(language, source):
+    """
+    What the firmware cannot check for itself: the drawing in the header
+    comment, and the enum against the words it indexes.
+
+    The drawing is a comment, so nothing has ever forced it to be true - and it
+    has quietly disagreed with the rows three times now, once for a whole year.
+    It is the first thing anybody reads when adding a word, which is exactly
+    why a wrong one is expensive.
+    """
+    problems = []
+
+    drawn = drawn_rows(source)
+    if drawn is None:
+        problems.append("%s has no panel drawing in its header comment"
+                        % language["code"])
+    else:
+        for number, (drawing, row) in enumerate(zip(drawn, language["rows"])):
+            if drawing != row:
+                problems.append('%s row %d is drawn "%s" but reads "%s"'
+                                % (language["code"], number, drawing, row))
+
+    names = enum_names(source)
+    if names is None:
+        problems.append("%s has no enum over its words" % language["code"])
+    elif len(names) != len(language["words"]):
+        problems.append("%s has %d enum names for %d words"
+                        % (language["code"], len(names), len(language["words"])))
+
+    return problems
 
 
 def check_words(language):
@@ -163,7 +227,7 @@ def languages_in(path):
                                  "has nothing to attach to" % (symbol, number))
 
         out.append({"symbol": symbol, "code": code, "name": name, "locale": locale,
-                    "rows": rows, "grid": grid, "words": words,
+                    "rows": rows, "grid": grid, "words": words, "source": source,
                     "file": os.path.basename(path)})
     return out
 
@@ -256,11 +320,17 @@ def main():
 
     languages = [found[s] for s in order]
 
+    # The German dialects share a file, so its drawing and enum are checked
+    # once rather than four times.
     problems = []
+    seen = set()
     for language in languages:
         problems += check_words(language)
+        if language["file"] not in seen:
+            seen.add(language["file"])
+            problems += check_file(language, language["source"])
     if problems:
-        raise SystemExit("the panels disagree with their words:\n  "
+        raise SystemExit("the language files do not agree with themselves:\n  "
                          + "\n  ".join(problems))
 
     panels = group(languages)

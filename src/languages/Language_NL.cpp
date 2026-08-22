@@ -20,15 +20,15 @@ namespace
     /*
      *   01234567890
      * 0 HETKISAVIJF
-     * 1 TIENBTZVOOR
+     * 1 TIENATZVOOR
      * 2 OVERMEKWART
-     * 3 HALFSPWOVER
-     * 4 VOORTHGEENS
-     * 5 TWEEPVCDRIE
+     * 3 HALFSPMOVER
+     * 4 VOORTHGÉÉNS
+     * 5 TWEEAMCDRIE
      * 6 VIERVIJFZES
      * 7 ZEVENONEGEN
      * 8 ACHTTIENELF
-     * 9 TWAALFBFUUR
+     * 9 TWAALFPMUUR
      */
     enum
     {
@@ -54,8 +54,8 @@ namespace
         { 3, 7, "OVER" },    // beside KWART, for "kwart over"
         { 4, 0, "VOOR" },
 
-        { 4, 7, "EEN" },
-        { 4, 7, "EENS" },
+        { 4, 7, "ÉÉN" },
+        { 4, 7, "ÉÉNS" },
         { 5, 0, "TWEE" },
         { 5, 7, "DRIE" },
         { 6, 0, "VIER" },
@@ -157,15 +157,15 @@ extern const Language LANGUAGE_DUTCH = {
     "nl", "Nederlands", "nl",
     {
         "HETKISAVIJF",
-        "TIENBTZVOOR",
+        "TIENATZVOOR",
         "OVERMEKWART",
-        "HALFSPWOVER",
-        "VOORTHGEENS",
-        "TWEEPVCDRIE",
+        "HALFSPMOVER",
+        "VOORTHGÉÉNS",
+        "TWEEAMCDRIE",
         "VIERVIJFZES",
         "ZEVENONEGEN",
         "ACHTTIENELF",
-        "TWAALFBFUUR"
+        "TWAALFPMUUR"
     },
     WORDS, sizeof(WORDS) / sizeof(WORDS[0]), render
 };

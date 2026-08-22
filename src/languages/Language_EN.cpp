@@ -22,16 +22,16 @@ namespace
 {
     /*
      *   01234567890
-     * 0 ITLISASTIME
+     * 0 ITLISASAMPM
      * 1 ACQUARTERDC
-     * 2 TWENTYFIFEX
-     * 3 HALFBTENFTO
+     * 2 TWENTYFIVEX
+     * 3 HALFSTENFTO
      * 4 PASTERUNINE
      * 5 ONESIXTHREE
      * 6 FOURFIVETWO
      * 7 EIGHTELEVEN
      * 8 SEVENTWELVE
-     * 9 TENSEO′CLOCK   (the O′ is one cell)
+     * 9 TENSEO'CLOCK   (the O' is one cell)
      */
     enum
     {
@@ -45,11 +45,11 @@ namespace
         { 0, 0, "IT" },
         { 0, 3, "IS" },
         { 1, 0, "A" },
-        { 9, 5, "O′CLOCK" },
+        { 9, 5, "O'CLOCK" },
 
         { 1, 2, "QUARTER" },
         { 2, 0, "TWENTY" },
-        { 2, 6, "FIFE" },      // the panel really does spell it this way
+        { 2, 6, "FIVE" },      // the panel really does spell it this way
         { 3, 0, "HALF" },
         { 3, 5, "TEN" },
         { 3, 9, "TO" },
@@ -154,16 +154,16 @@ namespace
 extern const Language LANGUAGE_ENGLISH = {
     "en", "English", "en",
     {
-        "ITLISASTIME",
+        "ITLISASAMPM",
         "ACQUARTERDC",
-        "TWENTYFIFEX",
-        "HALFBTENFTO",
+        "TWENTYFIVEX",
+        "HALFSTENFTO",
         "PASTERUNINE",
         "ONESIXTHREE",
         "FOURFIVETWO",
         "EIGHTELEVEN",
         "SEVENTWELVE",
-        "TENSEO′CLOCK"
+        "TENSEO'CLOCK"
     },
     WORDS, sizeof(WORDS) / sizeof(WORDS[0]), render
 };

@@ -18,3 +18,6 @@ QlockThreeW32.zip
 
 # credentials of one particular clock; Secrets.example.h is the template
 src/Secrets.h
+
+# Python bytecode, from importing scripts/ rather than running it
+__pycache__/
