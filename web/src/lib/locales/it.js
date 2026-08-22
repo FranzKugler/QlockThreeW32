@@ -239,6 +239,31 @@ export default {
     "dell'avvio. Quello che il bootloader stampa prima del firmware si vede " +
     'solo sul cavo USB.',
 
+  // --- file explorer, above the log in the debug tab ---
+  fsTitle: 'File',
+  fsHint:
+    'Il file system dell\'orologio (LittleFS) — la stessa partizione da cui ' +
+    'arriva questa pagina. NVS non compare qui: contiene chiavi e valori, ' +
+    'non file. Cancellando index.html l\'orologio resta raggiungibile solo ' +
+    'tramite l\'API, e per tornare indietro serve il cavo USB.',
+  fsUsage: (used, total) => `${used} di ${total} occupati`,
+  fsRoot: 'Radice',
+  fsEmpty: 'Questa cartella è vuota.',
+  fsTruncated: 'Solo le prime voci — la cartella ne contiene altre.',
+  fsDownload: 'Scarica',
+  fsEdit: 'Modifica',
+  fsDelete: 'Elimina',
+  fsUpload: 'Carica',
+  fsNewFolder: 'Nuova cartella',
+  fsFolderName: 'Nome della cartella',
+  fsSave: 'Salva',
+  fsCancel: 'Annulla',
+  fsSaved: 'Salvato.',
+  fsConfirmDelete: (name) => `Eliminare «${name}» definitivamente?`,
+  fsUploading: (percent) => `Trasferimento … ${percent} %`,
+  fsTooLarge: 'Troppo grande per l\'editor — scaricalo.',
+  fsBinary: 'Non è testo — solo download.',
+
   // --- expert mode ---
   expertTitle: 'Modalità esperto',
   expertUnlocked:
@@ -291,6 +316,21 @@ export default {
   err_expertWrongPassword: 'Password errata',
   err_expertPasswordShort: 'La password è troppo corta',
   err_expertNoGrace: 'La finestra per cancellare la password è chiusa',
+
+  err_fsPath: 'Percorso non valido',
+  err_fsBody: 'Richiesta illeggibile',
+  err_fsNotFound: 'Non trovato',
+  err_fsNotDir: 'Non è una cartella',
+  err_fsIsDir: 'È una cartella',
+  err_fsOpen: 'Impossibile creare il file',
+  err_fsWrite: 'Errore di scrittura: il file system è probabilmente pieno',
+  err_fsRename: 'Impossibile mettere il file al suo posto',
+  err_fsAborted: 'Trasferimento interrotto',
+  err_fsTooBig: 'Troppo grande per l\'editor',
+  err_fsNotEmpty: 'La cartella non è vuota',
+  err_fsExists: 'Esiste già',
+  err_fsDelete: 'Eliminazione non riuscita',
+  err_fsMkdir: 'Impossibile creare la cartella',
 
   // --- api errors ---
   connectionLost: "Collegamento con l'orologio interrotto",

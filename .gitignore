@@ -21,3 +21,6 @@ src/Secrets.h
 
 # Python bytecode, from importing scripts/ rather than running it
 __pycache__/
+
+# the mock server's stand-in for the clock's LittleFS, seeded on first run
+.mockfs/

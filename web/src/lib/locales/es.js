@@ -239,6 +239,31 @@ export default {
     'arranque. Lo que el gestor de arranque imprime antes del firmware solo ' +
     'se ve por el cable USB.',
 
+  // --- file explorer, above the log in the debug tab ---
+  fsTitle: 'Archivos',
+  fsHint:
+    'El sistema de archivos del reloj (LittleFS): la misma partición desde ' +
+    'la que se sirve esta página. NVS no aparece aquí, porque guarda claves ' +
+    'y valores, no archivos. Si se borra index.html, el reloj solo queda ' +
+    'accesible por la API y hace falta el cable USB para recuperarlo.',
+  fsUsage: (used, total) => `${used} de ${total} ocupados`,
+  fsRoot: 'Raíz',
+  fsEmpty: 'Esta carpeta está vacía.',
+  fsTruncated: 'Solo las primeras entradas: la carpeta contiene más.',
+  fsDownload: 'Descargar',
+  fsEdit: 'Editar',
+  fsDelete: 'Eliminar',
+  fsUpload: 'Subir',
+  fsNewFolder: 'Carpeta nueva',
+  fsFolderName: 'Nombre de la carpeta',
+  fsSave: 'Guardar',
+  fsCancel: 'Cancelar',
+  fsSaved: 'Guardado.',
+  fsConfirmDelete: (name) => `¿Eliminar «${name}» definitivamente?`,
+  fsUploading: (percent) => `Transfiriendo… ${percent} %`,
+  fsTooLarge: 'Demasiado grande para el editor: descárgalo.',
+  fsBinary: 'No es texto: solo descarga.',
+
   // --- expert mode ---
   expertTitle: 'Modo experto',
   expertUnlocked:
@@ -291,6 +316,21 @@ export default {
   err_expertWrongPassword: 'Contraseña incorrecta',
   err_expertPasswordShort: 'Esa contraseña es demasiado corta',
   err_expertNoGrace: 'La ventana para borrar la contraseña se ha cerrado',
+
+  err_fsPath: 'Ruta no válida',
+  err_fsBody: 'Petición ilegible',
+  err_fsNotFound: 'No encontrado',
+  err_fsNotDir: 'Eso no es una carpeta',
+  err_fsIsDir: 'Eso es una carpeta',
+  err_fsOpen: 'No se pudo crear el archivo',
+  err_fsWrite: 'Error de escritura: seguramente el sistema de archivos está lleno',
+  err_fsRename: 'No se pudo colocar el archivo en su sitio',
+  err_fsAborted: 'Transferencia cancelada',
+  err_fsTooBig: 'Demasiado grande para el editor',
+  err_fsNotEmpty: 'La carpeta no está vacía',
+  err_fsExists: 'Ya existe',
+  err_fsDelete: 'No se pudo eliminar',
+  err_fsMkdir: 'No se pudo crear la carpeta',
 
   // --- api errors ---
   connectionLost: 'Se ha perdido la conexión con el reloj',

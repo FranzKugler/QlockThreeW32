@@ -16,6 +16,8 @@
  * @updated  15.8.2026
  */
 import express from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const app = express();
 
@@ -53,7 +55,7 @@ const expertState = () => ({
 });
 
 // Everything behind the lock, in one list.
-for (const prefix of ['/log', '/ota']) {
+for (const prefix of ['/log', '/ota', '/fs']) {
   app.use(prefix, (req, res, next) => {
     if (expert.on) return next();
     res.status(403).json({ error: 'expertLocked' });
@@ -912,6 +914,195 @@ app.get('/log', (req, res) => {
     reset: 'software',
     lines
   });
+});
+
+/*
+ * The clock's filesystem, as far as the mock needs it.
+ *
+ * A real directory rather than an object in memory, because the point of the
+ * tab is uploading and downloading files and both want something that behaves
+ * like flash: .mockfs/, seeded on first run with roughly what the image holds
+ * and gitignored. It is deliberately not data/ - the file explorer can delete
+ * things, and deleting the built web UI out from under the dev server would be
+ * a puzzling way to find that out.
+ *
+ * See src/FileRoutes.cpp for the rules; this repeats the shape of them so the
+ * debug tab can be worked on without a clock. Where the two disagree, the
+ * clock is right.
+ */
+const FS_ROOT = path.resolve('.mockfs');
+const FS_PATH_MAX = 63;
+const FS_LIST_MAX = 96;
+const FS_EDIT_MAX = 24576;
+
+// A pretend 3.5 MB LittleFS partition, so the fullness bar means something.
+const FS_TOTAL = 3538944;
+
+/** Seeded once, so a fresh clone has a tree to look at. */
+const FS_SEED = {
+  'index.html': '<!doctype html>\n<html lang="de">\n  <head>\n    <meta charset="utf-8" />\n    <title>QlockThreeW32</title>\n  </head>\n  <body></body>\n</html>\n',
+  'version.json': JSON.stringify({ version: '2.2.0', built: new Date().toISOString() }, null, 2),
+  'zones.json': JSON.stringify({ tzdata: '2026a', zones: { 'Europe/Berlin': 'CET-1CEST,M3.5.0,M10.5.0/3' } }, null, 2),
+  'assets/index-b7f21a.js': '// pretend bundle\nconsole.log("qlock");\n',
+  'assets/index-b7f21a.css': ':root { --accent: #c05a1e; }\n'
+};
+
+function fsSeed() {
+  if (fs.existsSync(FS_ROOT)) return;
+  for (const [name, body] of Object.entries(FS_SEED)) {
+    const target = path.join(FS_ROOT, name);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, body);
+  }
+}
+fsSeed();
+
+/**
+ * The same check the firmware makes, plus the one it gets for free: on the
+ * clock every path is inside the volume by construction, here the resolved
+ * path has to be proven to still sit under .mockfs.
+ */
+function fsResolve(raw) {
+  if (typeof raw !== 'string' || raw.length === 0 || raw[0] !== '/') return null;
+  if (raw.length > FS_PATH_MAX) return null;
+  if (raw.includes('\\')) return null;
+
+  const clean = raw.replace(/\/+/g, '/').replace(/(.)\/+$/, '$1');
+  if (clean.split('/').some((part) => part === '.' || part === '..')) return null;
+
+  const full = path.resolve(FS_ROOT, '.' + clean);
+  if (full !== FS_ROOT && !full.startsWith(FS_ROOT + path.sep)) return null;
+  return { clean, full };
+}
+
+const fsUsed = (dir = FS_ROOT) =>
+  fs.readdirSync(dir, { withFileTypes: true }).reduce((sum, entry) => {
+    const full = path.join(dir, entry.name);
+    return sum + (entry.isDirectory() ? fsUsed(full) : fs.statSync(full).size);
+  }, 0);
+
+const fsVolume = () => ({ total: FS_TOTAL, used: fsUsed() });
+
+const fsEditable = (name, size) =>
+  size <= FS_EDIT_MAX &&
+  (/\.(json|txt|css|html?|js|csv|scad|md)$/.test(name) || !name.includes('.'));
+
+const fsMime = (name) =>
+  ({
+    '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css',
+    '.js': 'application/javascript', '.json': 'application/json',
+    '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
+    '.txt': 'text/plain', '.scad': 'text/plain', '.gz': 'application/gzip'
+  })[path.extname(name)] || 'application/octet-stream';
+
+app.get('/fs/list', (req, res) => {
+  const at = fsResolve(req.query.path ?? '/');
+  if (!at) return res.status(400).json({ error: 'fsPath' });
+  if (!fs.existsSync(at.full)) return res.status(404).json({ error: 'fsNotFound' });
+  if (!fs.statSync(at.full).isDirectory()) return res.status(400).json({ error: 'fsNotDir' });
+
+  const all = fs.readdirSync(at.full, { withFileTypes: true });
+  const entries = all.slice(0, FS_LIST_MAX).map((entry) => {
+    const size = entry.isDirectory() ? 0 : fs.statSync(path.join(at.full, entry.name)).size;
+    return {
+      name: entry.name,
+      dir: entry.isDirectory(),
+      size,
+      ...(entry.isDirectory() ? {} : { edit: fsEditable(entry.name, size) })
+    };
+  });
+
+  res.json({
+    path: at.clean,
+    ...fsVolume(),
+    editMax: FS_EDIT_MAX,
+    entries,
+    ...(all.length > FS_LIST_MAX ? { truncated: true } : {})
+  });
+});
+
+app.get('/fs/read', (req, res) => {
+  const at = fsResolve(req.query.path ?? '');
+  if (!at) return res.status(400).json({ error: 'fsPath' });
+  if (!fs.existsSync(at.full)) return res.status(404).json({ error: 'fsNotFound' });
+  if (fs.statSync(at.full).isDirectory()) return res.status(400).json({ error: 'fsIsDir' });
+
+  const name = path.basename(at.clean);
+  if (req.query.download !== undefined) {
+    res.set('Content-Disposition', `attachment; filename="${name}"`);
+    res.type('application/octet-stream');
+  } else {
+    res.type(fsMime(name));
+  }
+  res.send(fs.readFileSync(at.full));
+});
+
+/*
+ * Multipart, split by hand.
+ *
+ * The firmware streams multipart because it must - the alternative is a bundle
+ * sitting in the ESP32's heap - so the browser sends multipart, so the mock has
+ * to read it. One part, one boundary, no encoding games: enough for the one
+ * upload this sends, and cheaper than a dependency that would only ever be
+ * used here.
+ */
+app.post('/fs/upload', express.raw({ type: 'multipart/form-data', limit: '8mb' }), (req, res) => {
+  const at = fsResolve(req.query.path ?? '');
+  if (!at || at.clean === '/') return res.status(400).json({ error: 'fsPath' });
+
+  const boundary = /boundary=(?:"([^"]+)"|([^;]+))/.exec(req.headers['content-type'] ?? '');
+  if (!boundary) return res.status(400).json({ error: 'fsBody' });
+
+  const body = req.body;
+  const mark = Buffer.from(`--${boundary[1] ?? boundary[2]}`);
+  const head = body.indexOf('\r\n\r\n', body.indexOf(mark));
+  const tail = body.indexOf(mark, head + 4);
+  if (head < 0 || tail < 0) return res.status(400).json({ error: 'fsBody' });
+
+  // The CRLF before the closing boundary belongs to the boundary, not the file.
+  const content = body.subarray(head + 4, tail - 2);
+
+  fs.mkdirSync(path.dirname(at.full), { recursive: true });
+  fs.writeFileSync(at.full, content);
+  res.json({ path: at.clean, size: content.length, ...fsVolume() });
+});
+
+app.post('/fs/save', (req, res) => {
+  const at = fsResolve(req.body.path ?? '');
+  if (!at || at.clean === '/') return res.status(400).json({ error: 'fsPath' });
+
+  const content = String(req.body.content ?? '');
+  if (content.length > FS_EDIT_MAX) return res.status(413).json({ error: 'fsTooBig' });
+
+  fs.writeFileSync(at.full, content);
+  res.json({ path: at.clean, size: Buffer.byteLength(content), ...fsVolume() });
+});
+
+app.post('/fs/delete', (req, res) => {
+  const at = fsResolve(req.body.path ?? '');
+  if (!at || at.clean === '/') return res.status(400).json({ error: 'fsPath' });
+  if (!fs.existsSync(at.full)) return res.status(404).json({ error: 'fsNotFound' });
+
+  if (fs.statSync(at.full).isDirectory()) {
+    // Not recursive, the same as the clock: a file explorer that empties a
+    // tree on one click is how the web UI gets deleted by accident.
+    if (fs.readdirSync(at.full).length) return res.status(409).json({ error: 'fsNotEmpty' });
+    fs.rmdirSync(at.full);
+  } else {
+    fs.unlinkSync(at.full);
+  }
+  res.json({ path: at.clean, ...fsVolume() });
+});
+
+app.post('/fs/mkdir', (req, res) => {
+  const at = fsResolve(req.body.path ?? '');
+  if (!at || at.clean === '/') return res.status(400).json({ error: 'fsPath' });
+  if (fs.existsSync(at.full)) return res.status(409).json({ error: 'fsExists' });
+
+  // LittleFS does not do -p, so neither does this.
+  if (!fs.existsSync(path.dirname(at.full))) return res.status(500).json({ error: 'fsMkdir' });
+  fs.mkdirSync(at.full);
+  res.json({ path: at.clean });
 });
 
 app.listen(8080, () => console.log('QlockThreeW32 mock API on http://localhost:8080'));

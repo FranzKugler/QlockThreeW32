@@ -239,6 +239,31 @@ export default {
     "du démarrage. Ce que le bootloader affiche avant le micrologiciel n'est " +
     'visible que sur le câble USB.',
 
+  // --- file explorer, above the log in the debug tab ---
+  fsTitle: 'Fichiers',
+  fsHint:
+    'Le système de fichiers de l\'horloge (LittleFS) — la partition d\'où ' +
+    'vient cette page. NVS n\'y figure pas : il contient des clés et des ' +
+    'valeurs, pas des fichiers. Supprimer index.html rend l\'horloge ' +
+    'accessible seulement par l\'API, et il faut le câble USB pour revenir.',
+  fsUsage: (used, total) => `${used} sur ${total} utilisés`,
+  fsRoot: 'Racine',
+  fsEmpty: 'Ce dossier est vide.',
+  fsTruncated: 'Seulement les premières entrées — le dossier en contient plus.',
+  fsDownload: 'Télécharger',
+  fsEdit: 'Modifier',
+  fsDelete: 'Supprimer',
+  fsUpload: 'Envoyer',
+  fsNewFolder: 'Nouveau dossier',
+  fsFolderName: 'Nom du dossier',
+  fsSave: 'Enregistrer',
+  fsCancel: 'Annuler',
+  fsSaved: 'Enregistré.',
+  fsConfirmDelete: (name) => `Supprimer « ${name} » définitivement ?`,
+  fsUploading: (percent) => `Transfert … ${percent} %`,
+  fsTooLarge: 'Trop volumineux pour l\'éditeur — téléchargez-le.',
+  fsBinary: 'Pas du texte — téléchargement uniquement.',
+
   // --- expert mode ---
   expertTitle: 'Mode expert',
   expertUnlocked:
@@ -291,6 +316,21 @@ export default {
   err_expertWrongPassword: 'Mot de passe incorrect',
   err_expertPasswordShort: 'Ce mot de passe est trop court',
   err_expertNoGrace: 'La fenêtre pour effacer le mot de passe est fermée',
+
+  err_fsPath: 'Chemin invalide',
+  err_fsBody: 'Requête illisible',
+  err_fsNotFound: 'Introuvable',
+  err_fsNotDir: 'Ce n\'est pas un dossier',
+  err_fsIsDir: 'C\'est un dossier',
+  err_fsOpen: 'Impossible de créer le fichier',
+  err_fsWrite: 'Échec d\'écriture — le système de fichiers est sans doute plein',
+  err_fsRename: 'Impossible de mettre le fichier en place',
+  err_fsAborted: 'Transfert interrompu',
+  err_fsTooBig: 'Trop volumineux pour l\'éditeur',
+  err_fsNotEmpty: 'Le dossier n\'est pas vide',
+  err_fsExists: 'Existe déjà',
+  err_fsDelete: 'Échec de la suppression',
+  err_fsMkdir: 'Impossible de créer le dossier',
 
   // --- api errors ---
   connectionLost: "Connexion à l'horloge interrompue",

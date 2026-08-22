@@ -237,6 +237,31 @@ export default {
     'booting. What the bootloader prints before the firmware starts is only ' +
     'on the USB cable.',
 
+  // --- file explorer, above the log in the debug tab ---
+  fsTitle: 'Files',
+  fsHint:
+    'The clock\'s filesystem (LittleFS) — the same partition this page is ' +
+    'served from. NVS is not shown here: it holds keys and values, not ' +
+    'files. Delete index.html and the clock is reachable through the API ' +
+    'only, and getting it back needs the USB cable.',
+  fsUsage: (used, total) => `${used} of ${total} used`,
+  fsRoot: 'Root',
+  fsEmpty: 'This folder is empty.',
+  fsTruncated: 'Only the first entries — the folder holds more.',
+  fsDownload: 'Download',
+  fsEdit: 'Edit',
+  fsDelete: 'Delete',
+  fsUpload: 'Upload',
+  fsNewFolder: 'New folder',
+  fsFolderName: 'Folder name',
+  fsSave: 'Save',
+  fsCancel: 'Cancel',
+  fsSaved: 'Saved.',
+  fsConfirmDelete: (name) => `Delete “${name}” for good?`,
+  fsUploading: (percent) => `Transferring … ${percent} %`,
+  fsTooLarge: 'Too large for the editor — download it instead.',
+  fsBinary: 'Not text — download only.',
+
   // --- expert mode ---
   expertTitle: 'Expert mode',
   expertUnlocked:
@@ -288,6 +313,21 @@ export default {
   err_expertWrongPassword: 'Wrong password',
   err_expertPasswordShort: 'That password is too short',
   err_expertNoGrace: 'The window for clearing the password has closed',
+
+  err_fsPath: 'Invalid path',
+  err_fsBody: 'Request could not be read',
+  err_fsNotFound: 'Not found',
+  err_fsNotDir: 'That is not a folder',
+  err_fsIsDir: 'That is a folder',
+  err_fsOpen: 'The file could not be created',
+  err_fsWrite: 'Write failed — the filesystem is probably full',
+  err_fsRename: 'The file could not be moved into place',
+  err_fsAborted: 'Transfer aborted',
+  err_fsTooBig: 'Too large for the editor',
+  err_fsNotEmpty: 'The folder is not empty',
+  err_fsExists: 'Already exists',
+  err_fsDelete: 'Delete failed',
+  err_fsMkdir: 'The folder could not be created',
 
   // --- api errors ---
   connectionLost: 'Connection to the clock was lost',

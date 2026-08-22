@@ -2,15 +2,16 @@
  * Expert
  * The lock in front of the update and debug tabs.
  *
- * Two things the clock can do are worth keeping away from whoever happens to
- * be on the network: flashing it, and reading its log. Both were open to
- * anyone by design, which was defensible while neither existed as a web page.
+ * Three things the clock can do are worth keeping away from whoever happens
+ * to be on the network: flashing it, reading its log, and rummaging through
+ * its filesystem. The first two were open to anyone by design, which was
+ * defensible while neither existed as a web page.
  *
  * The model is a mode, not a login. One flag in NVS says whether the clock is
- * unlocked; while it is 0, `/ota/*` and `/log` answer 403 and the web UI does
- * not offer the tabs at all. Setting the flag needs the password; clearing it
- * does not - someone locking the clock out of spite has gained nothing, and
- * the owner opens it again with the password.
+ * unlocked; while it is 0, `/ota/*`, `/log` and `/fs/*` answer 403 and the web
+ * UI does not offer the tabs at all. Setting the flag needs the password;
+ * clearing it does not - someone locking the clock out of spite has gained
+ * nothing, and the owner opens it again with the password.
  *
  * Deliberately not HTTP Basic authentication, which was the first idea. The
  * debug tab polls `/log` every two seconds, and Basic puts the password on the
@@ -36,9 +37,9 @@
  *
  * @mc       ESP32S3
  * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
- * @version  2.1
+ * @version  2.2
  * @created  20.8.2026
- * @updated  20.8.2026
+ * @updated  22.8.2026
  */
 #ifndef EXPERT_H
 #define EXPERT_H
@@ -105,10 +106,17 @@ namespace Expert
      * Answers 403 and returns false when the clock is locked - the one line at
      * the top of every handler expert mode covers.
      *
-     * It lives here rather than in WebRoutes so that both files that need it,
-     * and any third one later, cannot drift apart on what "locked" means. A
-     * handler that forgets to call it is open, so the list of callers is worth
-     * keeping short and in one place: /log and the five /ota routes.
+     * It lives here rather than in WebRoutes so that the files that need it
+     * cannot drift apart on what "locked" means. A handler that forgets to
+     * call it is open, so the list of callers is worth keeping in one place:
+     * /log, the five /ota routes, and five of the six /fs routes.
+     *
+     * The sixth is /fs/upload, and it is the reason unlocked() is public:
+     * like /ota/upload it streams the body into flash from a handler that
+     * cannot send a response, so it asks the question itself and refuses by
+     * recording an error for the done handler. Guarding only the done handler
+     * would let a stranger overwrite a file and be refused afterwards, which
+     * is not a refusal.
      */
     bool guard();
 }

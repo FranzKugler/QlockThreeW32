@@ -333,3 +333,106 @@ export function uploadImage(file, onProgress) {
     xhr.send(body);
   });
 }
+
+/* ------ the filesystem, for the file explorer in the debug tab ------
+ *
+ * These all throw rather than going through post(), which reports into the
+ * banner and answers with a bare boolean. A file explorer needs to know
+ * whether the delete happened - it has a tree to refresh and a message to put
+ * next to the file - and "something went wrong somewhere on the page" is not
+ * that. errorText() still turns the clock's code into a sentence.
+ *
+ * This is LittleFS, not NVS: the partition the web UI itself is served from.
+ */
+
+/** Everything the clock says about one directory, plus how full it is. */
+export async function fetchDirectory(path = '/') {
+  const res = await fetch(`/fs/list?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error(await fsFailure(res, '/fs/list'));
+  return res.json();
+}
+
+/** One file as text, for the editor. Binary files are downloaded instead. */
+export async function fetchFile(path) {
+  const res = await fetch(`/fs/read?path=${encodeURIComponent(path)}`);
+  if (!res.ok) throw new Error(await fsFailure(res, '/fs/read'));
+  return res.text();
+}
+
+/**
+ * Where to point a download link.
+ *
+ * A plain link rather than a fetch and a blob: expert mode is a flag in the
+ * clock's NVS, not a header this page adds, so an ordinary GET is already
+ * authorised and the browser saves the file itself with no copy in memory.
+ */
+export const fileUrl = (path) =>
+  `/fs/read?path=${encodeURIComponent(path)}&download=1`;
+
+export const saveFile = (path, content) => fsWrite('/fs/save', { path, content });
+export const deleteEntry = (path) => fsWrite('/fs/delete', { path });
+export const makeDirectory = (path) => fsWrite('/fs/mkdir', { path });
+
+/**
+ * Sends one file to the clock, as multipart so the firmware can stream it
+ * into flash instead of holding it in the heap.
+ *
+ * XMLHttpRequest for the same reason uploadImage() uses it: only XHR reports
+ * upload progress, and here too the number is honest - the clock writes each
+ * chunk as it arrives.
+ */
+export function uploadFile(path, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const body = new FormData();
+    body.append('file', file, file.name);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/fs/upload?path=${encodeURIComponent(path)}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(event.loaded / event.total);
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+        return;
+      }
+      let message = `HTTP ${xhr.status}`;
+      try {
+        const err = JSON.parse(xhr.responseText);
+        message = errorText(dict(), err.error, err.errorDetail) || message;
+      } catch {
+        /* not JSON */
+      }
+      reject(new Error(message));
+    };
+
+    xhr.onerror = () => reject(new Error(dict().connectionLost));
+    xhr.onabort = () => reject(new Error(dict().uploadAborted));
+
+    xhr.send(body);
+  });
+}
+
+/** The clock's refusal as a sentence, or the status when it did not say. */
+async function fsFailure(res, what) {
+  try {
+    const err = await res.json();
+    const said = errorText(dict(), err.error, err.errorDetail);
+    if (said) return said;
+  } catch {
+    /* not JSON, or no body */
+  }
+  return `${what}: HTTP ${res.status}`;
+}
+
+async function fsWrite(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) throw new Error(await fsFailure(res, path));
+  return res.json();
+}

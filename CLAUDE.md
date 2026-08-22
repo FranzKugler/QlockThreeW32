@@ -63,6 +63,7 @@ on :8080 directly, which serves `data/` statically.
 | [src/LightSensor.cpp](src/LightSensor.cpp) | the `LightSensor` interface, `Veml7700Sensor`, and `AmbientLight` with its sampling task |
 | [src/LogBuffer.cpp](src/LogBuffer.cpp) | the in-memory log ring, the `DebugLog` tee and the ESP-IDF capture hook |
 | [src/Expert.cpp](src/Expert.cpp) | the lock on `/log` and `/ota/*`: the password, the NVS flag, `Expert::guard()` |
+| [src/FileRoutes.cpp](src/FileRoutes.cpp) | `Files::` — the `/fs/*` handlers: the tree, the download, the streamed upload, the editor |
 | [src/languages/](src/languages/) | one file per language: its panel letters, its words, and how it says the time |
 | [src/DisplayModes.h](src/DisplayModes.h) | the mode numbers, shared because `main .cpp` renders them and `WebRoutes.cpp` accepts them |
 
@@ -108,6 +109,12 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `GET /languages` — `[{value, code, name, uiLocale, panel}]`, in the order of the stored language numbers, so `value` is what `POST /configuration` wants. `panel` groups the languages cut into the same sheet of letters — the number of the first language using it, so the four German entries all report 0. Static for a firmware; the shell asks once at load. Not part of `/currentState`: it is not a setting, it is what the firmware can do.
 - `GET /panel` — the face as it is right now: `rows` (the panel of the language that is running), `on` (a second grid of `#`/`.` read off the frame buffer), `corners` in reading order, plus `code`, `name`, `uiLocale`, `mode` and the sentence. `cornerColors` appears only while the coloured-corner mode is driving them — four `#rrggbb` strings or `""` for a dark one. Polled by the colour tab.
 - `GET /log?since=<seq>` — the log ring from that sequence number on, plus `oldest`, `more`, and the state block (`uptime`, `heap`, `heapMin`, `heapBlock`, `reset`). Not part of `/currentState`: none of it is a setting, and the debug tab polls it. **Behind the lock** — see "Expert mode".
+- `GET /fs/list?path=/` — one directory: `entries` of `{name, dir, size, edit}`, plus `total`/`used` of the volume, `editMax`, and `truncated` when the directory holds more than `FS_LIST_MAX`. **Behind the lock.**
+- `GET /fs/read?path=/x` — the file, streamed. `&download=1` adds the attachment header. **Behind the lock.**
+- `POST /fs/upload?path=/x` — `multipart/form-data` with one file part, streamed into flash. **Behind the lock.**
+- `POST /fs/save` — `{path, content}`, for the in-browser editor; buffered, so capped at `FS_EDIT_MAX`. **Behind the lock.**
+- `POST /fs/delete` — `{path}`; one file, or one *empty* directory. **Behind the lock.**
+- `POST /fs/mkdir` — `{path}`; one directory, parent must exist. **Behind the lock.**
 - `GET /expert` — `{enrolled, unlocked, grace, lockedOut}`. No secret in it; the shell needs it before it can decide which tabs exist.
 - `POST /expert` — `{password}` (sets one on a clock with none, otherwise checks it), `{off: true}`, or `{reset: true}`. Answers with the same shape `GET` does.
 - `POST /wifi` — `{ssid, password}`; answers immediately, the switch runs in `loop()`.
@@ -445,6 +452,20 @@ The clock keeps its last 200 log lines in RAM and serves them through `GET /log`
 - The response is built into one `String` with the room reserved up front rather than through ArduinoJson, which would put every line into a document and serialise that into a second buffer — on the same heap an update wants. `LOG_BATCH` caps one response at about 11 KB.
 
 The tab also carries the state block the update history keeps pointing at: uptime, reset reason, and free / lowest-ever / largest-block heap. The brightness curves that were once meant to land here went to `#luminance` instead, outside the lock: the debug tab is behind expert mode and a brightness curve has no business needing a password.
+
+#### The file explorer
+
+Above the log in the debug tab sits a tree of the clock's filesystem, with download, upload, delete and a small editor. [src/FileRoutes.cpp](src/FileRoutes.cpp) serves it and [web/src/sections/Files.svelte](web/src/sections/Files.svelte) draws it.
+
+- **It is LittleFS, and it is not NVS.** The two get asked about in the same breath because both survive a reboot, but NVS is a key-value store — one JSON string under `qlock`/`settings`, another under `qlocklight`/`curve` — with no tree, no paths and nothing that can be downloaded as a file. What has files is the 3.5 MB partition: the web UI, `zones.json`, the icons, `version.json`. A "file explorer for NVS" cannot be built, only a settings editor, which is what the other tabs already are.
+- **It hands out write access to the partition the page itself is served from.** Deleting `index.html` leaves a clock that answers every REST endpoint and shows nothing in a browser; the way back is `pio run -t uploadfs` over USB. That is not a reason to forbid it — somebody who opens a file explorer wants to change files — but it is why delete asks first, why the hint says so, and why **delete is not recursive**: emptying a directory by hand is tedious in exact proportion to how much is being thrown away.
+- **Behind expert mode**, with no argument needed beyond the one already made for `/log`: this is strictly the more powerful of the two, so anything that locks the log must lock this. That takes `Expert::guard()`'s list of callers from six to eleven, plus the second `Expert::unlocked()` check the streaming upload needs.
+- **Two shapes of write, because they have different problems.** The upload **streams** — multipart through the second handler on the route, the same pattern the OTA upload uses, so a 200 kB bundle never sits in the heap; the cost is that the data handler cannot answer, and refuses by recording an error the done handler sends. The editor **buffers** — `POST /fs/save` takes JSON, so the content is in memory twice — which is why `FS_EDIT_MAX` (24 KB) exists and why the browser only offers the editor below it.
+- **Both write to a `.part` file and rename on success.** Uploading a new `index.html` that dies half way would otherwise destroy the working one, and the working one is how you reach the page to try again.
+- **The upload's target path travels in the query string**, which needs checking rather than assuming: `WebServer::_parseRequest` calls `_parseArguments(searchStr)` *before* `_parseForm`, so `server.arg()` answers correctly inside the upload handler, and the form fields are merged in afterwards. Verified against `Parsing.cpp` in the core.
+- **The tree is expanded one directory per request**, not fetched whole. A directory somebody filled then costs one slow response instead of making every response slow. The browser keeps its state flat — a path-keyed object of listings plus a set of open paths — rather than as a recursive component, so a refresh has one place to touch and a delete three levels down does not have to find its own node.
+- **`safePath()` is not a sandbox.** The whole volume is fair game by design; it checks that what arrived is a path at all — absolute, no `..` to climb with, no backslashes, no control characters, short enough for LittleFS to hold without truncating it into a different file. The mock needs one check the firmware gets for free: on the clock every path is inside the volume by construction, in Node the resolved path has to be proven to still sit under `.mockfs`.
+- The mock works on a real directory, `.mockfs/`, seeded on first run and gitignored — **deliberately not `data/`**, because the explorer can delete things and deleting the built web UI out from under the dev server is a puzzling way to discover that. It parses the one multipart part by hand rather than taking a dependency used nowhere else.
 
 #### The face in the colour tab
 

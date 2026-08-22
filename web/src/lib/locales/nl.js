@@ -238,6 +238,31 @@ export default {
     'het opstarten. Wat de bootloader vóór de firmware toont, staat alleen ' +
     'op de USB-kabel.',
 
+  // --- file explorer, above the log in the debug tab ---
+  fsTitle: 'Bestanden',
+  fsHint:
+    'Het bestandssysteem van de klok (LittleFS) — dezelfde partitie waar ' +
+    'deze pagina vandaan komt. NVS staat er niet bij: daar liggen sleutels ' +
+    'en waarden, geen bestanden. Wie index.html wist, bereikt de klok nog ' +
+    'alleen via de API en heeft de USB-kabel nodig.',
+  fsUsage: (used, total) => `${used} van ${total} in gebruik`,
+  fsRoot: 'Hoofdmap',
+  fsEmpty: 'Deze map is leeg.',
+  fsTruncated: 'Alleen de eerste items — de map bevat er meer.',
+  fsDownload: 'Downloaden',
+  fsEdit: 'Bewerken',
+  fsDelete: 'Verwijderen',
+  fsUpload: 'Uploaden',
+  fsNewFolder: 'Nieuwe map',
+  fsFolderName: 'Naam van de map',
+  fsSave: 'Opslaan',
+  fsCancel: 'Annuleren',
+  fsSaved: 'Opgeslagen.',
+  fsConfirmDelete: (name) => `„${name}” definitief verwijderen?`,
+  fsUploading: (percent) => `Bezig met overdragen … ${percent} %`,
+  fsTooLarge: 'Te groot voor de editor — download het bestand.',
+  fsBinary: 'Geen tekst — alleen downloaden.',
+
   // --- expert mode ---
   expertTitle: 'Expertmodus',
   expertUnlocked:
@@ -289,6 +314,21 @@ export default {
   err_expertWrongPassword: 'Verkeerd wachtwoord',
   err_expertPasswordShort: 'Dat wachtwoord is te kort',
   err_expertNoGrace: 'Het venster om het wachtwoord te wissen is gesloten',
+
+  err_fsPath: 'Ongeldig pad',
+  err_fsBody: 'Verzoek onleesbaar',
+  err_fsNotFound: 'Niet gevonden',
+  err_fsNotDir: 'Dat is geen map',
+  err_fsIsDir: 'Dat is een map',
+  err_fsOpen: 'Het bestand kon niet worden aangemaakt',
+  err_fsWrite: 'Schrijffout — het bestandssysteem is waarschijnlijk vol',
+  err_fsRename: 'Het bestand kon niet op zijn plaats worden gezet',
+  err_fsAborted: 'Overdracht afgebroken',
+  err_fsTooBig: 'Te groot voor de editor',
+  err_fsNotEmpty: 'De map is niet leeg',
+  err_fsExists: 'Bestaat al',
+  err_fsDelete: 'Verwijderen mislukt',
+  err_fsMkdir: 'De map kon niet worden aangemaakt',
 
   // --- api errors ---
   connectionLost: 'Verbinding met de klok verbroken',

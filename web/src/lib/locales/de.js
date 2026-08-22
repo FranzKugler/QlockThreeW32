@@ -239,6 +239,31 @@ export default {
     'Hochfahren. Was der Bootloader vor der Firmware ausgibt, steht nur am ' +
     'USB-Kabel.',
 
+  // --- file explorer, above the log in the debug tab ---
+  fsTitle: 'Dateien',
+  fsHint:
+    'Das Dateisystem der Uhr (LittleFS) — dieselbe Partition, aus der ' +
+    'diese Seite kommt. NVS steht hier nicht: dort liegen Schlüssel und ' +
+    'Werte, keine Dateien. Wer index.html löscht, erreicht die Uhr nur ' +
+    'noch über die Schnittstelle und braucht das USB-Kabel.',
+  fsUsage: (used, total) => `${used} von ${total} belegt`,
+  fsRoot: 'Wurzel',
+  fsEmpty: 'Dieser Ordner ist leer.',
+  fsTruncated: 'Nur die ersten Einträge — der Ordner enthält mehr.',
+  fsDownload: 'Herunterladen',
+  fsEdit: 'Bearbeiten',
+  fsDelete: 'Löschen',
+  fsUpload: 'Hochladen',
+  fsNewFolder: 'Neuer Ordner',
+  fsFolderName: 'Name des Ordners',
+  fsSave: 'Speichern',
+  fsCancel: 'Abbrechen',
+  fsSaved: 'Gespeichert.',
+  fsConfirmDelete: (name) => `„${name}“ endgültig löschen?`,
+  fsUploading: (percent) => `Wird übertragen … ${percent} %`,
+  fsTooLarge: 'Zu groß für den Editor — herunterladen und bearbeiten.',
+  fsBinary: 'Kein Text — nur zum Herunterladen.',
+
   // --- expert mode ---
   expertTitle: 'Expertenmodus',
   expertUnlocked:
@@ -290,6 +315,21 @@ export default {
   err_expertWrongPassword: 'Falsches Kennwort',
   err_expertPasswordShort: 'Das Kennwort ist zu kurz',
   err_expertNoGrace: 'Das Zeitfenster zum Zurücksetzen ist geschlossen',
+
+  err_fsPath: 'Ungültiger Pfad',
+  err_fsBody: 'Anfrage unlesbar',
+  err_fsNotFound: 'Nicht gefunden',
+  err_fsNotDir: 'Das ist kein Ordner',
+  err_fsIsDir: 'Das ist ein Ordner',
+  err_fsOpen: 'Datei lässt sich nicht anlegen',
+  err_fsWrite: 'Schreibfehler — vermutlich ist das Dateisystem voll',
+  err_fsRename: 'Datei konnte nicht an ihren Platz gebracht werden',
+  err_fsAborted: 'Übertragung abgebrochen',
+  err_fsTooBig: 'Zu groß für den Editor',
+  err_fsNotEmpty: 'Der Ordner ist nicht leer',
+  err_fsExists: 'Gibt es schon',
+  err_fsDelete: 'Löschen fehlgeschlagen',
+  err_fsMkdir: 'Ordner konnte nicht angelegt werden',
 
   // --- api errors ---
   connectionLost: 'Verbindung zur Uhr unterbrochen',
