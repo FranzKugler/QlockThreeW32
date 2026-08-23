@@ -410,12 +410,18 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 - The four `AutoLux*`/`AutoBright*` fields are **gone from `Settings`**, along with `brightnessForLux()`, `luxPosition()` and `CALIBRATION_MIN_RATIO` in `LightSensor`. No `SETTINGS_SCHEMA` bump: an old record simply carries four keys nobody reads, which is not the same as misreading one.
 - **`POST /light` now only takes `{reset: true}`.** The two calibration points and the `{want}` shift are gone. The defaults it restores (`LUM_DEFAULT_*`, 0.3 lx → 20 %, 9 lx → 100 %) are cautious rather than good: they assume a sensor in the open, and behind a front panel both readings shrink by the same factor — which in log space only shifts the line sideways, so an uncalibrated clock still dims in the right direction, just not by the right amount.
 
-#### The workbench at `#luminance`
+#### The brightness screen — one screen, two ways in
 
-`GET /luminance` reports the line, every point with what the line makes of *its* light, the current reading, and whether a nudge is in flight. [Luminance.svelte](web/src/sections/Luminance.svelte) draws it: the points against the fitted line, in log light — plotted against plain lux it would be a curve, hiding the one thing worth seeing, which is whether the points sit on a line at all.
+[Luminance.svelte](web/src/sections/Luminance.svelte) holds everything about the automatic: the line, every point with what the line makes of *its* light, both averages, and how much of the sensor's reading is the clock's own face. The chart is in log light — plotted against plain lux it would be a curve, hiding the one thing worth seeing, which is whether the points sit on a line at all.
 
-- Reached through `#luminance` in the address, with **no chip in the tab row** — same pattern as `#expert`. It is a workbench, not a setting.
-- **Deliberately not behind expert mode.** There is no secret in a brightness curve, and needing to unlock the clock to look at one would put a lock in the way of something it has nothing to do with. Read-only for the same reason; the one write is the reset button in the colour tab, which is where somebody would look for it.
+**The lock decides what it offers, not whether it exists.** Unlocked it is the eighth tab; locked it is still reachable at `#luminance` and shows the same numbers read-only. The firmware draws exactly the same line: `GET /luminance` is open, `POST /luminance` is not, and in `POST /light` the two coupling branches are guarded while the `{reset}` beside them is not.
+
+That split is the point. Looking at the curve is what somebody does when the automatic feels wrong, and a password in front of a diagnosis helps nobody — while editing a curve, or throwing away a coupling measurement that took twenty minutes, is a different act. It replaced a flat "deliberately not behind expert mode", which was right while the screen was read-only and stopped being right when it grew writes.
+
+- **One component, a prop for the lock.** Two components would have been two things to keep in step, and they would have drifted the first time a field was added to one.
+- **The brightness screen survives locking**, unlike every other tab behind the lock: `applyExpert()` excludes it, because it stays readable rather than turning into a screen whose every request is refused.
+- **`POST /luminance {forget: n}`** removes one point. A point can be wrong rather than merely old — a correction made ten seconds after the room went dark was stored at 0.1184 lx when the room was at 0.0008 — and until this existed the only remedy was throwing the whole calibration away. Addressed by position, so the screen refuses a second click while one is in flight; two deletes racing would remove the wrong point.
+- **A 307 redirect is a trap here.** The mock's writes first answered by redirecting to `/luminance`, which re-sends the POST to the handler that issued it. Both writes share `luminanceState()` instead.
 - Polled once a second, faster than the colour tab, because this is the screen somebody watches *while* dragging the slider.
 
 #### Subtracting the clock's own face

@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update', 'Debug', 'Opslag'],
+  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update', 'Debug', 'Opslag', 'Helderheid'],
   loading: 'Instellingen worden geladen …',
   loadingShort: 'wordt geladen …',
   clockUnreachable: 'Klok niet bereikbaar',
@@ -71,6 +71,16 @@ export default {
   lumCurve: 'lijn',
   lumWhen: 'bedrijfstijd',
   lumEmpty: 'Nog niets geleerd — de standaardlijn geldt.',
+  lumReadOnly: 'Alleen lezen. Ontgrendel de klok in expertmodus om te bewerken.',
+  lumCoupling: 'Eigen licht',
+  lumCoupledCells: (n) => `${n} cellen gemeten`,
+  lumCoupledNone: 'Niet gemeten — de klok trekt haar eigen licht er niet af.',
+  lumDisplayShare: (lx, raw) => `${lx} lx van ${raw} lx ruw is het display zelf`,
+  lumForget: 'Vergeten',
+  lumForgetTitle: 'Dit punt vergeten',
+  lumResetPoints: 'Alle punten vergeten',
+  lumResetCoupling: 'Meting van eigen licht wissen',
+  lumResetCouplingHint: 'De klok regelt dan weer op de ruwe meting — met de terugkoppeling van haar eigen display.',
 
   // --- timezone tab ---
   timeServer: 'Tijdserver',
@@ -330,6 +340,7 @@ export default {
   err_otaChecksum: 'Controlesom klopt niet — image verworpen',
   err_calibrationTooClose: 'De twee punten liggen te dicht bij elkaar',
   err_calibrationRange: 'Helderheid buiten het geldige bereik',
+  err_lumNoSuchPoint: 'Dat punt bestaat niet meer — waarschijnlijk elders al verwijderd',
   err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,

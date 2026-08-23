@@ -120,6 +120,19 @@ namespace Luminance
     /** Throws the points away and restores the default line. */
     void reset();
 
+    /**
+     * Forgets one point, by its position in points().
+     *
+     * A point can be wrong rather than merely old, and until this existed the
+     * only way to remove one was to throw the whole calibration away. The case
+     * that produced it: a correction made ten seconds after the room went dark
+     * was stored at 0.1184 lx when the room was at 0.0008 - one bad point
+     * among three good ones, and no way to drop it alone.
+     *
+     * Re-fits and stores. Returns false if there is no such point.
+     */
+    bool forget(uint8_t index);
+
     /** The line, for the read-out and the API. */
     float slope();
     float offset();

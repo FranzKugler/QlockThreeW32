@@ -10,7 +10,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update', 'Debug', 'Speicher'],
+  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update', 'Debug', 'Speicher', 'Helligkeit'],
   loading: 'Einstellungen werden geladen …',
   loadingShort: 'wird geladen …',
   clockUnreachable: 'Uhr nicht erreichbar',
@@ -72,6 +72,16 @@ export default {
   lumCurve: 'Gerade',
   lumWhen: 'Laufzeit',
   lumEmpty: 'Noch nichts gelernt — es gilt die Standardgerade.',
+  lumReadOnly: 'Nur Ansicht. Zum Bearbeiten die Uhr im Expertenmodus entsperren.',
+  lumCoupling: 'Eigenlicht',
+  lumCoupledCells: (n) => `${n} Zellen vermessen`,
+  lumCoupledNone: 'Nicht vermessen — die Uhr rechnet ihr eigenes Licht nicht heraus.',
+  lumDisplayShare: (lx, raw) => `${lx} lx von ${raw} lx roh sind die Anzeige selbst`,
+  lumForget: 'Vergessen',
+  lumForgetTitle: 'Diesen Punkt vergessen',
+  lumResetPoints: 'Alle Punkte vergessen',
+  lumResetCoupling: 'Eigenlicht-Messung löschen',
+  lumResetCouplingHint: 'Danach regelt die Uhr wieder auf den rohen Messwert — mit der Rückkopplung durch die eigene Anzeige.',
 
   // --- timezone tab ---
   timeServer: 'Zeitserver',
@@ -331,6 +341,7 @@ export default {
   err_otaChecksum: 'Prüfsumme stimmt nicht — Image verworfen',
   err_calibrationTooClose: 'Die beiden Punkte liegen zu dicht beieinander',
   err_calibrationRange: 'Helligkeit außerhalb des gültigen Bereichs',
+  err_lumNoSuchPoint: 'Diesen Punkt gibt es nicht mehr — vermutlich woanders schon gelöscht',
   err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,

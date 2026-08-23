@@ -109,8 +109,16 @@ namespace Expert
      * It lives here rather than in WebRoutes so that the files that need it
      * cannot drift apart on what "locked" means. A handler that forgets to
      * call it is open, so the list of callers is worth keeping in one place:
-     * /log, the five /ota routes, five of the six /fs routes, and the four
-     * /nvs routes.
+     * /log, the five /ota routes, five of the six /fs routes, the four /nvs
+     * routes, the five /lab routes, /restart, POST /luminance, and the two
+     * coupling branches of POST /light.
+     *
+     * Note which of those are POST-only. GET /luminance is open and its POST
+     * is not; the two coupling branches of POST /light are guarded while the
+     * {reset} beside them is not. That is not sloppiness: looking at a
+     * brightness curve is what somebody does when the automatic feels wrong,
+     * and a password in front of a diagnosis helps nobody. Changing how the
+     * clock reads its own sensor is a different act.
      *
      * The odd one out is /fs/upload, and it is why unlocked() is public:
      * like /ota/upload it streams the body into flash from a handler that

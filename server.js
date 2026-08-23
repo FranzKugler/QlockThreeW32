@@ -54,13 +54,29 @@ const expertState = () => ({
   lockedOut: expertLockedOut()
 });
 
-// Everything behind the lock, in one list.
+// Everything behind the lock, in one list. Registered before the routes it
+// covers - added at the end it would let every request through and the dev UI
+// would behave nothing like the device.
 for (const prefix of ['/log', '/ota', '/fs', '/nvs']) {
   app.use(prefix, (req, res, next) => {
     if (expert.on) return next();
     res.status(403).json({ error: 'expertLocked' });
   });
 }
+
+/**
+ * The lock, for a route where it depends on the method.
+ *
+ * GET /luminance is open and POST /luminance is not, and the same split runs
+ * through POST /light, whose coupling branches are guarded while the {reset}
+ * beside them is not. Looking at a brightness curve is what somebody does when
+ * the automatic feels wrong; changing it is a different act.
+ */
+const guarded = (res) => {
+  if (expert.on) return false;
+  res.status(403).json({ error: 'expertLocked' });
+  return true;
+};
 
 app.get('/expert', (req, res) => res.json(expertState()));
 
@@ -451,14 +467,32 @@ app.post('/light', (req, res) => {
   res.status(400).json({ error: 'calibrationRange' });
 });
 
-/** Everything the automatic is thinking, for the #luminance screen. */
-app.get('/luminance', (req, res) => {
+/** Everything the automatic is thinking, for the brightness screen. */
+app.get('/luminance', (req, res) => res.json(luminanceState()));
+
+/**
+ * Shared by the GET and by both writes, which answer with the curve as it now
+ * stands so the screen redraws from what the clock says.
+ *
+ * A 307 redirect was the first idea and is a trap: it re-sends the POST to the
+ * same path, which is the handler that issued it.
+ */
+function luminanceState() {
   settle();
   const lux = currentLux();
-  res.json({
+  return {
     lux,
     raw: 7.1 + Math.sin(Date.now() / 3000) * 3,
+    // No display and no sensor here, so nothing couples into anything. Zero
+    // cells is the honest answer and it is also the branch worth seeing in
+    // development: it is what an uncalibrated clock shows.
+    display: 0,
+    coupled: 0,
     available: true,
+    // The average a point would be taught from, which is not the one the
+    // regulator runs on. No sensor here to differ, so they are the same number
+    // - the field exists so the screen has it.
+    teaching: lux,
     slope: curve.slope,
     offset: curve.offset,
     fitted: curve.fitted,
@@ -475,7 +509,37 @@ app.get('/luminance', (req, res) => {
     adjusting: nudge !== null,
     ...(nudge ? { wanted: nudge.percent } : {}),
     points: curve.points.map((p) => ({ ...p, curve: brightnessForLux(p.lux) }))
-  });
+  };
+}
+
+/**
+ * The two writes on the brightness screen: drop one point, or drop them all.
+ *
+ * Behind the lock while the GET above is not - see guarded().
+ */
+app.post('/luminance', (req, res) => {
+  if (guarded(res)) return;
+  const body = req.body || {};
+
+  if (body.reset) {
+    curve.points = [];
+    nudge = null;
+    defaultLine();
+    return res.json(luminanceState());
+  }
+
+  if (Number.isInteger(body.forget)) {
+    if (body.forget < 0 || body.forget >= curve.points.length) {
+      return res.status(404).json({ error: 'lumNoSuchPoint' });
+    }
+    // Spliced out rather than swapped away: the order is the order things
+    // happened, and the fit anchors on the newest point.
+    curve.points.splice(body.forget, 1);
+    fit();
+    return res.json(luminanceState());
+  }
+
+  res.status(400).json({ error: 'calibrationRange' });
 });
 
 /*

@@ -614,6 +614,7 @@ def check(lab, path=CALIBRATION_FILE):
 
     leds = lab._call("/lab/leds")["leds"]
     reading = lab.sensor()
+    clock = lab._call("/light")
     expected = predict(record, leds)
     measured = reading["lux"] or 0.0
 
@@ -621,6 +622,20 @@ def check(lab, path=CALIBRATION_FILE):
     print("  Anzeige      %9.4f lx  (vorhergesagt aus %d Zellen)"
           % (expected, len(record["cells"])))
     print("  Umgebung     %9.4f lx  <- was uebrig bleibt" % (measured - expected))
+
+    # The same sum, done by the clock from its own frame buffer. Two
+    # implementations of one model, and this is the only place they meet - the
+    # firmware could have the map, the drive table or the cell-to-pixel
+    # arithmetic wrong and every other check here would still pass.
+    print("")
+    print("  Uhr: %d Zellen gespeichert, Anzeige %9.4f lx von %.4f lx roh"
+          % (clock.get("coupled", 0), clock.get("display", 0.0), clock.get("raw", 0.0)))
+    own = clock.get("display", 0.0)
+    if expected > 0.01 or own > 0.01:
+        gap = (own - expected) / max(expected, 1e-9) * 100.0
+        print("  Abweichung Skript gegen Uhr: %+.1f %%" % gap)
+    else:
+        print("  Nichts beleuchtet, was koppelt - kein Vergleich moeglich.")
     return measured, expected
 
 

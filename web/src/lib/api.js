@@ -70,14 +70,58 @@ export const setAutoLuminance = (automaticLum) =>
  * Everything the automatic brightness is thinking: the line, the points it was
  * fitted through, and what it makes of the light right now.
  *
- * Reached at #luminance, and read-only - the only write is resetLightCurve().
- * Throws, so the screen can say the clock did not answer rather than draw an
- * empty chart.
+ * Open, while the writes below are not: looking at the curve is what somebody
+ * does when the automatic feels wrong, and a password in front of a diagnosis
+ * helps nobody. Throws, so the screen can say the clock did not answer rather
+ * than draw an empty chart.
  */
 export async function fetchLuminance() {
   const res = await fetch('/luminance');
   if (!res.ok) throw new Error(`/luminance: HTTP ${res.status}`);
   return res.json();
+}
+
+/**
+ * Forgets one taught point, by its place in the list.
+ *
+ * A point can be wrong rather than merely old - a correction made just after
+ * the light changed used to be stored at the light level the room had left -
+ * and until this existed the only remedy was throwing the whole calibration
+ * away. Behind expert mode, like every other write here.
+ *
+ * Answers with the curve as it now stands, so the screen redraws from what the
+ * clock says rather than from what it assumes happened.
+ */
+export async function forgetLightPoint(index) {
+  return writeLuminance({ forget: index });
+}
+
+/** Throws every point away, from the brightness screen rather than the colour tab. */
+export async function resetLightPoints() {
+  return writeLuminance({ reset: true });
+}
+
+/** Removes the coupling map, so the clock stops compensating its own face. */
+export async function resetCoupling() {
+  const res = await fetch('/light', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ couplingReset: true })
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errorText(dict(), body.error, body.errorDetail) || `HTTP ${res.status}`);
+  return body;
+}
+
+async function writeLuminance(payload) {
+  const res = await fetch('/luminance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(errorText(dict(), body.error, body.errorDetail) || `HTTP ${res.status}`);
+  return body;
 }
 
 /**

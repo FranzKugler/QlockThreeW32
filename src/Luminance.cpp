@@ -300,6 +300,22 @@ void Luminance::reset()
     debugI("Luminance: calibration cleared, back to the default line");
 }
 
+bool Luminance::forget(uint8_t index)
+{
+    if (index >= count) return false;
+
+    // Shifted down rather than swapped with the last one: the order is the
+    // order things happened, and the fit anchors on the newest point.
+    for (uint8_t j = index; j + 1 < count; j++) points_[j] = points_[j + 1];
+    count--;
+
+    fit();
+    store();
+    debugA("Luminance: point %d forgotten, %d left, %.1f%%/decade at %.1f%%",
+           index, count, lineSlope, lineOffset);
+    return true;
+}
+
 float Luminance::slope()  { return lineSlope; }
 float Luminance::offset() { return lineOffset; }
 bool Luminance::slopeFitted() { return fittedSlope; }

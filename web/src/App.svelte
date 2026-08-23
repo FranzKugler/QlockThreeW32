@@ -24,10 +24,10 @@
   import Expert from './sections/Expert.svelte';
   import Luminance from './sections/Luminance.svelte';
 
-  // Labels come from t.tabs, in this order. The last three are only offered
-  // once the clock is unlocked; t.tabs keeps all seven either way, so the label
+  // Labels come from t.tabs, in this order. The last four are only offered
+  // once the clock is unlocked; t.tabs keeps all eight either way, so the label
   // of a tab is found by its place in this list rather than in the visible one.
-  const ALL_TABS = ['display', 'color', 'timezone', 'wifi', 'ota', 'debug', 'storage'];
+  const ALL_TABS = ['display', 'color', 'timezone', 'wifi', 'ota', 'debug', 'storage', 'luminance'];
   const OPEN_TABS = 4;
 
   let active = $state('display');
@@ -46,11 +46,16 @@
   const t = $derived(dict());
   const tabIds = $derived(expert.unlocked ? ALL_TABS : ALL_TABS.slice(0, OPEN_TABS));
   const labelOf = (id) => t.tabs[ALL_TABS.indexOf(id)];
-  // The two hash screens are not in the tab row, so their heading comes from
-  // their own title rather than from a chip that does not exist.
+  // Two screens are reachable by address as well as - in one case - by chip.
+  // #expert has no chip at all, on purpose. #luminance has one once the clock
+  // is unlocked, and stays reachable by address while it is locked: the
+  // brightness screen is read-only then, which is what somebody wants when the
+  // automatic feels wrong and they have no password to hand.
   const HASH_SCREENS = { '#expert': 'expert', '#luminance': 'luminance' };
   const HASH_TITLES = $derived({ expert: t.expertTitle, luminance: t.lumTitle });
-  const activeLabel = $derived(HASH_TITLES[active] ?? labelOf(active));
+  // The chip wins when there is one, or the tab would carry a heading that
+  // does not match the chip the reader just clicked.
+  const activeLabel = $derived(tabIds.includes(active) ? labelOf(active) : HASH_TITLES[active]);
 
   function select(id) {
     active = id;
@@ -87,7 +92,12 @@
    */
   function applyExpert(next) {
     expert = next;
-    if (!next.unlocked && ALL_TABS.indexOf(active) >= OPEN_TABS) active = 'display';
+    // The brightness screen survives locking, because it is still readable at
+    // #luminance - it simply stops offering the writes. Everything else behind
+    // the lock would be left on screen with every request behind it refused.
+    if (!next.unlocked && active !== 'luminance' && ALL_TABS.indexOf(active) >= OPEN_TABS) {
+      active = 'display';
+    }
   }
 
   // Close the menu the way a menu is expected to close.
@@ -207,7 +217,9 @@
     {:else if active === 'storage'}
       <Storage />
     {:else if active === 'luminance'}
-      <Luminance />
+      <!-- The same screen either way; the lock decides whether it offers the
+           writes. Two components would be two things to keep in step. -->
+      <Luminance {expert} />
     {:else}
       <Expert {expert} onchange={applyExpert} />
     {/if}

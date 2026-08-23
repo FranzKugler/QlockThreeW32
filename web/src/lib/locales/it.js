@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Visualizzazione', 'Colore', 'Fuso orario', 'WiFi', 'Aggiornamento', 'Debug', 'Memoria'],
+  tabs: ['Visualizzazione', 'Colore', 'Fuso orario', 'WiFi', 'Aggiornamento', 'Debug', 'Memoria', 'Luminosità'],
   loading: 'Caricamento delle impostazioni …',
   loadingShort: 'caricamento …',
   clockUnreachable: 'Orologio non raggiungibile',
@@ -71,6 +71,16 @@ export default {
   lumCurve: 'retta',
   lumWhen: 'attività',
   lumEmpty: 'Ancora nulla di appreso — vale la retta predefinita.',
+  lumReadOnly: 'Sola lettura. Sbloccare l’orologio in modalità esperto per modificare.',
+  lumCoupling: 'Luce propria',
+  lumCoupledCells: (n) => `${n} celle misurate`,
+  lumCoupledNone: 'Non misurata — l’orologio non sottrae la propria luce.',
+  lumDisplayShare: (lx, raw) => `${lx} lx su ${raw} lx grezzi sono il display stesso`,
+  lumForget: 'Dimentica',
+  lumForgetTitle: 'Dimentica questo punto',
+  lumResetPoints: 'Dimentica tutti i punti',
+  lumResetCoupling: 'Elimina la misura della luce propria',
+  lumResetCouplingHint: 'L’orologio regolerà di nuovo sul valore grezzo — con la retroazione del proprio display.',
 
   // --- timezone tab ---
   timeServer: 'Server orario',
@@ -332,6 +342,7 @@ export default {
   err_otaChecksum: 'Somma di controllo errata — immagine scartata',
   err_calibrationTooClose: 'I due punti sono troppo vicini',
   err_calibrationRange: 'Luminosità fuori dall’intervallo valido',
+  err_lumNoSuchPoint: 'Questo punto non esiste più: probabilmente già eliminato altrove',
   err_hostnameInvalid: 'Questo nome non contiene caratteri utilizzabili',
   err_wifiConnect: (ssid) => `Impossibile connettersi a «${ssid}»`,
   err_wifiFallback: (ssid) => `Anche il ritorno a «${ssid}» non è riuscito`,

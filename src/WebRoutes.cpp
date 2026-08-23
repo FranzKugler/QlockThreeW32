@@ -602,7 +602,7 @@ void updateLight()
  * workbench, not a setting. Deliberately **not** behind expert mode: there is
  * no secret in it, and needing to unlock the clock to look at a brightness
  * curve would put a lock in the way of something it has nothing to do with.
- * Read-only for the same reason; the one write is POST /light {reset}.
+ * Reading it is open; the writes beside it are not. See updateLuminance().
  */
 void sendLuminance()
 {
@@ -615,6 +615,12 @@ void sendLuminance()
     // against the wrong one is the failure this pair was split to prevent.
     // `lux` regulates, `teaching` is what a nudge would be stored against.
     doc["teaching"]   = ambientLight.teachingLux();
+
+    // The other half of the automatic, and the reason this screen exists as
+    // more than a chart: how much of the raw reading was the clock's own face,
+    // and over how many cells that is known. See Coupling.h.
+    doc["display"]    = ambientLight.own();
+    doc["coupled"]    = Coupling::cells();
 
     doc["slope"]      = Luminance::slope();
     doc["offset"]     = Luminance::offset();
@@ -792,6 +798,53 @@ void handleWifiSwitch()
 }
 
 
+
+
+/**
+ * The two things worth writing about the brightness screen.
+ *
+ *   {forget: <n>}   drop one taught point, by its place in the list
+ *   {reset: true}   drop all of them, the same as POST /light {reset}
+ *
+ * **Behind the lock, while GET /luminance is not.** Looking at a brightness
+ * curve is what somebody does when the automatic feels wrong, and putting a
+ * password in front of that would be a lock in the way of a diagnosis. Editing
+ * it is a different act, and it is the one the screen only offers once the
+ * clock is unlocked.
+ *
+ * Forgetting one point exists because a point can be wrong rather than merely
+ * old, and until this the only remedy was throwing the whole calibration away.
+ */
+void updateLuminance()
+{
+    if (!Expert::guard()) return;
+
+    JsonDocument doc;
+    deserializeJson(doc, server.arg(0));
+
+    if (doc["reset"] | false)
+    {
+        Luminance::reset();
+        needsUpdateFromRtc = true;
+        sendLuminance();
+        return;
+    }
+
+    if (doc["forget"].is<int>())
+    {
+        int index = doc["forget"].as<int>();
+        if (index < 0 || !Luminance::forget((uint8_t)index))
+        {
+            server.send(404, "application/json", "{\"error\":\"lumNoSuchPoint\"}");
+            return;
+        }
+        needsUpdateFromRtc = true;
+        sendLuminance();
+        return;
+    }
+
+    server.send(400, "application/json", "{\"error\":\"calibrationRange\"}");
+}
 
 /** Reset reasons, short enough to put in a table cell and specific enough to matter. */
 static const char *resetReasonName()
@@ -1194,6 +1247,7 @@ void Web::begin()
     server.on("/panel", HTTP_GET, sendPanel);
     server.on("/languages", HTTP_GET, sendLanguages);
     server.on("/luminance", HTTP_GET, sendLuminance);
+    server.on("/luminance", HTTP_POST, updateLuminance);
     server.on("/light", HTTP_POST, updateLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);

@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update', 'Debug', 'Storage'],
+  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update', 'Debug', 'Storage', 'Brightness'],
   loading: 'Loading the settings …',
   loadingShort: 'loading …',
   clockUnreachable: 'Clock not reachable',
@@ -71,6 +71,16 @@ export default {
   lumCurve: 'line',
   lumWhen: 'uptime',
   lumEmpty: 'Nothing learned yet — the default line applies.',
+  lumReadOnly: 'View only. Unlock the clock in expert mode to edit.',
+  lumCoupling: 'Own light',
+  lumCoupledCells: (n) => `${n} cells measured`,
+  lumCoupledNone: 'Not measured — the clock does not subtract its own light.',
+  lumDisplayShare: (lx, raw) => `${lx} lx of ${raw} lx raw is the display itself`,
+  lumForget: 'Forget',
+  lumForgetTitle: 'Forget this point',
+  lumResetPoints: 'Forget every point',
+  lumResetCoupling: 'Delete the own-light measurement',
+  lumResetCouplingHint: 'The clock then regulates on the raw reading again — with the feedback from its own display.',
 
   // --- timezone tab ---
   timeServer: 'Time server',
@@ -328,6 +338,7 @@ export default {
   err_otaChecksum: 'Checksum does not match — image discarded',
   err_calibrationTooClose: 'The two points are too close together',
   err_calibrationRange: 'Brightness outside the valid range',
+  err_lumNoSuchPoint: 'That point no longer exists — probably already deleted elsewhere',
   err_hostnameInvalid: 'That name contains no usable characters',
   err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
   err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,

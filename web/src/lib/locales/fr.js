@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour', 'Débogage', 'Stockage'],
+  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour', 'Débogage', 'Stockage', 'Luminosité'],
   loading: 'Chargement des réglages …',
   loadingShort: 'chargement …',
   clockUnreachable: 'Horloge injoignable',
@@ -71,6 +71,16 @@ export default {
   lumCurve: 'droite',
   lumWhen: 'durée',
   lumEmpty: 'Rien d’appris pour l’instant — la droite par défaut s’applique.',
+  lumReadOnly: 'Lecture seule. Déverrouillez l’horloge en mode expert pour modifier.',
+  lumCoupling: 'Lumière propre',
+  lumCoupledCells: (n) => `${n} cellules mesurées`,
+  lumCoupledNone: 'Non mesurée — l’horloge ne soustrait pas sa propre lumière.',
+  lumDisplayShare: (lx, raw) => `${lx} lx sur ${raw} lx bruts viennent de l’affichage`,
+  lumForget: 'Oublier',
+  lumForgetTitle: 'Oublier ce point',
+  lumResetPoints: 'Oublier tous les points',
+  lumResetCoupling: 'Supprimer la mesure de lumière propre',
+  lumResetCouplingHint: 'L’horloge régulera de nouveau sur la mesure brute — avec la rétroaction de son propre affichage.',
 
   // --- timezone tab ---
   timeServer: 'Serveur de temps',
@@ -332,6 +342,7 @@ export default {
   err_otaChecksum: 'Somme de contrôle incorrecte — image rejetée',
   err_calibrationTooClose: 'Les deux points sont trop proches',
   err_calibrationRange: 'Luminosité hors de la plage valide',
+  err_lumNoSuchPoint: 'Ce point n’existe plus — sans doute déjà supprimé ailleurs',
   err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,

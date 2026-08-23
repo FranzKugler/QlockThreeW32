@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización', 'Depuración', 'Almacenamiento'],
+  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización', 'Depuración', 'Almacenamiento', 'Brillo'],
   loading: 'Cargando los ajustes …',
   loadingShort: 'cargando …',
   clockUnreachable: 'Reloj no accesible',
@@ -71,6 +71,16 @@ export default {
   lumCurve: 'recta',
   lumWhen: 'actividad',
   lumEmpty: 'Todavía no ha aprendido nada: rige la recta por defecto.',
+  lumReadOnly: 'Solo lectura. Desbloquee el reloj en modo experto para editar.',
+  lumCoupling: 'Luz propia',
+  lumCoupledCells: (n) => `${n} celdas medidas`,
+  lumCoupledNone: 'Sin medir: el reloj no resta su propia luz.',
+  lumDisplayShare: (lx, raw) => `${lx} lx de ${raw} lx en bruto son la propia pantalla`,
+  lumForget: 'Olvidar',
+  lumForgetTitle: 'Olvidar este punto',
+  lumResetPoints: 'Olvidar todos los puntos',
+  lumResetCoupling: 'Borrar la medición de luz propia',
+  lumResetCouplingHint: 'El reloj volverá a regular con la lectura en bruto, con la realimentación de su propia pantalla.',
 
   // --- timezone tab ---
   timeServer: 'Servidor de hora',
@@ -332,6 +342,7 @@ export default {
   err_otaChecksum: 'La suma de verificación no coincide — imagen descartada',
   err_calibrationTooClose: 'Los dos puntos están demasiado juntos',
   err_calibrationRange: 'Brillo fuera del intervalo válido',
+  err_lumNoSuchPoint: 'Ese punto ya no existe: probablemente ya se eliminó en otro sitio',
   err_hostnameInvalid: 'Ese nombre no contiene caracteres utilizables',
   err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
   err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,

@@ -1,21 +1,25 @@
 <script>
   /**
    * Luminance
-   * The workbench for the automatic brightness, at #luminance.
+   * Everything about the automatic brightness: what the clock was taught, what
+   * it concluded, and how much of what its sensor sees is its own face.
    *
-   * Not a tab, and not a setting: it shows what the clock has been taught and
-   * what it concluded, so the curve can be judged with numbers instead of by
-   * squinting at a wall. Read-only - the one write is the reset button in the
-   * colour tab, which is where somebody would look for it.
+   * **One screen, two ways in, and the lock decides what it offers.** Unlocked
+   * it is the eighth tab and the writes are there; locked it is still reachable
+   * at #luminance and shows the same numbers read-only. That split is the whole
+   * design: looking at the curve is what somebody does when the automatic feels
+   * wrong, and a password in front of a diagnosis helps nobody - while editing
+   * a curve, or throwing away a measurement that took twenty minutes on a
+   * ladder, is a different act. The firmware draws the same line: GET
+   * /luminance is open, POST /luminance is not.
    *
-   * Deliberately not behind expert mode either. There is no secret in a
-   * brightness curve, and having to unlock the clock to look at one would put
-   * a lock in the way of something it has nothing to do with.
+   * Two components would have been the other option, and would have been two
+   * things to keep in step.
    *
    * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
-   * @version  2.1
+   * @version  2.2
    * @created  22.8.2026
-   * @updated  22.8.2026
+   * @updated  23.8.2026
    */
   import { onMount } from 'svelte';
   import * as api from '../lib/api.js';
@@ -23,8 +27,15 @@
 
   const t = $derived(dict());
 
+  // Passed by the shell rather than fetched: it already tracks the lock state
+  // and refetches it on the way into #expert, and a second poller here would
+  // only be a second answer to disagree with.
+  let { expert = null } = $props();
+  const editable = $derived(expert?.unlocked === true);
+
   let data = $state(null);
   let error = $state(null);
+  let busy = $state(false);
 
   // Faster than the colour tab, because this is the screen somebody watches
   // while dragging the slider to see what the clock does with it.
@@ -38,6 +49,37 @@
       error = err.message;
     }
   }
+
+  /**
+   * Every write answers with the curve as it now stands, so the screen redraws
+   * from what the clock says rather than from what it assumes happened. Guarded
+   * against a second click while one is in flight: the points are addressed by
+   * position, so two deletes racing would remove the wrong one.
+   */
+  async function write(action) {
+    if (busy) return;
+    busy = true;
+    try {
+      data = await action();
+      error = null;
+    } catch (err) {
+      error = err.message;
+    } finally {
+      busy = false;
+    }
+  }
+
+  const forget = (index) => write(() => api.forgetLightPoint(index));
+  const forgetAll = () => write(() => api.resetLightPoints());
+
+  // The coupling lives on /light, not /luminance - it is a property of the
+  // sensor rather than of the curve - so this one has to refetch the curve
+  // afterwards instead of taking the answer.
+  const dropCoupling = () =>
+    write(async () => {
+      await api.resetCoupling();
+      return api.fetchLuminance();
+    });
 
   onMount(() => {
     refresh();
@@ -99,6 +141,9 @@
 <section class="card">
   <h2>{t.lumTitle}</h2>
   <p class="hint">{t.lumHint}</p>
+  {#if !editable}
+    <p class="hint">{t.lumReadOnly}</p>
+  {/if}
 
   {#if error}
     <p class="banner">{error}</p>
@@ -139,6 +184,23 @@
       <span>{data.fitted ? t.lumSlopeFitted : t.lumSlopeKept}</span>
     </div>
 
+    <!-- How much of the raw reading was the clock's own face. Zero cells means
+         nothing is being subtracted, which is a different thing from a dark
+         face and has to read differently. -->
+    <div class="field">
+      <span class="key">{t.lumCoupling}</span>
+      <span>
+        {#if data.coupled > 0}
+          {t.lumCoupledCells(data.coupled)}
+          <small class="raw">
+            — {t.lumDisplayShare(data.display.toFixed(2), data.raw.toFixed(2))}
+          </small>
+        {:else}
+          <small class="raw">{t.lumCoupledNone}</small>
+        {/if}
+      </span>
+    </div>
+
     {#if data.adjusting}
       <p class="hint">{t.lumAdjusting(data.wanted, Math.round(data.settleMs / 1000))}</p>
     {/if}
@@ -157,9 +219,10 @@
     {#if data.points.length === 0}
       <p class="hint">{t.lumEmpty}</p>
     {:else}
-      <div class="table" role="table">
+      <div class="table" class:editable role="table">
         <div class="row head" role="row">
           <span>lx</span><span>{t.lumWanted}</span><span>{t.lumCurve}</span><span>{t.lumWhen}</span>
+          {#if editable}<span></span>{/if}
         </div>
         <!-- Keyed by position: two points can carry the same numbers. -->
         {#each data.points as point, i (i)}
@@ -168,9 +231,29 @@
             <span>{point.percent} %</span>
             <span class:off={point.curve !== point.percent}>{point.curve} %</span>
             <span>{since(point.seconds)}</span>
+            {#if editable}
+              <span class="act">
+                <button class="link" title={t.lumForgetTitle} disabled={busy}
+                        onclick={() => forget(i)}>{t.lumForget}</button>
+              </span>
+            {/if}
           </div>
         {/each}
       </div>
+    {/if}
+
+    {#if editable}
+      <div class="buttons">
+        <button disabled={busy || data.points.length === 0} onclick={forgetAll}>
+          {t.lumResetPoints}
+        </button>
+        <button disabled={busy || data.coupled === 0} onclick={dropCoupling}>
+          {t.lumResetCoupling}
+        </button>
+      </div>
+      {#if data.coupled > 0}
+        <p class="hint">{t.lumResetCouplingHint}</p>
+      {/if}
     {/if}
   {/if}
 </section>
@@ -220,9 +303,49 @@
     border-bottom: 1px solid var(--border);
   }
 
+  /* The fifth column only exists while the writes are offered, so the header
+     and the rows have to agree about it - a grid whose head has four columns
+     and whose rows have five puts every label over the wrong number. */
+  .table.editable .row {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  }
+
   .row.head {
     color: var(--muted);
     font-size: 0.8rem;
+  }
+
+  .act {
+    text-align: right;
+  }
+
+  /* A link rather than a button, because a delete per row drawn as five real
+     buttons is the clutter the storage tab's context menu was built to remove -
+     and here there is only ever one action, so a menu would be heavier still. */
+  .link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .link:hover:not(:disabled) {
+    color: var(--danger);
+  }
+
+  .link:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1rem;
   }
 
   /* The fit does not go through every point, and seeing by how much is the
