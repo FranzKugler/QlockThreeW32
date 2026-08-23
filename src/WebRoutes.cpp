@@ -573,6 +573,12 @@ void sendLuminance()
     doc["lux"]        = ambientLight.lux();
     doc["raw"]        = ambientLight.raw();
     doc["available"]  = ambientLight.available();
+
+    // Both averages, because they answer different questions and a point kept
+    // against the wrong one is the failure this pair was split to prevent.
+    // `lux` regulates, `teaching` is what a nudge would be stored against.
+    doc["teaching"]   = ambientLight.teachingLux();
+
     doc["slope"]      = Luminance::slope();
     doc["offset"]     = Luminance::offset();
     doc["fitted"]     = Luminance::slopeFitted();

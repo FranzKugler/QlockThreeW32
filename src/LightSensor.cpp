@@ -27,6 +27,22 @@
 // brightness. Converted to an EMA weight from the sample interval below.
 #define SMOOTHING_SECONDS 30.0f
 
+// Time constant of the *teaching* average, which is a different question and
+// therefore a different number.
+//
+// Regulating must not follow a passing shadow, so it averages over half a
+// minute. Learning is somebody saying "at this light, I want this much" - and
+// the light they mean is the one in the room now, not the one thirty seconds
+// ago. The two collided in the field: the settle time before a point is kept
+// is ten seconds, over which a 30 s average travels only 28 % of the way, so a
+// correction made just after the light changed was stored against a reading
+// the room no longer had. Measured on a real session: the room went to
+// 0.0009 lx, the slider was set to 30 %, and the pair kept was 0.1184 lx ->
+// 30 % - a light level 148 times too high, straight into the slope.
+//
+// Three seconds averages the sensor and has still arrived well inside the ten.
+#define TEACHING_SECONDS 3.0f
+
 // Enough for the Adafruit library and the I2C stack underneath it.
 #define SAMPLE_TASK_STACK 4096
 
@@ -294,6 +310,7 @@ void AmbientLight::sampleTask(void *self)
     // dt / (tau + dt), the usual first order lag written as a weight.
     const float dt = SAMPLE_INTERVAL_MS / 1000.0f;
     const float weight = dt / (SMOOTHING_SECONDS + dt);
+    const float quickWeight = dt / (TEACHING_SECONDS + dt);
 
     for (;;)
     {
@@ -319,6 +336,9 @@ void AmbientLight::sampleTask(void *self)
             light->smoothed = light->sampleCount == 0
                                   ? lux
                                   : light->smoothed + weight * (lux - light->smoothed);
+            light->quick = light->sampleCount == 0
+                               ? lux
+                               : light->quick + quickWeight * (lux - light->quick);
             light->sampleCount++;
         }
 

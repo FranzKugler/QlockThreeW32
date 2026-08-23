@@ -811,7 +811,9 @@ void loop()
 
         // Once a second is often enough for a ten second timer, and it keeps
         // the settle check on the same beat as everything else here.
-        Luminance::poll(ambientLight.lux());
+        // The short average, not the one the regulator runs on: a point is a
+        // statement about the light in the room now. See teachingLux().
+        Luminance::poll(ambientLight.teachingLux());
     }
     
     // The lab owns the strip while a script is measuring, so the render loop

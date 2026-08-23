@@ -182,6 +182,18 @@ public:
     /** The last raw measurement, unsmoothed - useful while placing the sensor. */
     float raw() const { return lastRaw; }
 
+    /**
+     * The light to *learn* from, averaged over a few seconds rather than half
+     * a minute.
+     *
+     * Not the same question as lux(). The regulator must not follow a passing
+     * shadow; a person correcting the brightness is telling the clock about
+     * the light in the room now. Storing a point against the thirty second
+     * average puts it at a light level the room has already left - see
+     * TEACHING_SECONDS in the .cpp for the session where that was measured.
+     */
+    float teachingLux() const { return quick; }
+
     const char *name() const { return sensor ? sensor->name() : "none"; }
 
     /** The sensor itself, for the lab. Null when none is fitted. */
@@ -219,6 +231,7 @@ private:
     // values, so a torn read is not possible on this core and no lock is
     // needed for what the web UI does with them.
     volatile float smoothed = 0.0f;
+    volatile float quick = 0.0f;
     volatile float lastRaw = 0.0f;
     volatile uint32_t sampleCount = 0;
 
