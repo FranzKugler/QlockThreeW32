@@ -66,6 +66,7 @@ export default {
   lumSlopeFitted: 'calculée à partir des points',
   lumSlopeKept: 'conservée, points trop rapprochés',
   lumAnchor: 'La pente vient de tous les points (moindres carrés), le niveau du seul plus récent — la droite passe donc exactement par lui et à côté des autres. C’est ce qui fait qu’une correction est bien celle qui a été demandée.',
+  lumNewest: 'point le plus récent — la droite y est fixée',
   lumAdjusting: (want, secs) => `${want} % réglé — appris d’ici ${secs} s`,
   lumPoints: 'Points appris',
   lumWanted: 'voulu',

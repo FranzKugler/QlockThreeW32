@@ -430,7 +430,12 @@ The cost is visible in that table and is real: the oldest point asked for 30 % a
 
 #### Scales, a grid, and the two clamps
 
-The chart had neither axis. A reader could see that the points were scattered but not by how much, and the difference between 10 % out and 40 % out is the difference between a curve worth keeping and one worth throwing away. It now has one label per decade of light — no subdivisions, because the ticks between 1 and 10 on a log axis are not evenly spaced and a reader who needs them is reading the wrong chart — and brightness every twenty per cent.
+The chart had neither axis. A reader could see that the points were scattered but not by how much, and the difference between 10 % out and 40 % out is the difference between a curve worth keeping and one worth throwing away.
+
+**Nine ticks to the decade, not one.** Whole decades were the first attempt and read as a linear axis with odd numbers on it — the uneven spacing of 1, 2, 3 … 9 is what makes a log axis legible as one at a glance. Labels are thinned by distance rather than by rule, in **two passes**: the decades claim their labels first, then the minor ticks fill what is left, each measured against every label already placed. Done left to right in one pass, a decade shoulders its way in 19 px after a minor label and the two overlap — which the first version did, at the place a reader looks first. The effect is that a sparse range gets `0.01 0.02 0.03` and a crowded one drops to `0.1 0.3 1 3`, with nobody having to decide in advance which numbers those are.
+
+
+Brightness is ruled every twenty per cent.
 
 **Both ends of the regulated range are drawn as dotted lines, and both are settable.** `LUM_MIN_PERCENT` was 20 because that suited one clock; how dim a face is still readable depends on the panel in front of it, how far away it is read from, and whose eyes are reading it. They are stored with the curve in `qlocklight` (a record without them reads as 20/100, which is what such a clock was regulating to) and written through `POST /luminance {minPercent, maxPercent}`.
 
@@ -438,6 +443,14 @@ The chart had neither axis. A reader could see that the points were scattered bu
 - **`LUM_RANGE_GAP` keeps the ends apart**, or the curve becomes a constant and the whole screen a lie.
 - **Points outside the new range are kept as they are.** They are what somebody said; a range moved back would want them again. Clamping happens where they are used, not where they are stored.
 - **Both ends are posted together even when one moved**, because the firmware validates them against each other.
+
+#### The anchor is marked, and the table is in the chart's order
+
+Both come from one confusion, twice: a line that passes exactly through one point and misses the rest looks like broken arithmetic, and nothing on screen said which point it was pinned to.
+
+- **The newest point wears a ring in the chart and a dot in the table.** Without it there is no way to tell the anchor from any other point — least of all once the table is sorted by light rather than by age.
+- **The table is sorted by light**, because that is the order the points appear in on the chart above and therefore the only order in which the two can be read together. **The row keeps its real position** all the same: forgetting a point addresses it by index into the clock's own oldest-first array, and sorting the display must not renumber it.
+- **What the reader was actually seeing was a contradiction in the data.** On the clock that raised this: `0.0202 lx → 40 %` and `0.0507 lx → 30 %` — two and a half times the light, asked to be *dimmer*. The near-neighbour rule merges points within a factor of 1.3 and left these two standing. Even a plain least-squares line misses the older one by 9.6 %; the anchoring takes it to 16.5 %. The line was not misbehaving, and neither was it averaging anything sensible: the points disagreed.
 
 #### The clock measuring itself
 

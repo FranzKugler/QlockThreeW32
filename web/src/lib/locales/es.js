@@ -66,6 +66,7 @@ export default {
   lumSlopeFitted: 'calculada a partir de los puntos',
   lumSlopeKept: 'conservada, los puntos están demasiado juntos',
   lumAnchor: 'La pendiente sale de todos los puntos (mínimos cuadrados), el nivel solo del más reciente: por eso la recta pasa exactamente por él y de largo por los demás. Eso hace que una corrección sea de verdad la que se pidió.',
+  lumNewest: 'punto más reciente: la recta está fijada a él',
   lumAdjusting: (want, secs) => `${want} % ajustado: se aprende en ${secs} s`,
   lumPoints: 'Puntos aprendidos',
   lumWanted: 'deseado',

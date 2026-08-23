@@ -66,6 +66,7 @@ export default {
   lumSlopeFitted: 'uit de punten berekend',
   lumSlopeKept: 'behouden, punten liggen te dicht bijeen',
   lumAnchor: 'De helling komt uit alle punten (kleinste kwadraten), de hoogte alleen uit het nieuwste — de lijn gaat er daarom precies doorheen en langs de oudere. Zo is een correctie ook echt die waar om gevraagd is.',
+  lumNewest: 'nieuwste punt — de lijn is hierop vastgezet',
   lumAdjusting: (want, secs) => `${want} % ingesteld — binnen ${secs} s geleerd`,
   lumPoints: 'Geleerde punten',
   lumWanted: 'gewenst',

@@ -67,6 +67,7 @@ export default {
   lumSlopeFitted: 'aus den Punkten berechnet',
   lumSlopeKept: 'beibehalten, Punkte liegen zu eng',
   lumAnchor: 'Die Steigung kommt aus allen Punkten (kleinste Quadrate), die Höhe allein aus dem neuesten — die Gerade geht deshalb genau durch ihn und an den älteren vorbei. So ist eine Korrektur beim nächsten Mal auch wirklich die, um die gebeten wurde.',
+  lumNewest: 'neuester Punkt — auf ihn ist die Gerade festgelegt',
   lumAdjusting: (want, secs) => `${want} % eingestellt — wird in bis zu ${secs} s gelernt`,
   lumPoints: 'Gelernte Punkte',
   lumWanted: 'gewollt',

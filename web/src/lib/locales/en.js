@@ -66,6 +66,7 @@ export default {
   lumSlopeFitted: 'fitted from the points',
   lumSlopeKept: 'kept, points sit too close together',
   lumAnchor: 'The slope comes from every point (least squares), the level from the newest one alone — so the line passes exactly through it and misses the older ones. That is what makes a correction actually be the one that was asked for.',
+  lumNewest: 'newest point — the line is pinned to it',
   lumAdjusting: (want, secs) => `${want} % set — learned within ${secs} s`,
   lumPoints: 'Points learned',
   lumWanted: 'wanted',

@@ -66,6 +66,7 @@ export default {
   lumSlopeFitted: 'calcolata dai punti',
   lumSlopeKept: 'mantenuta, punti troppo vicini',
   lumAnchor: 'La pendenza viene da tutti i punti (minimi quadrati), il livello dal solo più recente: la retta passa quindi esattamente per quello e accanto agli altri. È ciò che fa sì che una correzione sia davvero quella richiesta.',
+  lumNewest: 'punto più recente: la retta è ancorata a questo',
   lumAdjusting: (want, secs) => `${want} % impostato — appreso entro ${secs} s`,
   lumPoints: 'Punti appresi',
   lumWanted: 'voluto',

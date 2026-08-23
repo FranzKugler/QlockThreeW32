@@ -185,17 +185,75 @@
   // 0 % at the bottom, 100 % at the top.
   const yOf = (percent) => PAD_T + PLOT_H - (percent / 100) * PLOT_H;
 
-  // Whole decades inside the visible range, which is what a log axis is for:
-  // one label per factor of ten, and no attempt to subdivide - the ticks
-  // between 1 and 10 on a log scale are not evenly spaced and a reader who
-  // needs them is reading the wrong chart.
-  const decades = $derived.by(() => {
+  /*
+   * Nine ticks per decade - 1, 2, 3 ... 9 - because their uneven spacing is
+   * what makes the axis legible as a log axis at a glance. Whole decades were
+   * the first attempt and read as a linear axis with odd numbers on it.
+   *
+   * Labels are thinned by distance rather than by rule: a decade is always
+   * labelled, and anything else only when it clears the last label already
+   * placed. So the sparse left-hand end of a decade gets 0.01, 0.02, 0.03 and
+   * the crowded right-hand end quietly drops to 0.06, 0.08 - without anybody
+   * having to decide in advance which numbers those are, which changes with
+   * the width of the range on screen.
+   */
+  const MIN_LABEL_PX = 24;
+
+  const ticks = $derived.by(() => {
     const out = [];
-    for (let k = Math.ceil(range.lo); k <= Math.floor(range.hi); k++) {
-      out.push({ k, x: xOfLog(k), label: k < 0 ? (10 ** k).toFixed(-k) : String(10 ** k) });
+    for (let k = Math.floor(range.lo); k <= Math.ceil(range.hi); k++) {
+      for (let m = 1; m <= 9; m++) {
+        const value = Number((m * 10 ** k).toPrecision(3));
+        const at = Math.log10(value);
+        if (at < range.lo || at > range.hi) continue;
+        out.push({ value, x: xOfLog(at), decade: m === 1, label: m === 1,
+                   text: format(value) });
+      }
+    }
+
+    // Two passes, and the order matters. The decades claim their labels first;
+    // the minor ticks then fill whatever is left, each one measured against
+    // every label already placed rather than only against the one before it.
+    // Done in a single left-to-right pass, a decade would shoulder its way in
+    // 19 px after a minor label and the two would overlap - which is what the
+    // first version did, at exactly the place a reader looks first.
+    const placed = out.filter((tick) => tick.decade).map((tick) => tick.x);
+    for (const tick of out) {
+      if (tick.decade) continue;
+      if (placed.every((x) => Math.abs(tick.x - x) >= MIN_LABEL_PX)) {
+        tick.label = true;
+        placed.push(tick.x);
+      }
     }
     return out;
   });
+
+  /** 0.01, 0.06, 1, 20 - as many decimals as the value needs and no more. */
+  function format(value) {
+    if (value >= 1) return String(Math.round(value));
+    return value.toFixed(Math.max(0, -Math.floor(Math.log10(value))));
+  }
+
+  /*
+   * The point the line is pinned to. Marked, because the chart is otherwise
+   * unreadable without knowing which one it is - and because with the table
+   * sorted by light there is no other way to tell.
+   */
+  const newest = $derived(
+    data?.points?.length ? data.points[data.points.length - 1] : null
+  );
+
+  /*
+   * The points by light rather than by when they were made, which is the order
+   * they appear in on the chart above and therefore the only order in which
+   * the two can be read together. `at` keeps each point's real position,
+   * because that is what forgetting one addresses it by.
+   */
+  const byLight = $derived(
+    (data?.points ?? [])
+      .map((point, at) => ({ point, at, last: at === data.points.length - 1 }))
+      .sort((a, b) => a.point.lux - b.point.lux)
+  );
 
   const levels = [0, 20, 40, 60, 80, 100];
 
@@ -297,10 +355,14 @@
         <text class="tick y" x={PAD_L - 5} y={yOf(level) + 3}>{level}</text>
       {/each}
 
-      <!-- Light, one line per decade. -->
-      {#each decades as decade (decade.k)}
-        <line class="grid" x1={decade.x} y1={PAD_T} x2={decade.x} y2={PAD_T + PLOT_H} />
-        <text class="tick x" x={decade.x} y={H - 10}>{decade.label}</text>
+      <!-- Light, nine to the decade. The minor lines are fainter, or the
+           unevenness reads as a mistake rather than as the scale. -->
+      {#each ticks as tick (tick.value)}
+        <line class="grid" class:minor={!tick.decade}
+              x1={tick.x} y1={PAD_T} x2={tick.x} y2={PAD_T + PLOT_H} />
+        {#if tick.label}
+          <text class="tick x" x={tick.x} y={H - 10}>{tick.text}</text>
+        {/if}
       {/each}
 
       <!-- Where the clock stops following the line. Drawn, because the flat
@@ -314,6 +376,9 @@
       {#each data.points as point, i (i)}
         <circle class="point" cx={xOf(point.lux)} cy={yOf(point.percent)} r="4" />
       {/each}
+      {#if newest}
+        <circle class="anchor" cx={xOf(newest.lux)} cy={yOf(newest.percent)} r="7" />
+      {/if}
 
       {#if data.available}
         <line class="now" x1={xOf(data.lux)} y1={PAD_T} x2={xOf(data.lux)} y2={PAD_T + PLOT_H} />
@@ -339,17 +404,21 @@
           <span>lx</span><span>{t.lumWanted}</span><span>{t.lumCurve}</span><span>{t.lumWhen}</span>
           {#if editable}<span></span>{/if}
         </div>
-        <!-- Keyed by position: two points can carry the same numbers. -->
-        {#each data.points as point, i (i)}
-          <div class="row" role="row">
-            <span>{point.lux.toFixed(2)}</span>
-            <span>{point.percent} %</span>
-            <span class:off={point.curve !== point.percent}>{point.curve} %</span>
-            <span>{since(point.seconds)}</span>
+        <!-- Keyed by the point's real position, which is also what forgetting
+             one addresses it by - the row order here is the chart's, not the
+             clock's. -->
+        {#each byLight as row (row.at)}
+          <div class="row" role="row" class:anchored={row.last}>
+            <span>{row.point.lux.toFixed(row.point.lux < 1 ? 3 : 2)}</span>
+            <span>
+              {row.point.percent} %{#if row.last}<span class="mark" title={t.lumNewest}>•</span>{/if}
+            </span>
+            <span class:off={row.point.curve !== row.point.percent}>{row.point.curve} %</span>
+            <span>{since(row.point.seconds)}</span>
             {#if editable}
               <span class="act">
                 <button class="link" title={t.lumForgetTitle} disabled={busy}
-                        onclick={() => forget(i)}>{t.lumForget}</button>
+                        onclick={() => forget(row.at)}>{t.lumForget}</button>
               </span>
             {/if}
           </div>
@@ -445,6 +514,18 @@
     stroke-width: 1;
   }
 
+  .grid.minor {
+    opacity: 0.45;
+  }
+
+  /* The point the line is pinned to. A ring rather than a bigger dot, so the
+     point itself stays where it is and the mark reads as a mark. */
+  .anchor {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1.5;
+  }
+
   /* The two ends of the regulated range. Dotted rather than dashed, to stay
      apart from the dashed line marking the light right now. */
   .clamp {
@@ -515,6 +596,15 @@
 
   .act {
     text-align: right;
+  }
+
+  .mark {
+    margin-left: 0.3rem;
+    color: var(--accent);
+  }
+
+  .row.anchored {
+    font-weight: 600;
   }
 
   /* A link rather than a button, because a delete per row drawn as five real
