@@ -331,6 +331,18 @@ void AmbientLight::sampleTask(void *self)
         if (lux >= 0.0f)
         {
             light->lastRaw = lux;
+
+            // The clock's own face, taken out before anything else sees the
+            // number. Before the averages, not after: the loop this closes
+            // acts within one sample, so a contribution left in here is a
+            // contribution the regulator has already acted on. Clamped at
+            // zero - a model that overshoots by a per cent must not turn a
+            // dark room into negative light, which log10 has no answer for.
+            float own = light->ownLight ? light->ownLight() : 0.0f;
+            light->lastOwn = own;
+            lux -= own;
+            if (lux < 0.0f) lux = 0.0f;
+
             // The first reading seeds the average, or it would crawl up from
             // zero over the first few minutes after every restart.
             light->smoothed = light->sampleCount == 0

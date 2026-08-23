@@ -61,6 +61,7 @@ on :8080 directly, which serves `data/` statically.
 | [src/OtaUpdate.cpp](src/OtaUpdate.cpp) | `Ota::` — browser upload, release-channel polling, install, the deferred restart |
 | [src/WebRoutes.cpp](src/WebRoutes.cpp) | `Web::` — every HTTP handler except `/ota/*`, `PORTAL_STYLE`, the network-switch state machine |
 | [src/LightSensor.cpp](src/LightSensor.cpp) | the `LightSensor` interface, `Veml7700Sensor`, and `AmbientLight` with its sampling task |
+| [src/Coupling.cpp](src/Coupling.cpp) | the map from the lit face to the sensor: the per-cell coefficients, the drive table, and what to subtract |
 | [src/LogBuffer.cpp](src/LogBuffer.cpp) | the in-memory log ring, the `DebugLog` tee and the ESP-IDF capture hook |
 | [src/Expert.cpp](src/Expert.cpp) | the lock on `/log`, `/ota/*`, `/fs/*` and `/nvs/*`: the password, the NVS flag, `Expert::guard()` |
 | [src/FileRoutes.cpp](src/FileRoutes.cpp) | `Files::` — the `/fs/*` handlers: the tree, the download, the streamed upload, the editor |
@@ -100,8 +101,8 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /display` — display mode.
 - `POST /color` — hue/saturation/luminance. **With the automatic on, `lum` is a lesson rather than a level** — see "Automatic brightness".
 - `POST /autoluminance` — toggle automatic brightness.
-- `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus the fitted line (`slope`, `offset`, `fitted`), the `brightness` it yields for the current reading, the regulated range (`minPercent`, `maxPercent`), how many points have been `taught`, and whether a nudge is being waited out (`adjusting`). Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
-- `POST /light` — `{reset: true}`, and nothing else. The curve is not configured any more, it is taught through `POST /color`; see "Automatic brightness".
+- `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus `display` (what the clock's own face contributed to that raw reading) and `coupled` (how many cells the stored map describes, 0 for none — so `raw - display` is what the averages were fed), plus the fitted line (`slope`, `offset`, `fitted`), the `brightness` it yields for the current reading, the regulated range (`minPercent`, `maxPercent`), how many points have been `taught`, and whether a nudge is being waited out (`adjusting`). Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
+- `POST /light` — `{reset: true}` throws the curve away; `{coupling: {cells, drive}}` stores the map measured by `scripts/lab.py`, and `{couplingReset: true}` removes it. The curve is not configured any more, it is taught through `POST /color`; see "Automatic brightness". **The two coupling branches are behind the lock and the reset is not**, which is not an oversight: a reset discards what the clock has been told and can be told again, while the map changes how the clock reads its own sensor for good — and it is the one thing here nobody types by hand.
 - `GET /luminance` — the same line plus every calibration point and what the line makes of it. The workbench at `#luminance`; read-only, and deliberately outside expert mode.
 - `POST /configuration` — language, corner LED direction/color. **Refuses a language from another panel on an enrolled clock that is locked** — `403 {"error":"languageNotOnPanel"}`, see "One clock, one panel".
 - `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
@@ -417,6 +418,18 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 - **Deliberately not behind expert mode.** There is no secret in a brightness curve, and needing to unlock the clock to look at one would put a lock in the way of something it has nothing to do with. Read-only for the same reason; the one write is the reset button in the colour tab, which is where somebody would look for it.
 - Polled once a second, faster than the colour tab, because this is the screen somebody watches *while* dragging the slider.
 
+#### Subtracting the clock's own face
+
+[src/Coupling.h](src/Coupling.h)/[.cpp](src/Coupling.cpp) is the measurement of the section below, turned into a correction. Every background sample has the display's own contribution taken out of it **before the averages see the number** — before, because the loop it closes acts within one sample, so a contribution left in is one the regulator has already acted on.
+
+- **Nothing stored means nothing subtracted**, and the clock behaves exactly as it did before this existed. A guessed map would be worse than none: the coefficients depend on where the sensor was fitted and what sits between it and the LEDs, which is a property of one clock in the same way its panel letters are. Hence NVS, never compiled in — and `scripts/lab.py <clock> upload` after a `calibrate`.
+- **The sensor does not know there are LEDs.** `AmbientLight::compensateWith()` takes a function pointer and `main()` hands it `Coupling::contribution`; `LightSensor.cpp` samples a sensor and what else happens to be shining into it is somebody else's subject. Without that, the light sensor would have to include the LED driver.
+- **`readNow()` stays raw.** The lab measures the coupling, and an instrument that measures through its own correction measures itself.
+- **Read off the driver's pixels, not off the frame buffer.** The brightness and the colour are already in them, so nothing here has to know about either — which is also what makes it right at a drive of seven, where the display gamma puts 20 % brightness.
+- **No lock, on purpose.** The sum runs on core 0 while the pixels are written on core 1; the worst a torn read produces is one pixel from the previous frame, a fraction of a per cent of one sample, and a lock would be held across a hundred pixel reads on the path that must never delay the strip.
+- **Clamped at zero.** A model that overshoots by a per cent must not turn a dark room into negative light, which `log10` has no answer for.
+- `GET /light` reports `display` and `coupled` beside `raw` and `lux`, for the same reason `applied` exists: without the middle number a correction looks like a sensor fault.
+
 #### The sensor must not see the display
 
 Measured on the clock, automatic off, room unchanged:
@@ -538,6 +551,89 @@ Three things were measured before the model was written rather than assumed, and
 - `coupling.json` is **per clock and gitignored**, the same as any other measurement of one particular piece of hardware.
 
 - **A scan without a pinned rung lies confidently.** The first run put the sensor two cells away: a bright row saturated, the ladder dropped a rung, and the dark reading taken beside the next frame was on a different scale — which came out as `-2.24 lx` for the row the sensor is actually in. `warn_saturated()` in the script now says when a reading is against the stop, and `find` pins the rung.
+
+#### The loop, measured shut
+
+`lab.py <clock> feedback` is the check every other one was leading up to: the worst face the clock can show — SIEBEN, the word under the sensor — swept over the whole regulated brightness range, in the clock's own colour at the drive values its own gamma produces, with a dark reading taken beside every frame so a passing cloud cannot be mistaken for a result.
+
+```
+Anz.     Wert    dunkel      hell    Modell      Rest   Fehler
+   20%      7     8.318     8.290     0.097     8.193    -1.5%
+   50%     55     8.318    10.383     2.154     8.229    -1.1%
+  100%    255     8.290    22.801    14.891     7.911    -4.6%
+
+Ohne Kompensation wandert der Messwert um +175.0 % ueber den Regelbereich.
+Mit Kompensation bleibt er auf 4.6 % genau.
+```
+
+**+175 % in an unchanged room** is the loop: 0.44 decades of apparent light produced by nothing but the clock's own slider, which on the default line asks for 24 % more brightness, which produces more apparent light. Compensated, the same sweep moves 0.02 decades — under one per cent of brightness. That is the difference between a regulator that runs away and one that does not.
+
+- **The residual drifts systematically negative with drive** (−1.5 % at 20 %, −4.6 % at 100 %), so the model over-predicts slightly at the top. It is not worth chasing: 4.6 % of lux is half a per cent of brightness, well under the one-per-cent step the setting is quantised to, and the sensor's own ladder spreads 3.8 % across its rungs.
+- **A dark reading beside every frame, not one at the start.** The sweep takes about a minute and daylight is not constant over a minute; without it the last rows would have been measuring the weather.
+- `base_colour()` reads what the driver actually writes at full brightness off the strip instead of computing it from hue and saturation. FastLED's rainbow wheel is not the HSV anyone would write down — this clock's fully saturated "yellow" comes out as `[171, 114, 0]`.
+
+#### The clock will update the instrument away
+
+The clock ran the published `edge` 2.1.1 the next morning, and `/lab/state` answered 404. **`autoUpdate` is on by the owner's choice and the edge rule is "differs", not "newer"** — so a locally flashed build carrying unpushed commits is replaced by the release at the next 02:00–05:00 window, every night, and the difference in version string guarantees it rather than preventing it.
+
+Switch `autoUpdate` off for the duration of an experiment, or push the commits so the channel carries them. Switching it off is the honest choice while the work is unfinished; the alternative publishes a half-built lab interface to every clock on the channel.
+
+
+#### What the infrared channel can and cannot do
+
+The TSL2591 reports two channels, and CH1/CH0 is a property of the *source*: WS2812B put out almost no infrared, daylight puts out plenty. `lab.py <clock> ir [rung]` measures both ratios in one sweep — the room from a dark frame, the display from the increments over it, so what the room contributes cancels. Measured in moderate daylight:
+
+| | CH1/CH0 | separation |
+|---|---|---|
+| the room (daylight through the panel) | 0.420 | — |
+| display, white | 0.174 | 2.4x |
+| display, red | 0.273 | 1.5x |
+| display, green | 0.103 | 4.1x |
+| display, blue | 0.055 | 7.7x |
+
+Two channels and two known ratios do solve for the room without any per-cell map: `A0 = (rd*CH0 - CH1) / (rd - ra)`. **It is not usable, and the reason is which of the two ratios is unknown.** `rd` is ours and follows from the frame buffer, but `ra` is the room's — daylight 0.42, white LED lighting about 0.15, incandescent higher still — so the constant the method needs is exactly the thing that changes when the lighting changes. Measuring it means blanking the display, which is what the map exists to avoid. The channel is worth keeping as a **check** on the map, not as a replacement for it.
+
+- **Half drive gave the same ratio as full** (0.174 both), which is the linearity this rests on, and it is also how a bad first run was caught: at `DEFAULT_RUNG` the white frame ran to 103 % of full scale, and clipping CH0 harder than CH1 reported 0.219. Hence the rung argument, and `warn_saturated()` in the run.
+
+#### The clock outshines the daylight
+
+Measured at midday, moderate daylight, through the panel:
+
+```
+daylight, display off                6.86 lx
+SIEBEN at the clock's own setting   +3.80 lx   (lum 60, hue 60 -> pixel 56,37,0)
+SIEBEN at full white               +32.98 lx
+```
+
+So the one word under the sensor adds **half the daylight again** at an ordinary evening setting, and nearly five times the daylight at full. The feedback loop is not a night-time problem that daylight drowns out. The same frame measured 32.4 lx yesterday on a different rung against a different room, so the map reproduces to under 2 % across days.
+
+The compensation was checked against this: with the face showing ES IST ZWANZIG NACH ZWÖLF, the model predicted 0.6117 lx from the display and blanking it measured 0.6034 — **0.1 % apart**, at a colour (yellow, fully saturated) that was never calibrated as such. Superposition across the three channels is what makes that work.
+
+
+#### The regulator, run from here
+
+[scripts/regulate.py](scripts/regulate.py) is the whole automatic brightness on this side of the network: the compensation, the curve, the settle timer and the easing, driving a clock whose own automatic is switched **off**. It exists so the compensation can be tried against a real room before any of it is compiled in, and so a change to the algorithm costs a rerun rather than a flash cycle.
+
+- **With the automatic off, the slider is the immediate response.** The firmware applies `Brightness` the moment `POST /color` lands, with no easing at all, so a hand on the slider reaches the LEDs without passing through the script. That is not a compromise for the simulation — it is the same feel the on-clock version has to produce through `Luminance::adjusting()`.
+- **A nudge is noticed by remembering the last value written.** Anything else in `lum` is a hand on the slider. The log was the other candidate and is worse: with the automatic off the firmware logs nothing when the brightness changes, and text would have to be parsed to recover a number `/currentState` already hands over as a number. The exposure is one tick wide, and stays small because a settled regulator writes nothing at all.
+- **`--zero` blinks the face dark for 600 ms and compares.** With no display there is no contribution, so this is the ground truth the compensation is checked against — better than the checkerboard pattern the idea started as, which would still have lit cells two away from the sensor and needed compensating in its turn. `--zero-every N` repeats it, which is the only way to validate the model during the hour when it matters.
+- **The curve is a transcription of `Luminance.cpp`, not a fresh design** — same points, same 1.3 near-neighbour replacement, same 0.6 decades before a slope is fitted, same anchoring on the newest point. Any improvement then has to be made deliberately rather than arrived at by having rewritten it.
+- `curve.json` beside `coupling.json`, per clock and gitignored for the same reason.
+- **Six handlers answer `{msg: ''}` under `application/json`**, which is not JSON — an unquoted key and single quotes, left from the jQuery UI that never read the body. Parsing it is what broke the first live run, at the moment it first tried to correct anything.
+
+First run on the clock, in a 1.2 lx room: eased 30 → 53 % on the default line, saw a slider move to 45 %, held it for ten seconds, learned `1.203 lx → 45 %` and settled at exactly 45. **No drift back** — the convergence failure the centroid intercept used to produce is visible here as its absence.
+
+#### The guided run
+
+`regulate.py <clock> lernen` walks a person through a calibration instead of leaving them to nudge and hope. It exists because the thing the curve is short of is invisible while making it: **spread**. Four corrections in one evening look like diligence and carry no slope at all — `lauf.csv` is exactly that, three points inside a factor of ten, all after 22:00.
+
+So the run says what to do, point by point: how much the light has to change before the next point is worth taking, in which direction, and when there is enough. Written here first because it is the same script the on-clock calibration will have to speak later, and here it costs nothing to reword.
+
+- **It asks for a factor, not a lux value.** "At least a factor of 4 below 9.3 lx" is something a person can act on — blinds, a lamp, a time of day. `LUM_FIT_MIN_DECADES` is the same requirement in the units the fit uses, and nobody can act on 0.6 decades.
+- **A running readout while waiting for ENTER**, with the factor against the nearest existing point, so the decision is made against a number rather than against a feeling about how dark the room now looks. That needs the key press not to block, hence the `Prompt` thread — `input()` would freeze the display on the last number printed, which is the one being watched.
+- **The light must be still before a point is taken.** A hand on the light switch is not a lighting condition; six seconds within 15 % is.
+- **A point at 20 % or 100 % is flagged.** It says "at least this much", not "exactly this much", so it drags the slope flat. On this clock the first daylight point landed at 9.33 lx wanting 100 % — the whole bright end of the room is at the ceiling, which is a fact about a dim panel and not a fault, but the slope cannot be learned from it.
+- **It teaches from the short average** (`TEACH_SECONDS`, 3 s), never the regulating one. That is the defect `lauf.csv` exposed and the reason the run exists in this shape: at 22:14 the room went to 0.0009 lx and the pair kept was `0.1184 lx -> 30 %`, a light level 148 times too high, straight into the slope. `lauf2.csv` the next day shows the fix working — the 30 s average read 7.64 while the point was taught from 9.33.
 
 ### Expert mode
 

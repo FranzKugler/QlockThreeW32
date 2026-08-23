@@ -18,6 +18,8 @@ rather than a flash cycle.
     python scripts/lab.py <address> map       # coupling, cell by cell
     python scripts/lab.py <address> calibrate # the compensation, three per cell
     python scripts/lab.py <address> check     # predicted against measured, live
+    python scripts/lab.py <address> feedback # sweep the display, is the loop shut
+    python scripts/lab.py <address> upload   # put the map on the clock
     python scripts/lab.py <address> wiring    # cell to pixel, against the strip
     python scripts/lab.py <address> off       # give the strip back
 
@@ -28,6 +30,7 @@ starting from darkness makes the numbers larger than the noise.
 """
 import io
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -73,6 +76,18 @@ class Lab(object):
             raise SystemExit("%s -> HTTP %d %s" % (path, failure.code, detail))
 
     # ------ the four primitives ------
+
+    def post_raw(self, path, body):
+        """POST, and deliberately do not read the answer.
+
+        Six handlers in WebRoutes.cpp still send the literal `{msg: ''}` under
+        an application/json content type, left from the jQuery UI that never
+        looked at it. It is not JSON and must not be parsed.
+        """
+        data = json.dumps(body).encode("utf-8")
+        request = urllib.request.Request(self.base + path, data=data,
+                                         headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(request, timeout=self.timeout).read()
 
     def state(self):
         return self._call("/lab/state")
@@ -182,49 +197,77 @@ def find_sensor(lab, settle_ms=120, rung=DEFAULT_RUNG):
     return best_row, best_col
 
 
-def infrared(lab, cell=None, settle_ms=400):
-    """Does the infrared channel escape the display?
+def infrared(lab, settle_ms=400, rung=DEFAULT_RUNG, path=None):
+    """Can the two channels tell the room apart from the face?
 
-    WS2812B put out almost no infrared; room light and daylight put out
-    plenty. If CH1 barely moves while CH0 swings with the face, then CH1 is an
-    ambient reading the clock cannot pollute - which would be worth more than
-    any compensation model, because it needs no calibration at all.
+    WS2812B put out almost no infrared and daylight puts out plenty, so the
+    ratio CH1/CH0 is a property of the *source*. If the room and the display
+    have different ratios, then two channels and two ratios are enough to solve
+    for the room:
 
-    Run this with the room lit, not covered: the question is whether the two
-    channels can be told apart, and a dark room has nothing to tell apart.
+        CH0 = A0 + D0                    A0 = (rd * CH0 - CH1) / (rd - ra)
+        CH1 = ra * A0 + rd * D0
+
+    - and that would need no per-cell map at all, on any face, with no
+    calibration of the geometry. It fails exactly when the two ratios are close,
+    which is the case worth knowing about: white LED room lighting sits near the
+    display's own ratio, daylight does not.
+
+    Run it with the room lit. The display's ratio is taken from the increments
+    over a dark frame beside it, so what the room contributes cancels; the
+    room's own ratio is the dark frame itself.
     """
-    # Never the whole face. 114 pixels of white want about 6.8 A, and the first
-    # attempt browned the clock out and reset it - the firmware refuses such a
-    # frame now, but there is no reason to ask for one: two rows are already a
-    # far bigger swing than the sensor needs to answer the question.
-    row = lambda r: [(r, c) for c in range(COLUMNS)]
-    frames = [
-        {"clear": True, "set": []},
-        white(row(0)),
-        white(row(0) + row(ROWS - 1)),
-    ]
-    # Pinned, or the ladder moves between frames and the counts stop being
-    # comparable - which is exactly what we are comparing.
-    result = lab.sweep(frames, settle_ms=settle_ms, dark=False, rung=6)
+    path = path or CALIBRATION_FILE
+    cells = None
+    if os.path.exists(path):
+        with io.open(path, encoding="utf-8") as handle:
+            cells = [tuple(int(n) for n in key.split(","))
+                     for key in json.load(handle)["cells"]]
+    # The cells that actually reach the sensor if they are known, and the two
+    # rows either side of it otherwise. Not the whole face: the question needs a
+    # large display signal, not a large current.
+    if not cells:
+        cells = [(r, c) for r in (7, 8) for c in range(COLUMNS)]
 
-    print("\n%-14s %10s %10s %10s %8s" % ("Bild", "CH0", "CH1", "lux", "CH1/CH0"))
-    base = None
-    for name, frame in zip(("aus", "eine Zeile", "zwei Zeilen"), result["frames"]):
-        reading = frame["lit"]
-        ch0, ch1 = reading.get("ch0"), reading.get("ch1")
-        if ch0 is None:
-            raise SystemExit("Dieser Sensor liefert keine Rohkanäle.")
-        ratio = (ch1 / ch0) if ch0 else 0.0
-        print("%-14s %10d %10d %10.3f %8.3f" % (name, ch0, ch1, reading["lux"], ratio))
-        if base is None:
-            base = (ch0, ch1)
+    colours = [("weiss", (255, 255, 255)), ("weiss halb", (128, 128, 128)),
+               ("rot", (255, 0, 0)), ("gruen", (0, 255, 0)), ("blau", (0, 0, 255))]
+    frames = [{"clear": True, "set": []}]
+    frames += [{"clear": True,
+                "set": [{"cell": list(c), "rgb": list(rgb)} for c in cells]}
+               for _, rgb in colours]
 
-    ch0_swing = result["frames"][-1]["lit"]["ch0"] - base[0]
-    ch1_swing = result["frames"][-1]["lit"]["ch1"] - base[1]
-    print("\nHub durch die Anzeige:  CH0 %+d   CH1 %+d" % (ch0_swing, ch1_swing))
-    if ch0_swing > 0:
-        print("CH1 bewegt sich zu %.1f %% von CH0." % (100.0 * ch1_swing / ch0_swing))
-        print("Je kleiner, desto brauchbarer ist CH1 als Umgebungsmesswert.")
+    result = lab.sweep(frames, settle_ms=settle_ms, dark=False, rung=rung)
+    warn_saturated(result)
+    got = result["frames"]
+    dark = got[0]["lit"]
+    if dark.get("ch0") is None:
+        raise SystemExit("Dieser Sensor liefert keine Rohkanäle.")
+
+    ambient_ratio = dark["ch1"] / float(dark["ch0"]) if dark["ch0"] else 0.0
+    print("\nRaum allein:   CH0 %6d   CH1 %6d   CH1/CH0 %6.3f   (%.2f lx)"
+          % (dark["ch0"], dark["ch1"], ambient_ratio, dark["lux"]))
+
+    print("\n%-12s %8s %8s %8s   %s" % ("Anzeige", "dCH0", "dCH1", "CH1/CH0", "Trennung"))
+    display_ratio = None
+    for (name, _), frame in zip(colours, got[1:]):
+        d0 = frame["lit"]["ch0"] - dark["ch0"]
+        d1 = frame["lit"]["ch1"] - dark["ch1"]
+        ratio = d1 / float(d0) if d0 else 0.0
+        if name == "weiss":
+            display_ratio = ratio
+        # How far apart the two sources are, as the factor the solution divides
+        # by. Below about 2 the arithmetic amplifies sensor noise faster than it
+        # removes display light.
+        apart = (ambient_ratio / ratio) if ratio else float("inf")
+        print("%-12s %8d %8d %8.3f   %6.2fx" % (name, d0, d1, ratio, apart))
+
+    if display_ratio and ambient_ratio > display_ratio:
+        print("\nDie Kanaele trennen den Raum um Faktor %.2f vom Gesicht."
+              % (ambient_ratio / display_ratio))
+        print("Raumanteil = (%.3f * CH0 - CH1) / %.3f"
+              % (display_ratio, display_ratio - ambient_ratio))
+    else:
+        print("\nDie Kanaele trennen hier nichts - Raum und Anzeige sehen gleich aus.")
 
 
 def coupling_map(lab, settle_ms=120, rung=DEFAULT_RUNG):
@@ -427,6 +470,124 @@ def predict(record, leds):
     return total
 
 
+def gamma_scale(percent):
+    """The driver's own brightness curve, copied from _gammaScale().
+
+    Copied rather than asked for, because the whole point of the run below is
+    to reach the drive values the clock really uses: 20 % comes out as 7, which
+    is where the LED response is least proportional and where the clock spends
+    its evenings.
+    """
+    if percent <= 0:
+        return 0
+    if percent >= 100:
+        return 255
+    return max(1, int(round(255.0 * (percent / 100.0) ** 2.2)))
+
+
+# The word that sits under the sensor on the German panel. Row 8, the first six
+# columns: SIEBEN. Nothing else the clock can display couples anywhere near as
+# strongly, so this is the worst case rather than a typical one.
+WORST_WORD = [(8, c) for c in range(6)]
+
+
+def upload_coupling(lab, path=None):
+    """Puts the measured map on the clock, where the regulator can use it.
+
+    The clock keeps it in NVS and subtracts it from every sample before the
+    averages see the number - so this is the moment the whole measurement
+    stops being a report and starts being a correction. Behind expert mode: it
+    changes how the clock reads its own sensor.
+    """
+    path = path or CALIBRATION_FILE
+    with io.open(path, encoding="utf-8") as handle:
+        record = json.load(handle)
+
+    answer = lab._call("/light", {"coupling": {"cells": record["cells"],
+                                              "drive": record["drive"]}})
+    print("Auf der Uhr: %d Zellen. Anzeige gerade %.4f lx von %.4f lx roh."
+          % (answer.get("coupled", 0), answer.get("display", 0.0),
+             answer.get("raw", 0.0)))
+    return answer
+
+
+def base_colour(lab):
+    """What the driver writes at full brightness, read back off the strip.
+
+    Not computed from hue and saturation: FastLED's rainbow wheel is not the
+    HSV anybody would write down by hand, and this run is only worth doing at
+    the values the clock really uses. Read before the lab takes the strip, or
+    there is nothing lit to read.
+    """
+    state = lab._call("/currentState")
+    hue, sat, lum = state["hue"], state["sat"], state["lum"]
+    try:
+        lab.post_raw("/color", {"hue": hue, "sat": sat, "lum": 100})
+        time.sleep(0.5)
+        lit = [c for c in lab._call("/lab/leds")["leds"] if c != [0, 0, 0]]
+        return max(lit, key=sum) if lit else [255, 255, 255]
+    finally:
+        lab.post_raw("/color", {"hue": hue, "sat": sat, "lum": lum})
+
+
+def feedback(lab, base=None, cells=None, settle_ms=400, rung=3, path=None):
+    """Does the compensation actually break the loop?
+
+    Every check so far has been a single frame. This is the one that matters:
+    the worst face on the clock, swept over the display's whole brightness
+    range, with a dark reading taken beside every frame so that a cloud passing
+    over cannot be mistaken for a result.
+
+    Three numbers per level. `dunkel` is the room with the display off, which
+    is the truth. `hell` is what the sensor reports with the face lit, which is
+    what the regulator would have used. `Rest` is what the regulator gets after
+    the model is subtracted - and it is the only one that has to stay flat.
+    """
+    path = path or CALIBRATION_FILE
+    with io.open(path, encoding="utf-8") as handle:
+        record = json.load(handle)
+    cells = cells or WORST_WORD
+    base = base or base_colour(lab)
+
+    levels = [20, 30, 40, 50, 60, 70, 80, 90, 100]
+    drives = [gamma_scale(p) for p in levels]
+    frames = [{"clear": True,
+               "set": [{"cell": list(c),
+                        "rgb": [int(round(v * d / 255.0)) for v in base]} for c in cells]}
+              for d in drives]
+
+    lab.take(True)
+    try:
+        result = lab.sweep(frames, settle_ms=settle_ms, dark=True, rung=rung)
+    finally:
+        lab.take(False)
+    warn_saturated(result)
+
+    print("\n%d Zellen, Grundfarbe %s, Sprosse %d\n" % (len(cells), base, rung))
+    print("%-6s %6s %9s %9s %9s %9s %8s" % (
+        "Anz.", "Wert", "dunkel", "hell", "Modell", "Rest", "Fehler"))
+
+    worst = 0.0
+    for percent, drive, frame in zip(levels, drives, result["frames"]):
+        rgb = [int(round(v * drive / 255.0)) for v in base]
+        leds = [[0, 0, 0]] * 114
+        for cell in cells:
+            leds[cell_index(*cell)] = rgb
+        model = predict(record, leds)
+        dark = frame["dark"]["lux"]
+        lit = frame["lit"]["lux"]
+        rest = lit - model
+        error = (rest - dark) / dark * 100.0 if dark else 0.0
+        worst = max(worst, abs(error))
+        print("%5d%% %6d %9.3f %9.3f %9.3f %9.3f %7.1f%%" % (
+            percent, drive, dark, lit, model, rest, error))
+
+    first, last = result["frames"][0], result["frames"][-1]
+    swing = (last["lit"]["lux"] - first["lit"]["lux"]) / first["lit"]["lux"] * 100.0
+    print("\nOhne Kompensation wandert der Messwert um %+.1f %% ueber den Regelbereich." % swing)
+    print("Mit Kompensation bleibt er auf %.1f %% genau." % worst)
+
+
 def cell_index(row, column):
     """Cell to strip index - the same arithmetic physicalFor() does on the clock.
 
@@ -503,6 +664,15 @@ def main():
     if what == "wiring":
         wiring(lab)
         return
+    if what == "upload":
+        # No lab mode: this writes a setting, it does not measure.
+        upload_coupling(lab)
+        return
+    if what == "feedback":
+        # Takes the strip itself: the clock's own colour has to be read off it
+        # before the lab blanks it.
+        feedback(lab)
+        return
 
     state = lab.state()
     if not state["sensor"]["present"]:
@@ -514,7 +684,7 @@ def main():
         if what == "find":
             find_sensor(lab)
         elif what == "ir":
-            infrared(lab)
+            infrared(lab, rung=int(sys.argv[3]) if len(sys.argv) > 3 else DEFAULT_RUNG)
         elif what == "map":
             coupling_map(lab)
         elif what == "calibrate":

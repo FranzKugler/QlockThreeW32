@@ -31,3 +31,11 @@ __pycache__/
 # per-clock measurement, not source: the coupling from each cell to that
 # clock's light sensor. Produced by scripts/lab.py calibrate.
 coupling.json
+
+# the learned brightness curve while the regulator runs on this side, in
+# scripts/regulate.py. Per clock and per room, the same as coupling.json.
+curve.json
+
+# measurement logs from scripts/regulate.py, one session each
+lauf*.csv
+lauf*.cfg

@@ -182,6 +182,26 @@ public:
     /** The last raw measurement, unsmoothed - useful while placing the sensor. */
     float raw() const { return lastRaw; }
 
+    /** What was subtracted as the clock's own face at that reading, in lux. */
+    float own() const { return lastOwn; }
+
+    /**
+     * Tells the sampler how to work out the display's own contribution.
+     *
+     * A function pointer rather than a call into Coupling, so that this file
+     * keeps knowing nothing about the LED driver - it samples a sensor, and
+     * what else happens to be shining into that sensor is somebody else's
+     * subject. main() hands it Coupling::contribution at startup; with nothing
+     * handed over, nothing is subtracted and the clock behaves as it did
+     * before the compensation existed.
+     *
+     * Only the background samples are compensated. readNow() stays raw,
+     * because the lab measures the coupling and must not measure it through
+     * its own correction.
+     */
+    typedef float (*OwnLightFn)();
+    void compensateWith(OwnLightFn fn) { ownLight = fn; }
+
     /**
      * The light to *learn* from, averaged over a few seconds rather than half
      * a minute.
@@ -233,7 +253,12 @@ private:
     volatile float smoothed = 0.0f;
     volatile float quick = 0.0f;
     volatile float lastRaw = 0.0f;
+    volatile float lastOwn = 0.0f;
     volatile uint32_t sampleCount = 0;
+
+    // Set once at startup and only read afterwards, so it needs no more care
+    // than the volatiles above.
+    OwnLightFn ownLight = nullptr;
 
     // The bus is shared between the sampler on core 0 and a lab request on
     // core 1, and a half-finished I2C transaction is not a small problem.

@@ -407,6 +407,12 @@ function lightState() {
     available: true,
     lux,
     raw: 7.1 + Math.sin(Date.now() / 3000) * 3,
+    // What the clock subtracted as its own face, and how many cells its map
+    // describes. Zero here on purpose: there is no display to couple into a
+    // sensor that does not exist, and a mock of one would be a made-up number
+    // in the one place the real value is the whole point.
+    display: 0,
+    coupled: 0,
     slope: curve.slope,
     offset: curve.offset,
     fitted: curve.fitted,
@@ -431,6 +437,11 @@ app.get('/light', (req, res) => res.json(lightState()));
  * slider while the automatic is on, which arrives at POST /color.
  */
 app.post('/light', (req, res) => {
+  // The coupling map is measured on real hardware by scripts/lab.py and has
+  // no meaning here, but it must not 400 either - a script pointed at the mock
+  // should fail on the measurement, not on the upload.
+  if (req.body.coupling) return res.json(lightState());
+  if (req.body.couplingReset) return res.json(lightState());
   if (req.body.reset) {
     curve.points = [];
     nudge = null;

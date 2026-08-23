@@ -51,6 +51,7 @@
 #include "Settings.h"
 #include "LightSensor.h"
 #include "Luminance.h"
+#include "Coupling.h"
 #include "OtaUpdate.h"
 #include "DisplayModes.h"
 #include "WebRoutes.h"
@@ -616,6 +617,14 @@ void setup()
     debugA("Sendeleistung: %.2f dBm, RSSI %d dBm",
            WiFi.getTxPower() * 0.25f, WiFi.RSSI());
 	ledDriver.printSignature();
+
+    // How much of what the sensor reads is the clock's own face. Loaded before
+    // the sampler starts, so the very first reading is already compensated -
+    // and handed over as a function rather than called from inside the sensor,
+    // which has no business knowing there are LEDs. Nothing stored means
+    // nothing subtracted; see Coupling.h.
+    Coupling::begin();
+    ambientLight.compensateWith(Coupling::contribution);
 
     // Starts its own sampling task, and says so if no sensor answers.
     ambientLight.begin();

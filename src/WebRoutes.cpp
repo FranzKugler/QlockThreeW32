@@ -40,6 +40,7 @@
 #include "DisplayModes.h"
 #include "LedDriverWS2812FastLED.h"   // the corner colours in sendPanel()
 #include "Luminance.h"
+#include "Coupling.h"
 #include "Renderer.h"
 
 // Debug and the debugX macros, plus the ring the web UI reads them out of.
@@ -501,6 +502,14 @@ void sendLight()
     doc["lux"]       = ambientLight.lux();
     doc["raw"]       = ambientLight.raw();
 
+    // What the clock's own face contributed to that raw reading, and how many
+    // cells the map describes. `raw` minus `display` is what the averages were
+    // fed - without the middle number the two would look like a sensor fault
+    // rather than a correction. Zero cells means no map is stored and nothing
+    // is being subtracted, which is a different thing from a dark face.
+    doc["display"]   = ambientLight.own();
+    doc["coupled"]   = Coupling::cells();
+
     // The line, and what it makes of the current reading. The UI shows that
     // number beside the slider: with the automatic on the slider is not what
     // the display is doing, and a control that lies is worse than no control.
@@ -551,6 +560,34 @@ void updateLight()
     {
         Luminance::reset();
         needsUpdateFromRtc = true;
+        sendLight();
+        return;
+    }
+
+    // The coupling map, as scripts/lab.py measures it. Behind the lock while
+    // the reset above is not, and the difference is real: a reset throws away
+    // what the clock has been told and can be told again, while this changes
+    // how the clock reads its own sensor for good. It is also the one thing
+    // here nobody types by hand.
+    if (!doc["coupling"].isNull())
+    {
+        if (!Expert::guard()) return;
+
+        String map;
+        serializeJson(doc["coupling"], map);
+        if (!Coupling::store(map))
+        {
+            server.send(400, "application/json", "{\"error\":\"couplingInvalid\"}");
+            return;
+        }
+        sendLight();
+        return;
+    }
+
+    if (doc["couplingReset"] | false)
+    {
+        if (!Expert::guard()) return;
+        Coupling::reset();
         sendLight();
         return;
     }
