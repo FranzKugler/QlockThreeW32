@@ -24,6 +24,13 @@
   import { onMount } from 'svelte';
   import * as api from '../lib/api.js';
   import { dict } from '../lib/i18n.svelte.js';
+  import { errorText } from '../lib/errors.js';
+
+  // Calibration::Phase in the firmware. Only the one that has to be told apart
+  // from the others is named here; the rest are looked up by index in
+  // t.lumCalibratePhases, which keeps the two lists the same length by
+  // construction rather than by discipline.
+  const PHASE_DONE = 7;
 
   const t = $derived(dict());
 
@@ -70,6 +77,32 @@
   }
 
   const forget = (index) => write(() => api.forgetLightPoint(index));
+
+  /**
+   * The self-calibration. Both writes answer with /light, whose shape is not
+   * this screen's, so the curve is refetched afterwards - and the poll a second
+   * later would pick the progress up anyway. Refetching immediately is what
+   * makes the button feel like it did something.
+   */
+  const calibrate = () =>
+    write(async () => {
+      await api.startCalibration();
+      return api.fetchLuminance();
+    });
+
+  const abortCalibration = () =>
+    write(async () => {
+      await api.abortCalibration();
+      return api.fetchLuminance();
+    });
+
+  // Idle, done and failed are all "not running"; only the middle phases carry
+  // a bar. Guarded against an older firmware with no calibration block at all.
+  const calib = $derived(data?.calibration ?? null);
+  const calibrating = $derived(calib?.running === true);
+  const calibPercent = $derived(
+    !calib || !calib.total ? 0 : Math.min(100, Math.round((calib.done / calib.total) * 100))
+  );
   const forgetAll = () => write(() => api.resetLightPoints());
 
   // The coupling lives on /light, not /luminance - it is a property of the
@@ -243,11 +276,43 @@
     {/if}
 
     {#if editable}
+      <h3>{t.lumCoupling}</h3>
+
+      <!-- The clock measuring its own map, with no script and no laptop. The
+           progress comes from the same poll as everything else on this screen,
+           so there is nothing here that keeps its own idea of what is going
+           on. -->
+      {#if calibrating}
+        <p class="hint">{t.lumCalibratePhases[calib.phase] ?? ''}</p>
+        <div class="bar"><div class="fill" style="width: {calibPercent}%"></div></div>
+        <div class="buttons">
+          <button disabled={busy} onclick={abortCalibration}>{t.lumCalibrateAbort}</button>
+        </div>
+      {:else}
+        <p class="hint">{t.lumCalibrateHint(calib?.maxAmbient ?? 1)}</p>
+        {#if calib?.error}
+          <!-- Kept on screen after the run rather than cleared: a calibration
+               that refuses because the room is lit has to say so for longer
+               than the second between two polls. -->
+          <p class="banner">
+            {errorText(t, calib.error) ?? calib.error}
+            {#if calib.error === 'calibTooBright'}
+              — {t.lumCalibrateAmbient(calib.ambient.toFixed(2))}
+            {/if}
+          </p>
+        {:else if calib?.phase === PHASE_DONE}
+          <p class="hint">{t.lumCalibrateResult(calib.kept, calib.rung)}</p>
+        {/if}
+        <div class="buttons">
+          <button disabled={busy} onclick={calibrate}>{t.lumCalibrate}</button>
+        </div>
+      {/if}
+
       <div class="buttons">
-        <button disabled={busy || data.points.length === 0} onclick={forgetAll}>
+        <button disabled={busy || calibrating || data.points.length === 0} onclick={forgetAll}>
           {t.lumResetPoints}
         </button>
-        <button disabled={busy || data.coupled === 0} onclick={dropCoupling}>
+        <button disabled={busy || calibrating || data.coupled === 0} onclick={dropCoupling}>
           {t.lumResetCoupling}
         </button>
       </div>
@@ -346,6 +411,20 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: 1rem;
+  }
+
+  .bar {
+    height: 0.5rem;
+    margin: 0.5rem 0;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+  }
+
+  .fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s linear;
   }
 
   /* The fit does not go through every point, and seeing by how much is the

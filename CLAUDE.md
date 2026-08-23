@@ -410,6 +410,30 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 - The four `AutoLux*`/`AutoBright*` fields are **gone from `Settings`**, along with `brightnessForLux()`, `luxPosition()` and `CALIBRATION_MIN_RATIO` in `LightSensor`. No `SETTINGS_SCHEMA` bump: an old record simply carries four keys nobody reads, which is not the same as misreading one.
 - **`POST /light` now only takes `{reset: true}`.** The two calibration points and the `{want}` shift are gone. The defaults it restores (`LUM_DEFAULT_*`, 0.3 lx → 20 %, 9 lx → 100 %) are cautious rather than good: they assume a sensor in the open, and behind a front panel both readings shrink by the same factor — which in log space only shifts the line sideways, so an uncalibrated clock still dims in the right direction, just not by the right amount.
 
+#### The clock measuring itself
+
+[src/Calibration.cpp](src/Calibration.cpp) is `scripts/lab.py calibrate` moved onto the clock: the same three passes, started from a button on the brightness screen, with no laptop on the network. It exists because the coefficients belong to one clock — "cell (7,5) puts 69.1 lx into the sensor in red" is true only while the sensor sits behind that letter — and a calibration that needs Python is one most clocks will never get.
+
+- **Two things the script was handed and this works out for itself.** The rung, and whether the room is dark enough. `COARSE_RUNG = 4` is written into the script because its author knew one clock; and the script's docstring says "cover the clock", which is advice, not a check. The firmware measures the ambient first and **refuses** above `CAL_MAX_AMBIENT_LUX`, because a map measured through daylight looks exactly like a good one afterwards.
+- **A task on core 0**, like the OTA download and for the same reason: ninety seconds of blocked `loop()` on a synchronous web server means no progress to show and a clock that answers nothing.
+- **One owner of the strip.** `Lab` refuses to take it while a calibration runs and the other way round, and the render loop asks `Lab::active() || Calibration::running()`. A script stepping in halfway would not fail visibly — it would produce a map that looks like every other map.
+- **Progress rides in `/luminance`**, which the screen already polls once a second, while the action is `POST /light {calibrate: true}` beside the upload that produces the same thing. A polling endpoint of its own would only be a second answer to disagree with.
+
+**It found its own bug on the first run, which is the argument for building it at all.** The rung search scanned rows with auto-ranging — and `readLux()` returns **−1 while the ladder is moving**, deliberately, because that reading belongs to two gains. −1 loses a contest for the *strongest* cell. So the brightest cells looked like the weakest, a rung was chosen to suit a middling one, and in the pass that followed the real peaks saturated, came back as zero and dropped out entirely: the clock reported twenty cells and not one of the three that carry the coupling. It now pins the **blindest** rung for the whole search, compares counts rather than lux, and climbs the ladder only as far as the strongest cell allows. This is the same mistake the script made once in the other direction, and it is worth writing down twice: **a scan whose rung can move under it lies confidently.**
+
+Second run, against the script's own numbers measured a day earlier at a different rung:
+
+| cell | clock | script | |
+|---|---|---|---|
+| 7,5 | 67.5 / 78.2 / 48.2 | 69.1 / 79.6 / 48.9 | −1.8 % |
+| 7,6 | 22.4 / 21.4 / 12.7 | 21.8 / 20.6 / 12.1 | +3.7 % |
+| 8,5 | 14.6 / 13.1 / 7.3 | 14.1 / 12.5 / 6.9 | +4.7 % |
+
+Same ten cells, same order, drive table identical to three decimals (0.477 against 0.480 at half drive). The weak cells drift up to +32 %, which is noise on half a per mille of the peak.
+
+- **`base_colour()` in the script taught the clock three junk points**, and the mechanism is worth remembering: with the automatic on, `POST /color` is not a setting, it is a lesson. The function turned the brightness to 100 and back to read the colour off the strip, and the clock stored "0 lx deserves 50 %" three times — the lab had blanked the strip — collapsing the fitted slope from 27.5 to 3.6 %/decade. It switches the automatic off first now. Reading the colour without writing at all was the other option and is worse: at a drive of eighteen the colour comes back `[36, 255, 0]` where it is really `[32, 245, 11]`.
+- **The `feedback` table divided by the dark reading**, which is zero in the dark room the run needs, and printed a serene `0.0 %` for every row — the one number it exists to produce, printed without having been computed. It measures against the model where there is no room to measure against.
+
 #### The brightness screen — one screen, two ways in
 
 [Luminance.svelte](web/src/sections/Luminance.svelte) holds everything about the automatic: the line, every point with what the line makes of *its* light, both averages, and how much of the sensor's reading is the clock's own face. The chart is in log light — plotted against plain lux it would be a curve, hiding the one thing worth seeing, which is whether the points sit on a line at all.

@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update', 'Debug', 'Opslag', 'Helderheid'],
+  tabs: ['Weergave', 'Kleur', 'Tijdzone', 'WiFi', 'Update', 'Helderheid', 'Debug', 'Opslag'],
   loading: 'Instellingen worden geladen …',
   loadingShort: 'wordt geladen …',
   clockUnreachable: 'Klok niet bereikbaar',
@@ -81,6 +81,12 @@ export default {
   lumResetPoints: 'Alle punten vergeten',
   lumResetCoupling: 'Meting van eigen licht wissen',
   lumResetCouplingHint: 'De klok regelt dan weer op de ruwe meting — met de terugkoppeling van haar eigen display.',
+  lumCalibrate: 'Eigen licht zelf meten',
+  lumCalibrateHint: (max) => `De klok tast elke cel afzonderlijk af, ongeveer 90 s. Het moet donker zijn — dek de klok af of verduister de kamer; boven ${max} lx geeft ze het op.`,
+  lumCalibrateAbort: 'Afbreken',
+  lumCalibratePhases: ['gereed', 'omgevingslicht controleren', 'gevoeligheid kiezen', 'cellen aftasten', 'kanalen meten', 'aansturingscurve', 'opslaan', 'klaar', 'mislukt'],
+  lumCalibrateResult: (cells, rung) => `${cells} cellen gemeten, trede ${rung}`,
+  lumCalibrateAmbient: (lx) => `omgeving ${lx} lx`,
 
   // --- timezone tab ---
   timeServer: 'Tijdserver',
@@ -341,6 +347,17 @@ export default {
   err_calibrationTooClose: 'De twee punten liggen te dicht bij elkaar',
   err_calibrationRange: 'Helderheid buiten het geldige bereik',
   err_lumNoSuchPoint: 'Dat punt bestaat niet meer — waarschijnlijk elders al verwijderd',
+  err_calibTooBright: 'Te licht om te meten — dek de klok af of verduister de kamer',
+  err_calibBusy: 'Er loopt al een meting',
+  err_calibLabActive: 'Het lab houdt de leds bezet',
+  err_calibNoSensor: 'Deze klok heeft geen lichtsensor',
+  err_calibSaturated: 'De sensor loopt op elke gevoeligheidstrede vol',
+  err_calibNoCoupling: 'Geen enkele cel bereikt de sensor',
+  err_calibStore: 'De meting kon niet worden opgeslagen',
+  err_calibCancelled: 'Afgebroken',
+  err_calibNoTask: 'Te weinig geheugen voor de meting',
+  err_labCalibrating: 'De klok meet haar eigen licht',
+  err_couplingInvalid: 'De eigenlichtmeting is onleesbaar',
   err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,

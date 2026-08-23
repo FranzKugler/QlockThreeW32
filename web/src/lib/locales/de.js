@@ -10,7 +10,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update', 'Debug', 'Speicher', 'Helligkeit'],
+  tabs: ['Anzeige', 'Farbe', 'Zeitzone', 'WLAN', 'Update', 'Helligkeit', 'Debug', 'Speicher'],
   loading: 'Einstellungen werden geladen …',
   loadingShort: 'wird geladen …',
   clockUnreachable: 'Uhr nicht erreichbar',
@@ -82,6 +82,12 @@ export default {
   lumResetPoints: 'Alle Punkte vergessen',
   lumResetCoupling: 'Eigenlicht-Messung löschen',
   lumResetCouplingHint: 'Danach regelt die Uhr wieder auf den rohen Messwert — mit der Rückkopplung durch die eigene Anzeige.',
+  lumCalibrate: 'Eigenlicht selbst vermessen',
+  lumCalibrateHint: (max) => `Die Uhr tastet rund 90 s lang jede Zelle einzeln ab. Dafür muss es dunkel sein — Uhr abdecken oder Raum verdunkeln; über ${max} lx bricht sie ab.`,
+  lumCalibrateAbort: 'Abbrechen',
+  lumCalibratePhases: ['bereit', 'Umgebungslicht prüfen', 'Empfindlichkeit wählen', 'Zellen abtasten', 'Farbkanäle messen', 'Treiberkennlinie', 'wird gespeichert', 'fertig', 'fehlgeschlagen'],
+  lumCalibrateResult: (cells, rung) => `${cells} Zellen vermessen, Sprosse ${rung}`,
+  lumCalibrateAmbient: (lx) => `Umgebung ${lx} lx`,
 
   // --- timezone tab ---
   timeServer: 'Zeitserver',
@@ -342,6 +348,17 @@ export default {
   err_calibrationTooClose: 'Die beiden Punkte liegen zu dicht beieinander',
   err_calibrationRange: 'Helligkeit außerhalb des gültigen Bereichs',
   err_lumNoSuchPoint: 'Diesen Punkt gibt es nicht mehr — vermutlich woanders schon gelöscht',
+  err_calibTooBright: 'Zu hell für eine Messung — Uhr abdecken oder Raum verdunkeln',
+  err_calibBusy: 'Es läuft schon eine Messung',
+  err_calibLabActive: 'Das Labor hält gerade die LEDs',
+  err_calibNoSensor: 'Diese Uhr hat keinen Lichtsensor',
+  err_calibSaturated: 'Der Sensor wird auf jeder Empfindlichkeitsstufe übersteuert',
+  err_calibNoCoupling: 'Keine Zelle erreicht den Sensor',
+  err_calibStore: 'Die Messung ließ sich nicht speichern',
+  err_calibCancelled: 'Abgebrochen',
+  err_calibNoTask: 'Kein Speicher für die Messung',
+  err_labCalibrating: 'Die Uhr vermisst gerade ihr Eigenlicht',
+  err_couplingInvalid: 'Die Eigenlicht-Messung ist unlesbar',
   err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,

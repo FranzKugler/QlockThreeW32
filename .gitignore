@@ -32,6 +32,10 @@ __pycache__/
 # clock's light sensor. Produced by scripts/lab.py calibrate.
 coupling.json
 
+# the same measurement read back off a clock that made it itself, for
+# comparing the two implementations.
+clock_coupling.json
+
 # the learned brightness curve while the regulator runs on this side, in
 # scripts/regulate.py. Per clock and per room, the same as coupling.json.
 curve.json

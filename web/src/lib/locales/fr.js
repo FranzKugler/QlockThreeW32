@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour', 'Débogage', 'Stockage', 'Luminosité'],
+  tabs: ['Affichage', 'Couleur', 'Fuseau horaire', 'WiFi', 'Mise à jour', 'Luminosité', 'Débogage', 'Stockage'],
   loading: 'Chargement des réglages …',
   loadingShort: 'chargement …',
   clockUnreachable: 'Horloge injoignable',
@@ -81,6 +81,12 @@ export default {
   lumResetPoints: 'Oublier tous les points',
   lumResetCoupling: 'Supprimer la mesure de lumière propre',
   lumResetCouplingHint: 'L’horloge régulera de nouveau sur la mesure brute — avec la rétroaction de son propre affichage.',
+  lumCalibrate: 'Mesurer la lumière propre',
+  lumCalibrateHint: (max) => `L’horloge balaie chaque cellule une à une, environ 90 s. Il doit faire noir — couvrez l’horloge ou obscurcissez la pièce ; au-dessus de ${max} lx elle abandonne.`,
+  lumCalibrateAbort: 'Annuler',
+  lumCalibratePhases: ['prêt', 'contrôle de la lumière ambiante', 'choix de la sensibilité', 'balayage des cellules', 'mesure des canaux', 'courbe de commande', 'enregistrement', 'terminé', 'échec'],
+  lumCalibrateResult: (cells, rung) => `${cells} cellules mesurées, échelon ${rung}`,
+  lumCalibrateAmbient: (lx) => `ambiant ${lx} lx`,
 
   // --- timezone tab ---
   timeServer: 'Serveur de temps',
@@ -343,6 +349,17 @@ export default {
   err_calibrationTooClose: 'Les deux points sont trop proches',
   err_calibrationRange: 'Luminosité hors de la plage valide',
   err_lumNoSuchPoint: 'Ce point n’existe plus — sans doute déjà supprimé ailleurs',
+  err_calibTooBright: 'Trop clair pour mesurer — couvrez l’horloge ou obscurcissez la pièce',
+  err_calibBusy: 'Une mesure est déjà en cours',
+  err_calibLabActive: 'Le laboratoire occupe les LED',
+  err_calibNoSensor: 'Cette horloge n’a pas de capteur de lumière',
+  err_calibSaturated: 'Le capteur sature à tous les échelons de sensibilité',
+  err_calibNoCoupling: 'Aucune cellule n’atteint le capteur',
+  err_calibStore: 'La mesure n’a pas pu être enregistrée',
+  err_calibCancelled: 'Annulé',
+  err_calibNoTask: 'Mémoire insuffisante pour la mesure',
+  err_labCalibrating: 'L’horloge mesure sa propre lumière',
+  err_couplingInvalid: 'La mesure de lumière propre est illisible',
   err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,

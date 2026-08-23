@@ -52,6 +52,7 @@
 #include "LightSensor.h"
 #include "Luminance.h"
 #include "Coupling.h"
+#include "Calibration.h"
 #include "OtaUpdate.h"
 #include "DisplayModes.h"
 #include "WebRoutes.h"
@@ -829,7 +830,7 @@ void loop()
     // must not push a frame over what was just written - every reading would
     // otherwise be of the clock face rather than of the frame under test. The
     // flag is cleared all the same, so leaving lab mode redraws at once.
-    if (Lab::active()) needsUpdateFromRtc = false;
+    if (Lab::active() || Calibration::running()) needsUpdateFromRtc = false;
 
 	// we have to change something at the display
     if (needsUpdateFromRtc)

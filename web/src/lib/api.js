@@ -101,16 +101,36 @@ export async function resetLightPoints() {
   return writeLuminance({ reset: true });
 }
 
-/** Removes the coupling map, so the clock stops compensating its own face. */
-export async function resetCoupling() {
+/**
+ * Starts the clock measuring its own coupling, and stops one.
+ *
+ * On /light rather than /luminance because what it produces is the same map
+ * the script uploads. The progress arrives in /luminance, which the screen is
+ * already polling once a second - a second poller would only be a second
+ * answer to disagree with.
+ */
+export async function startCalibration() {
+  return writeLight({ calibrate: true });
+}
+
+export async function abortCalibration() {
+  return writeLight({ calibrateAbort: true });
+}
+
+async function writeLight(payload) {
   const res = await fetch('/light', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ couplingReset: true })
+    body: JSON.stringify(payload)
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(errorText(dict(), body.error, body.errorDetail) || `HTTP ${res.status}`);
   return body;
+}
+
+/** Removes the coupling map, so the clock stops compensating its own face. */
+export async function resetCoupling() {
+  return writeLight({ couplingReset: true });
 }
 
 async function writeLuminance(payload) {

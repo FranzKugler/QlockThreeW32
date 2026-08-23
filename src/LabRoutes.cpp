@@ -33,6 +33,7 @@
 
 #include "LabRoutes.h"
 #include "Expert.h"
+#include "Calibration.h"
 #include "LightSensor.h"
 #include "LedDriverWS2812FastLED.h"
 #include "DisplayModes.h"
@@ -170,6 +171,16 @@ static void setMode()
     if (!body(doc)) return;
 
     bool wanted = doc["on"] | false;
+
+    // One owner of the strip at a time. A calibration is ninety seconds of
+    // frames it has to be able to compare with each other, and a script
+    // stepping in halfway through would not fail visibly - it would produce a
+    // map that looks like every other map.
+    if (wanted && Calibration::running())
+    {
+        sendError(409, "labCalibrating");
+        return;
+    }
 
     if (wanted && !labOn)
     {

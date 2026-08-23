@@ -27,7 +27,7 @@
   // Labels come from t.tabs, in this order. The last four are only offered
   // once the clock is unlocked; t.tabs keeps all eight either way, so the label
   // of a tab is found by its place in this list rather than in the visible one.
-  const ALL_TABS = ['display', 'color', 'timezone', 'wifi', 'ota', 'debug', 'storage', 'luminance'];
+  const ALL_TABS = ['display', 'color', 'timezone', 'wifi', 'ota', 'luminance', 'debug', 'storage'];
   const OPEN_TABS = 4;
 
   let active = $state('display');

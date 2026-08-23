@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update', 'Debug', 'Storage', 'Brightness'],
+  tabs: ['Display', 'Colour', 'Time zone', 'WiFi', 'Update', 'Brightness', 'Debug', 'Storage'],
   loading: 'Loading the settings …',
   loadingShort: 'loading …',
   clockUnreachable: 'Clock not reachable',
@@ -81,6 +81,12 @@ export default {
   lumResetPoints: 'Forget every point',
   lumResetCoupling: 'Delete the own-light measurement',
   lumResetCouplingHint: 'The clock then regulates on the raw reading again — with the feedback from its own display.',
+  lumCalibrate: 'Measure own light',
+  lumCalibrateHint: (max) => `The clock scans every cell one at a time, about 90 s. It has to be dark — cover the clock or darken the room; above ${max} lx it gives up.`,
+  lumCalibrateAbort: 'Cancel',
+  lumCalibratePhases: ['ready', 'checking ambient light', 'choosing sensitivity', 'scanning cells', 'measuring channels', 'drive response', 'storing', 'done', 'failed'],
+  lumCalibrateResult: (cells, rung) => `${cells} cells measured, rung ${rung}`,
+  lumCalibrateAmbient: (lx) => `ambient ${lx} lx`,
 
   // --- timezone tab ---
   timeServer: 'Time server',
@@ -339,6 +345,17 @@ export default {
   err_calibrationTooClose: 'The two points are too close together',
   err_calibrationRange: 'Brightness outside the valid range',
   err_lumNoSuchPoint: 'That point no longer exists — probably already deleted elsewhere',
+  err_calibTooBright: 'Too bright to measure — cover the clock or darken the room',
+  err_calibBusy: 'A measurement is already running',
+  err_calibLabActive: 'The lab is holding the LEDs',
+  err_calibNoSensor: 'This clock has no light sensor',
+  err_calibSaturated: 'The sensor is saturated on every sensitivity step',
+  err_calibNoCoupling: 'No cell reaches the sensor',
+  err_calibStore: 'The measurement could not be stored',
+  err_calibCancelled: 'Cancelled',
+  err_calibNoTask: 'Not enough memory for the measurement',
+  err_labCalibrating: 'The clock is measuring its own light',
+  err_couplingInvalid: 'The own-light measurement is unreadable',
   err_hostnameInvalid: 'That name contains no usable characters',
   err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
   err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,

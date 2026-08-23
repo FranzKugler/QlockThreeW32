@@ -414,6 +414,73 @@ function settle() {
 }
 
 /** The body of GET /light, shared with the POST which answers the same shape. */
+/*
+ * A simulated calibration, so the screen's branches can be worked on without a
+ * clock: the phases in order, a progress bar that fills, and a room that is
+ * sometimes too bright to measure in.
+ *
+ * It is not a model of anything. The real run measures 110 cells against a
+ * light sensor; there is no sensor here and no display, and a mock of one
+ * measuring a mock of the other would tell nobody anything. What can be got
+ * wrong on this side is the *sequence* - a bar that never fills, a phase name
+ * off by one, an error that vanishes after one poll - and that is what this
+ * exercises.
+ *
+ * Set QLOCK_MOCK_CALIB_BRIGHT=1 to make it refuse, which is the branch that is
+ * otherwise only reachable by opening the curtains.
+ */
+const IDLE_CALIBRATION = {
+  running: false, phase: 0, done: 0, total: 0,
+  ambient: 0.004, rung: 0, kept: 0, error: '', maxAmbient: 1.0
+};
+let calibration = { ...IDLE_CALIBRATION };
+
+// Phase, frames, and roughly how long the real one takes over it.
+const CALIB_PHASES = [
+  [1, 1, 1000],     // ambient
+  [2, 31, 9000],    // rung
+  [3, 117, 32000],  // cells
+  [4, 31, 9000],    // channels
+  [5, 14, 4000],    // drive
+  [6, 1, 500]       // storing
+];
+
+function startCalibration() {
+  const tooBright = process.env.QLOCK_MOCK_CALIB_BRIGHT === '1';
+  calibration = { ...IDLE_CALIBRATION, running: true, cancelled: false };
+
+  if (tooBright) {
+    calibration.ambient = 6.9;
+    setTimeout(() => {
+      calibration = { ...calibration, running: false, phase: 8, error: 'calibTooBright' };
+    }, 1200);
+    return;
+  }
+
+  let at = 0;
+  const enter = () => {
+    if (calibration.cancelled) {
+      calibration = { ...calibration, running: false, phase: 8, error: 'calibCancelled' };
+      return;
+    }
+    if (at >= CALIB_PHASES.length) {
+      calibration = { ...calibration, running: false, phase: 7, kept: 10, rung: 4, error: '' };
+      return;
+    }
+    const [phase, total, ms] = CALIB_PHASES[at++];
+    calibration = { ...calibration, phase, total, done: 0 };
+    const tick = setInterval(() => {
+      if (calibration.cancelled || calibration.done >= total) {
+        clearInterval(tick);
+        enter();
+        return;
+      }
+      calibration = { ...calibration, done: calibration.done + 1 };
+    }, Math.max(20, ms / total));
+  };
+  enter();
+}
+
 function lightState() {
   settle();
   const lux = currentLux();
@@ -457,7 +524,21 @@ app.post('/light', (req, res) => {
   // no meaning here, but it must not 400 either - a script pointed at the mock
   // should fail on the measurement, not on the upload.
   if (req.body.coupling) return res.json(lightState());
-  if (req.body.couplingReset) return res.json(lightState());
+  if (req.body.couplingReset) {
+    calibration = { ...IDLE_CALIBRATION };
+    return res.json(lightState());
+  }
+  if (req.body.calibrate) {
+    if (guarded(res)) return;
+    if (calibration.running) return res.status(409).json({ error: 'calibBusy' });
+    startCalibration();
+    return res.json(lightState());
+  }
+  if (req.body.calibrateAbort) {
+    if (guarded(res)) return;
+    calibration.cancelled = true;
+    return res.json(lightState());
+  }
   if (req.body.reset) {
     curve.points = [];
     nudge = null;
@@ -488,6 +569,7 @@ function luminanceState() {
     // development: it is what an uncalibrated clock shows.
     display: 0,
     coupled: 0,
+    calibration: { ...calibration },
     available: true,
     // The average a point would be taught from, which is not the one the
     // regulator runs on. No sensor here to differ, so they are the same number

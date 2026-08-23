@@ -516,18 +516,39 @@ def base_colour(lab):
 
     Not computed from hue and saturation: FastLED's rainbow wheel is not the
     HSV anybody would write down by hand, and this run is only worth doing at
-    the values the clock really uses. Read before the lab takes the strip, or
-    there is nothing lit to read.
+    the values the clock really uses.
+
+    **The automatic has to be switched off first**, and that is not a detail.
+    With it on, POST /color is not a setting, it is a lesson: the clock takes
+    the number as "at this light, I want this much". The first version of this
+    function turned the brightness up to 100 and back to read the colour, and
+    in a real calibration it taught the clock three times that 0 lx deserves
+    50 % - the strip was blanked by the lab at the time - and the fitted slope
+    collapsed from 27.5 to 3.6 %/decade. Three junk points, from a function
+    that was only trying to look.
+
+    Reading it at the running brightness without writing anything was the other
+    option and is worse: at a drive of eighteen the colour comes back as
+    [36, 255, 0] where it is really [32, 245, 11] - green into the clamp, blue
+    quantised away entirely.
+
+    Everything is put back, including the automatic.
     """
     state = lab._call("/currentState")
     hue, sat, lum = state["hue"], state["sat"], state["lum"]
+    auto = bool(state.get("automaticLum"))
+
     try:
+        if auto:
+            lab.post_raw("/autoluminance", {"automaticLum": 0})
         lab.post_raw("/color", {"hue": hue, "sat": sat, "lum": 100})
         time.sleep(0.5)
         lit = [c for c in lab._call("/lab/leds")["leds"] if c != [0, 0, 0]]
         return max(lit, key=sum) if lit else [255, 255, 255]
     finally:
         lab.post_raw("/color", {"hue": hue, "sat": sat, "lum": lum})
+        if auto:
+            lab.post_raw("/autoluminance", {"automaticLum": 1})
 
 
 def feedback(lab, base=None, cells=None, settle_ms=400, rung=3, path=None):
@@ -577,15 +598,24 @@ def feedback(lab, base=None, cells=None, settle_ms=400, rung=3, path=None):
         dark = frame["dark"]["lux"]
         lit = frame["lit"]["lux"]
         rest = lit - model
-        error = (rest - dark) / dark * 100.0 if dark else 0.0
+        # Against the room where there is one, against the model where there is
+        # not. In a properly dark room `dark` is zero, and dividing by it
+        # reported a serene 0.0 % for every row - which is the one number this
+        # table exists to produce, printed without having been computed.
+        reference = dark if dark > 0.01 else model
+        error = (rest - dark) / reference * 100.0 if reference > 0 else 0.0
         worst = max(worst, abs(error))
         print("%5d%% %6d %9.3f %9.3f %9.3f %9.3f %7.1f%%" % (
             percent, drive, dark, lit, model, rest, error))
 
     first, last = result["frames"][0], result["frames"][-1]
-    swing = (last["lit"]["lux"] - first["lit"]["lux"]) / first["lit"]["lux"] * 100.0
-    print("\nOhne Kompensation wandert der Messwert um %+.1f %% ueber den Regelbereich." % swing)
-    print("Mit Kompensation bleibt er auf %.1f %% genau." % worst)
+    low = first["lit"]["lux"]
+    swing = (last["lit"]["lux"] - low) / low * 100.0 if low > 0.001 else None
+    if swing is None:
+        print("\nOhne Kompensation waere der Messwert von praktisch 0 auf %.2f lx gewandert." % last["lit"]["lux"])
+    else:
+        print("\nOhne Kompensation wandert der Messwert um %+.1f %% ueber den Regelbereich." % swing)
+    print("Mit Kompensation bleibt der Rest im schlechtesten Fall %.1f %% daneben." % worst)
 
 
 def cell_index(row, column):

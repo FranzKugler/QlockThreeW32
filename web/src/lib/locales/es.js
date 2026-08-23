@@ -9,7 +9,7 @@
  */
 export default {
   // --- shell ---
-  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización', 'Depuración', 'Almacenamiento', 'Brillo'],
+  tabs: ['Pantalla', 'Color', 'Zona horaria', 'WiFi', 'Actualización', 'Brillo', 'Depuración', 'Almacenamiento'],
   loading: 'Cargando los ajustes …',
   loadingShort: 'cargando …',
   clockUnreachable: 'Reloj no accesible',
@@ -81,6 +81,12 @@ export default {
   lumResetPoints: 'Olvidar todos los puntos',
   lumResetCoupling: 'Borrar la medición de luz propia',
   lumResetCouplingHint: 'El reloj volverá a regular con la lectura en bruto, con la realimentación de su propia pantalla.',
+  lumCalibrate: 'Medir la luz propia',
+  lumCalibrateHint: (max) => `El reloj recorre cada celda una a una, unos 90 s. Tiene que estar oscuro: cubra el reloj u oscurezca la sala; por encima de ${max} lx se rinde.`,
+  lumCalibrateAbort: 'Cancelar',
+  lumCalibratePhases: ['listo', 'comprobando la luz ambiental', 'eligiendo la sensibilidad', 'recorriendo celdas', 'midiendo canales', 'curva de excitación', 'guardando', 'hecho', 'ha fallado'],
+  lumCalibrateResult: (cells, rung) => `${cells} celdas medidas, escalón ${rung}`,
+  lumCalibrateAmbient: (lx) => `ambiente ${lx} lx`,
 
   // --- timezone tab ---
   timeServer: 'Servidor de hora',
@@ -343,6 +349,17 @@ export default {
   err_calibrationTooClose: 'Los dos puntos están demasiado juntos',
   err_calibrationRange: 'Brillo fuera del intervalo válido',
   err_lumNoSuchPoint: 'Ese punto ya no existe: probablemente ya se eliminó en otro sitio',
+  err_calibTooBright: 'Demasiada luz para medir: cubra el reloj u oscurezca la sala',
+  err_calibBusy: 'Ya hay una medición en curso',
+  err_calibLabActive: 'El laboratorio está ocupando los LED',
+  err_calibNoSensor: 'Este reloj no tiene sensor de luz',
+  err_calibSaturated: 'El sensor se satura en todos los escalones de sensibilidad',
+  err_calibNoCoupling: 'Ninguna celda alcanza el sensor',
+  err_calibStore: 'No se pudo guardar la medición',
+  err_calibCancelled: 'Cancelado',
+  err_calibNoTask: 'Memoria insuficiente para la medición',
+  err_labCalibrating: 'El reloj está midiendo su propia luz',
+  err_couplingInvalid: 'La medición de luz propia es ilegible',
   err_hostnameInvalid: 'Ese nombre no contiene caracteres utilizables',
   err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
   err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,

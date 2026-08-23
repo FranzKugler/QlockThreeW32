@@ -41,6 +41,7 @@
 #include "LedDriverWS2812FastLED.h"   // the corner colours in sendPanel()
 #include "Luminance.h"
 #include "Coupling.h"
+#include "Calibration.h"
 #include "Renderer.h"
 
 // Debug and the debugX macros, plus the ring the web UI reads them out of.
@@ -592,6 +593,33 @@ void updateLight()
         return;
     }
 
+    // The clock measuring the map itself, rather than being handed one. Here
+    // beside the upload rather than on /luminance, because what it produces is
+    // the same thing the upload writes; the progress is reported in
+    // /luminance, which is the screen that shows it.
+    if (doc["calibrate"] | false)
+    {
+        if (!Expert::guard()) return;
+        if (!Calibration::start())
+        {
+            String out = "{\"error\":\"";
+            out += Calibration::error();
+            out += "\"}";
+            server.send(409, "application/json", out);
+            return;
+        }
+        sendLight();
+        return;
+    }
+
+    if (doc["calibrateAbort"] | false)
+    {
+        if (!Expert::guard()) return;
+        Calibration::cancel();
+        sendLight();
+        return;
+    }
+
     server.send(400, "application/json", "{\"error\":\"calibrationRange\"}");
 }
 
@@ -621,6 +649,22 @@ void sendLuminance()
     // and over how many cells that is known. See Coupling.h.
     doc["display"]    = ambientLight.own();
     doc["coupled"]    = Coupling::cells();
+
+    // Where a self-calibration has got to. In this response and not in a
+    // polling endpoint of its own, because this is the screen that starts one
+    // and it already asks once a second - a second poller would only be a
+    // second answer to disagree with. `phase` is Calibration::Phase; `error`
+    // carries a code from the same vocabulary as any other failed write.
+    JsonObject calib = doc["calibration"].to<JsonObject>();
+    calib["running"] = Calibration::running();
+    calib["phase"]   = (uint8_t)Calibration::phase();
+    calib["done"]    = Calibration::done();
+    calib["total"]   = Calibration::total();
+    calib["ambient"] = Calibration::ambient();
+    calib["rung"]    = Calibration::rung();
+    calib["kept"]    = Calibration::kept();
+    calib["error"]   = Calibration::error();
+    calib["maxAmbient"] = CAL_MAX_AMBIENT_LUX;
 
     doc["slope"]      = Luminance::slope();
     doc["offset"]     = Luminance::offset();
