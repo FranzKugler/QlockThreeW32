@@ -519,8 +519,8 @@ void sendLight()
     doc["fitted"]     = Luminance::slopeFitted();
     doc["brightness"] = Luminance::forLux(ambientLight.lux());
     doc["applied"]    = appliedBrightness;
-    doc["minPercent"] = LUM_MIN_PERCENT;
-    doc["maxPercent"] = LUM_MAX_PERCENT;
+    doc["minPercent"] = Luminance::minPercent();
+    doc["maxPercent"] = Luminance::maxPercent();
 
     // How much the clock has been told. The colour tab only needs the count;
     // the points themselves are GET /luminance's business.
@@ -671,8 +671,8 @@ void sendLuminance()
     doc["fitted"]     = Luminance::slopeFitted();
     doc["brightness"] = Luminance::forLux(ambientLight.lux());
     doc["applied"]    = appliedBrightness;
-    doc["minPercent"] = LUM_MIN_PERCENT;
-    doc["maxPercent"] = LUM_MAX_PERCENT;
+    doc["minPercent"] = Luminance::minPercent();
+    doc["maxPercent"] = Luminance::maxPercent();
     doc["capacity"]   = LUM_POINTS;
     doc["settleMs"]   = LUM_SETTLE_MS;
     doc["uptime"]     = (uint32_t)(millis() / 1000);
@@ -869,6 +869,23 @@ void updateLuminance()
     if (doc["reset"] | false)
     {
         Luminance::reset();
+        needsUpdateFromRtc = true;
+        sendLuminance();
+        return;
+    }
+
+    // Both ends of the regulated range. How dim a face is still readable
+    // depends on the panel, the distance and the eyes, so 20 % was never a
+    // constant of nature - it was one clock's answer.
+    if (!doc["minPercent"].isNull() || !doc["maxPercent"].isNull())
+    {
+        uint8_t low  = doc["minPercent"] | Luminance::minPercent();
+        uint8_t high = doc["maxPercent"] | Luminance::maxPercent();
+        if (!Luminance::setRange(low, high))
+        {
+            server.send(400, "application/json", "{\"error\":\"lumRange\"}");
+            return;
+        }
         needsUpdateFromRtc = true;
         sendLuminance();
         return;

@@ -79,6 +79,26 @@
   const forget = (index) => write(() => api.forgetLightPoint(index));
 
   /**
+   * The regulated range. Held locally while being typed, because the poll
+   * lands once a second and would otherwise pull a half-typed number out from
+   * under the cursor; committed on change, which is when the field is left or
+   * the spinner is clicked.
+   */
+  let lowEdit = $state(null);
+  let highEdit = $state(null);
+  const low = $derived(lowEdit ?? data?.minPercent ?? 20);
+  const high = $derived(highEdit ?? data?.maxPercent ?? 100);
+
+  function commitRange() {
+    const wantLow = Number(low);
+    const wantHigh = Number(high);
+    lowEdit = null;
+    highEdit = null;
+    if (!data || (wantLow === data.minPercent && wantHigh === data.maxPercent)) return;
+    write(() => api.setLightRange(wantLow, wantHigh));
+  }
+
+  /**
    * The self-calibration. Both writes answer with /light, whose shape is not
    * this screen's, so the curve is refetched afterwards - and the poll a second
    * later would pick the progress up anyway. Refetching immediately is what
@@ -130,14 +150,23 @@
 
   /*
    * The chart is drawn in log light, because that is the axis the line is
-   * straight in - plotting it against plain lux would show a curve and hide
-   * the one thing worth seeing, which is whether the points sit on a line at
-   * all. Three decades either side of the points, so a single reading does not
-   * fill the whole width.
+   * straight in - against plain lux it would be a curve, hiding the one thing
+   * worth seeing, which is whether the points sit on a line at all.
+   *
+   * The margins are not decoration. Without a scale a reader can see that the
+   * points are scattered but not by how much, and the difference between "10 %
+   * out" and "40 % out" is the difference between a curve worth keeping and
+   * one worth throwing away.
    */
-  const W = 320;
-  const H = 160;
-  const PAD = 4;
+  const W = 340;
+  const H = 200;
+  const PAD_L = 30;   // room for "100 %"
+  const PAD_R = 8;
+  const PAD_T = 10;
+  const PAD_B = 24;   // room for the decade labels
+
+  const PLOT_W = W - PAD_L - PAD_R;
+  const PLOT_H = H - PAD_T - PAD_B;
 
   const range = $derived.by(() => {
     const xs = (data?.points ?? []).map((p) => Math.log10(Math.max(p.lux, 0.01)));
@@ -150,22 +179,45 @@
 
   const xOf = (lux) => {
     const x = Math.log10(Math.max(lux, 0.01));
-    return PAD + ((x - range.lo) / (range.hi - range.lo)) * (W - 2 * PAD);
+    return PAD_L + ((x - range.lo) / (range.hi - range.lo)) * PLOT_W;
   };
+  const xOfLog = (x) => PAD_L + ((x - range.lo) / (range.hi - range.lo)) * PLOT_W;
   // 0 % at the bottom, 100 % at the top.
-  const yOf = (percent) => H - PAD - (percent / 100) * (H - 2 * PAD);
+  const yOf = (percent) => PAD_T + PLOT_H - (percent / 100) * PLOT_H;
 
-  /** The fitted line across the whole width, clamped the way the clock clamps. */
+  // Whole decades inside the visible range, which is what a log axis is for:
+  // one label per factor of ten, and no attempt to subdivide - the ticks
+  // between 1 and 10 on a log scale are not evenly spaced and a reader who
+  // needs them is reading the wrong chart.
+  const decades = $derived.by(() => {
+    const out = [];
+    for (let k = Math.ceil(range.lo); k <= Math.floor(range.hi); k++) {
+      out.push({ k, x: xOfLog(k), label: k < 0 ? (10 ** k).toFixed(-k) : String(10 ** k) });
+    }
+    return out;
+  });
+
+  const levels = [0, 20, 40, 60, 80, 100];
+
+  /**
+   * The fitted line across the whole width, clamped the way the clock clamps.
+   *
+   * The clamping is the point of drawing it this way: between the two ends it
+   * is a straight line in log light, and outside them it is flat, so the shape
+   * on screen is what the clock will actually do rather than what the formula
+   * says. Sampled rather than drawn as three segments - the corners then land
+   * wherever they land instead of having to be solved for.
+   */
   const linePath = $derived.by(() => {
     if (!data) return '';
     const at = (logLux) => {
       const raw = data.slope * logLux + data.offset;
       return Math.min(data.maxPercent, Math.max(data.minPercent, raw));
     };
-    const steps = 48;
+    const steps = 96;
     return Array.from({ length: steps + 1 }, (_, i) => {
       const logLux = range.lo + ((range.hi - range.lo) * i) / steps;
-      const x = PAD + (i / steps) * (W - 2 * PAD);
+      const x = PAD_L + (i / steps) * PLOT_W;
       return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${yOf(at(logLux)).toFixed(1)}`;
     }).join(' ');
   });
@@ -239,16 +291,46 @@
     {/if}
 
     <svg viewBox="0 0 {W} {H}" role="img" aria-label={t.lumTitle}>
+      <!-- Brightness, every twenty per cent. -->
+      {#each levels as level (level)}
+        <line class="grid" x1={PAD_L} y1={yOf(level)} x2={W - PAD_R} y2={yOf(level)} />
+        <text class="tick y" x={PAD_L - 5} y={yOf(level) + 3}>{level}</text>
+      {/each}
+
+      <!-- Light, one line per decade. -->
+      {#each decades as decade (decade.k)}
+        <line class="grid" x1={decade.x} y1={PAD_T} x2={decade.x} y2={PAD_T + PLOT_H} />
+        <text class="tick x" x={decade.x} y={H - 10}>{decade.label}</text>
+      {/each}
+
+      <!-- Where the clock stops following the line. Drawn, because the flat
+           ends of the curve are otherwise indistinguishable from a curve that
+           happens to be flat there. -->
+      <line class="clamp" x1={PAD_L} y1={yOf(data.minPercent)} x2={W - PAD_R} y2={yOf(data.minPercent)} />
+      <line class="clamp" x1={PAD_L} y1={yOf(data.maxPercent)} x2={W - PAD_R} y2={yOf(data.maxPercent)} />
+
       <path class="line" d={linePath} />
+
       {#each data.points as point, i (i)}
         <circle class="point" cx={xOf(point.lux)} cy={yOf(point.percent)} r="4" />
       {/each}
+
       {#if data.available}
-        <line class="now" x1={xOf(data.lux)} y1={PAD} x2={xOf(data.lux)} y2={H - PAD} />
+        <line class="now" x1={xOf(data.lux)} y1={PAD_T} x2={xOf(data.lux)} y2={PAD_T + PLOT_H} />
       {/if}
+
+      <text class="axis x" x={PAD_L + PLOT_W / 2} y={H - 1}>lx</text>
+      <text class="axis y" x={4} y={PAD_T + 4}>%</text>
     </svg>
 
     <h3>{t.lumPoints} ({data.points.length}/{data.capacity})</h3>
+    <!-- Said out loud, because the chart looks like a bad least-squares fit
+         and is not one: the line is pinned to the newest point on purpose, and
+         someone reading it without knowing that reasonably concludes the
+         arithmetic is broken. -->
+    {#if data.points.length > 1}
+      <p class="hint">{t.lumAnchor}</p>
+    {/if}
     {#if data.points.length === 0}
       <p class="hint">{t.lumEmpty}</p>
     {:else}
@@ -276,6 +358,25 @@
     {/if}
 
     {#if editable}
+      <h3>{t.lumRange}</h3>
+      <p class="hint">{t.lumRangeHint}</p>
+      <div class="range">
+        <label>
+          {t.lumRangeMin}
+          <input type="number" min="1" max="100" disabled={busy || calibrating}
+                 value={low} oninput={(e) => (lowEdit = e.currentTarget.value)}
+                 onchange={commitRange} />
+          %
+        </label>
+        <label>
+          {t.lumRangeMax}
+          <input type="number" min="1" max="100" disabled={busy || calibrating}
+                 value={high} oninput={(e) => (highEdit = e.currentTarget.value)}
+                 onchange={commitRange} />
+          %
+        </label>
+      </div>
+
       <h3>{t.lumCoupling}</h3>
 
       <!-- The clock measuring its own map, with no script and no laptop. The
@@ -337,6 +438,38 @@
     fill: none;
     stroke: var(--accent);
     stroke-width: 2;
+  }
+
+  .grid {
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+
+  /* The two ends of the regulated range. Dotted rather than dashed, to stay
+     apart from the dashed line marking the light right now. */
+  .clamp {
+    stroke: var(--muted);
+    stroke-width: 1;
+    stroke-dasharray: 1 3;
+  }
+
+  .tick {
+    fill: var(--muted);
+    font-size: 9px;
+  }
+
+  .tick.y {
+    text-anchor: end;
+  }
+
+  .tick.x {
+    text-anchor: middle;
+  }
+
+  .axis {
+    fill: var(--muted);
+    font-size: 9px;
+    text-anchor: middle;
   }
 
   .point {
@@ -404,6 +537,24 @@
   .link:disabled {
     cursor: default;
     opacity: 0.5;
+  }
+
+  .range {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 0.5rem 0 0.2rem;
+  }
+
+  .range label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+  }
+
+  .range input {
+    width: 4.5rem;
   }
 
   .buttons {

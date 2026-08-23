@@ -58,9 +58,24 @@
 // is forgotten within a week of ordinary use.
 #define LUM_POINTS 10
 
-// The regulated range. Rule one and rule two of this feature.
+// Where the regulated range starts out. Not where it stays: both ends are
+// stored with the curve and settable from the brightness screen, because how
+// dim a face is still readable depends on the panel in front of it, how far
+// away it is read from, and whose eyes are reading it. Twenty was chosen on
+// one clock and there is no reason it should bind every other one.
+//
+// Zero is deliberately not reachable. The display switching itself off is a
+// mode, chosen in the display tab, and never something the light sensor gets
+// to decide.
 #define LUM_MIN_PERCENT 20
 #define LUM_MAX_PERCENT 100
+
+// What the range may be set to. The floor is 1 rather than 0 for the reason
+// above; the gap keeps the two ends from meeting, which would make the curve a
+// constant and the whole screen a lie.
+#define LUM_RANGE_FLOOR 1
+#define LUM_RANGE_CEILING 100
+#define LUM_RANGE_GAP 5
 
 // Silence after a slider move before the pair is kept. Long enough that
 // dragging counts as one adjustment rather than fifty.
@@ -136,6 +151,28 @@ namespace Luminance
     /** The line, for the read-out and the API. */
     float slope();
     float offset();
+
+    /**
+     * The regulated range, both ends stored with the curve.
+     *
+     * forLux() clamps to them and nudged() refuses anything outside, so a
+     * clock cannot be taught a point it would never be allowed to show - which
+     * would sit in the fit pulling the line towards a brightness that can
+     * never appear on the wall.
+     */
+    uint8_t minPercent();
+    uint8_t maxPercent();
+
+    /**
+     * Moves the range. False when the two ends are the wrong way round, too
+     * close together, or outside 1..100; the caller then knows to refuse
+     * rather than to store something the screen would draw as a flat line.
+     *
+     * Stored points are left alone even when they now fall outside: they are
+     * what somebody said, and a range moved back would want them again. They
+     * are clamped where they are used, not where they are kept.
+     */
+    bool setRange(uint8_t low, uint8_t high);
 
     /** The points, oldest first. Returns how many there are, 0..LUM_POINTS. */
     uint8_t points(Point *out, uint8_t max);

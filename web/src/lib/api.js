@@ -96,6 +96,18 @@ export async function forgetLightPoint(index) {
   return writeLuminance({ forget: index });
 }
 
+/**
+ * Moves the ends of the regulated range.
+ *
+ * Both are sent together even when only one moved, because the firmware checks
+ * them against each other - a minimum posted alone would be validated against
+ * whatever maximum the clock happens to hold, which is what the screen is
+ * showing anyway but need not be.
+ */
+export async function setLightRange(minPercent, maxPercent) {
+  return writeLuminance({ minPercent, maxPercent });
+}
+
 /** Throws every point away, from the brightness screen rather than the colour tab. */
 export async function resetLightPoints() {
   return writeLuminance({ reset: true });

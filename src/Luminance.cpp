@@ -38,6 +38,9 @@ namespace
     float lineOffset = 0.0f;
     bool fittedSlope = false;
 
+    uint8_t rangeLow = LUM_MIN_PERCENT;
+    uint8_t rangeHigh = LUM_MAX_PERCENT;
+
     // The nudge in progress, if any.
     bool waiting = false;
     uint8_t wanted = 0;
@@ -132,6 +135,8 @@ namespace
         doc["slope"] = lineSlope;
         doc["offset"] = lineOffset;
         doc["fitted"] = fittedSlope;
+        doc["min"] = rangeLow;
+        doc["max"] = rangeHigh;
 
         JsonArray list = doc["points"].to<JsonArray>();
         for (uint8_t i = 0; i < count; i++)
@@ -227,11 +232,22 @@ void Luminance::begin()
         return;
     }
 
+    // Absent in a record written before the range was settable, which reads as
+    // the defaults - the honest answer, since that is what such a clock was
+    // regulating to.
+    rangeLow = doc["min"] | (uint8_t)LUM_MIN_PERCENT;
+    rangeHigh = doc["max"] | (uint8_t)LUM_MAX_PERCENT;
+    if (rangeHigh <= rangeLow + LUM_RANGE_GAP)
+    {
+        rangeLow = LUM_MIN_PERCENT;
+        rangeHigh = LUM_MAX_PERCENT;
+    }
+
     for (JsonArray one : doc["points"].as<JsonArray>())
     {
         if (count >= LUM_POINTS) break;
         points_[count].lux = one[0] | 0.0f;
-        points_[count].percent = one[1] | (uint8_t)LUM_MIN_PERCENT;
+        points_[count].percent = one[1] | rangeLow;
         points_[count].seconds = one[2] | (uint32_t)0;
         count++;
     }
@@ -250,15 +266,15 @@ uint8_t Luminance::forLux(float lux)
     float percent = lineSlope * logLux(lux) + lineOffset;
 
     long value = lroundf(percent);
-    if (value < LUM_MIN_PERCENT) value = LUM_MIN_PERCENT;
-    if (value > LUM_MAX_PERCENT) value = LUM_MAX_PERCENT;
+    if (value < rangeLow) value = rangeLow;
+    if (value > rangeHigh) value = rangeHigh;
     return (uint8_t)value;
 }
 
 void Luminance::nudged(uint8_t percent)
 {
-    if (percent < LUM_MIN_PERCENT) percent = LUM_MIN_PERCENT;
-    if (percent > LUM_MAX_PERCENT) percent = LUM_MAX_PERCENT;
+    if (percent < rangeLow) percent = rangeLow;
+    if (percent > rangeHigh) percent = rangeHigh;
 
     wanted = percent;
     waiting = true;
@@ -313,6 +329,23 @@ bool Luminance::forget(uint8_t index)
     store();
     debugA("Luminance: point %d forgotten, %d left, %.1f%%/decade at %.1f%%",
            index, count, lineSlope, lineOffset);
+    return true;
+}
+
+uint8_t Luminance::minPercent() { return rangeLow; }
+uint8_t Luminance::maxPercent() { return rangeHigh; }
+
+bool Luminance::setRange(uint8_t low, uint8_t high)
+{
+    if (low < LUM_RANGE_FLOOR || high > LUM_RANGE_CEILING) return false;
+    if (high < low + LUM_RANGE_GAP) return false;
+
+    if (low == rangeLow && high == rangeHigh) return true;
+
+    rangeLow = low;
+    rangeHigh = high;
+    store();
+    debugA("Luminance: range is now %d..%d %%", rangeLow, rangeHigh);
     return true;
 }
 

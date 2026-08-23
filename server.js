@@ -336,7 +336,11 @@ const DEFAULT_LINE = { lowLux: 0.3, lowPercent: 20, highLux: 9.0, highPercent: 1
 
 const logLux = (lux) => Math.log10(Math.max(lux, 0.01));
 
-const curve = { slope: 0, offset: 0, fitted: false, points: [] };
+// Both ends of the regulated range live with the curve, as they do on the
+// clock: how dim a face is still readable depends on the panel in front of
+// it, so 20 % was one clock's answer rather than a constant.
+const curve = { slope: 0, offset: 0, fitted: false, points: [],
+                minPercent: LUM_MIN_PERCENT, maxPercent: LUM_MAX_PERCENT };
 
 function defaultLine() {
   const lo = logLux(DEFAULT_LINE.lowLux);
@@ -375,7 +379,7 @@ function fit() {
 
 function brightnessForLux(lux) {
   const raw = curve.slope * logLux(lux) + curve.offset;
-  return Math.min(LUM_MAX_PERCENT, Math.max(LUM_MIN_PERCENT, Math.round(raw)));
+  return Math.min(curve.maxPercent, Math.max(curve.minPercent, Math.round(raw)));
 }
 
 /*
@@ -504,8 +508,8 @@ function lightState() {
     // the mock has to as well: `applied` is the number somebody compares
     // against the wall, and it must not quietly follow the curve instead.
     applied: nudge ? nudge.percent : brightnessForLux(lux),
-    minPercent: LUM_MIN_PERCENT,
-    maxPercent: LUM_MAX_PERCENT,
+    minPercent: curve.minPercent,
+    maxPercent: curve.maxPercent,
     taught: curve.points.length,
     adjusting: nudge !== null
   };
@@ -583,8 +587,8 @@ function luminanceState() {
     // the mock has to as well: `applied` is the number somebody compares
     // against the wall, and it must not quietly follow the curve instead.
     applied: nudge ? nudge.percent : brightnessForLux(lux),
-    minPercent: LUM_MIN_PERCENT,
-    maxPercent: LUM_MAX_PERCENT,
+    minPercent: curve.minPercent,
+    maxPercent: curve.maxPercent,
     capacity: LUM_POINTS,
     settleMs: LUM_SETTLE_MS,
     uptime: Math.round(process.uptime()),
@@ -607,6 +611,17 @@ app.post('/luminance', (req, res) => {
     curve.points = [];
     nudge = null;
     defaultLine();
+    return res.json(luminanceState());
+  }
+
+  if (body.minPercent !== undefined || body.maxPercent !== undefined) {
+    const low = Number(body.minPercent ?? curve.minPercent);
+    const high = Number(body.maxPercent ?? curve.maxPercent);
+    if (!(low >= 1 && high <= 100 && high >= low + 5)) {
+      return res.status(400).json({ error: 'lumRange' });
+    }
+    curve.minPercent = low;
+    curve.maxPercent = high;
     return res.json(luminanceState());
   }
 

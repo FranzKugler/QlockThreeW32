@@ -410,6 +410,35 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 - The four `AutoLux*`/`AutoBright*` fields are **gone from `Settings`**, along with `brightnessForLux()`, `luxPosition()` and `CALIBRATION_MIN_RATIO` in `LightSensor`. No `SETTINGS_SCHEMA` bump: an old record simply carries four keys nobody reads, which is not the same as misreading one.
 - **`POST /light` now only takes `{reset: true}`.** The two calibration points and the `{want}` shift are gone. The defaults it restores (`LUM_DEFAULT_*`, 0.3 lx → 20 %, 9 lx → 100 %) are cautious rather than good: they assume a sensor in the open, and behind a front panel both readings shrink by the same factor — which in log space only shifts the line sideways, so an uncalibrated clock still dims in the right direction, just not by the right amount.
 
+#### The line is not a least-squares fit, and the chart has to say so
+
+Looking at a real curve — three points, the line passing exactly through one of them and both others sitting below it — the reasonable conclusion is that the arithmetic is broken. It is not, and the numbers say which half is which:
+
+```
+#          lux    log10  gewollt Gerade roh   Abstand
+0       0.0507   -1.295       30      46.55    -16.55
+1       0.6225   -0.206       60      64.43     -4.43
+2       0.0202   -1.694       40      40.00     +0.00
+
+echte kleinste Quadrate: slope 16.4178 offset 60.8163
+gespeichert:             slope 16.4178 offset 67.8108
+```
+
+**The slope is least squares to five digits. The offset is not**, and never was: the line is moved so it passes exactly through the *newest* point. That is the fix from "Anchor the brightness line on the newest point" — with both halves fitted, the line went through the centroid, so asking for 55 % and waiting ten seconds gave back 47 %, and nudging again at the same light replaced the same point and produced the same 47 %. A correction that cannot converge is not a correction.
+
+The cost is visible in that table and is real: the oldest point asked for 30 % at 0.05 lx and now gets 46.5 %, because a newer statement at a nearby light moved the whole line. Older points keep their say in the slope and lose it in the level. That is the trade, and it is the right way round for a control somebody adjusts by feel — but it is not what the words "least squares" lead a reader to expect, so the screen now says it in a line under the points. The chart cannot be read correctly without knowing it.
+
+#### Scales, a grid, and the two clamps
+
+The chart had neither axis. A reader could see that the points were scattered but not by how much, and the difference between 10 % out and 40 % out is the difference between a curve worth keeping and one worth throwing away. It now has one label per decade of light — no subdivisions, because the ticks between 1 and 10 on a log axis are not evenly spaced and a reader who needs them is reading the wrong chart — and brightness every twenty per cent.
+
+**Both ends of the regulated range are drawn as dotted lines, and both are settable.** `LUM_MIN_PERCENT` was 20 because that suited one clock; how dim a face is still readable depends on the panel in front of it, how far away it is read from, and whose eyes are reading it. They are stored with the curve in `qlocklight` (a record without them reads as 20/100, which is what such a clock was regulating to) and written through `POST /luminance {minPercent, maxPercent}`.
+
+- **Zero stays unreachable.** `LUM_RANGE_FLOOR` is 1: the display switching itself off is a mode, chosen in the display tab, and never something the light sensor gets to decide.
+- **`LUM_RANGE_GAP` keeps the ends apart**, or the curve becomes a constant and the whole screen a lie.
+- **Points outside the new range are kept as they are.** They are what somebody said; a range moved back would want them again. Clamping happens where they are used, not where they are stored.
+- **Both ends are posted together even when one moved**, because the firmware validates them against each other.
+
 #### The clock measuring itself
 
 [src/Calibration.cpp](src/Calibration.cpp) is `scripts/lab.py calibrate` moved onto the clock: the same three passes, started from a button on the brightness screen, with no laptop on the network. It exists because the coefficients belong to one clock — "cell (7,5) puts 69.1 lx into the sensor in red" is true only while the sensor sits behind that letter — and a calibration that needs Python is one most clocks will never get.
