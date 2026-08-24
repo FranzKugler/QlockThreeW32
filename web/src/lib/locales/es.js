@@ -67,6 +67,8 @@ export default {
   lumSlopeKept: 'conservada, los puntos están demasiado juntos',
   lumAnchor: 'La pendiente y el nivel salen de todos los puntos (mínimos cuadrados), con el mismo peso: por eso la recta no suele pasar por ninguno. Es intencionado: varias medidas promedian el error de apreciación propio.',
   lumNewest: 'punto más reciente: el más antiguo sale en cuanto llega un undécimo',
+  lumCensored: 'en el tope superior: no cuenta para la recta',
+  lumCensoredHint: 'Los puntos en el tope superior se dibujan huecos y quedan fuera del ajuste: por encima del máximo no se podía pedir nada, así que un punto así significa «al menos tanto»; leído como igualdad aplanaría la recta.',
   lumAdjusting: (want, secs) => `${want} % ajustado: se aprende en ${secs} s`,
   lumPoints: 'Puntos aprendidos',
   lumWanted: 'deseado',

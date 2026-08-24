@@ -67,6 +67,8 @@ export default {
   lumSlopeKept: 'conservée, points trop rapprochés',
   lumAnchor: 'La pente et le niveau viennent de tous les points (moindres carrés), tous du même poids — la droite ne passe donc en général par aucun d’eux. C’est voulu : plusieurs mesures doivent moyenner votre propre erreur d’appréciation.',
   lumNewest: 'point le plus récent — le plus ancien sort dès qu’un onzième arrive',
+  lumCensored: 'à la butée haute — non compté dans l’ajustement',
+  lumCensoredHint: 'Les points à la butée haute sont dessinés creux et exclus de l’ajustement : rien au-dessus du maximum ne pouvait être demandé, donc un tel point signifie « au moins autant » — pris pour une égalité, il aplatirait la droite.',
   lumAdjusting: (want, secs) => `${want} % réglé — appris d’ici ${secs} s`,
   lumPoints: 'Points appris',
   lumWanted: 'voulu',

@@ -353,8 +353,23 @@ function defaultLine() {
 function fit() {
   if (curve.points.length === 0) return defaultLine();
 
-  const xs = curve.points.map((p) => logLux(p.lux));
-  const ys = curve.points.map((p) => p.percent);
+  // A point at the top of the range is censored: the slider had nothing more
+  // to offer, so "100 %" means "at least 100 %" and least squares reading it
+  // as an equality drags the bright end down. Left out - unless leaving them
+  // out leaves fewer than two, where a poor line beats no line.
+  curve.points.forEach((p) => {
+    p.used = p.percent < curve.maxPercent;
+  });
+  let inFit = curve.points.filter((p) => p.used);
+  if (inFit.length < 2) {
+    curve.points.forEach((p) => {
+      p.used = true;
+    });
+    inFit = curve.points;
+  }
+
+  const xs = inFit.map((p) => logLux(p.lux));
+  const ys = inFit.map((p) => p.percent);
   const meanX = xs.reduce((a, b) => a + b, 0) / xs.length;
   const meanY = ys.reduce((a, b) => a + b, 0) / ys.length;
 
@@ -594,7 +609,9 @@ function luminanceState() {
     uptime: Math.round(process.uptime()),
     adjusting: nudge !== null,
     ...(nudge ? { wanted: nudge.percent } : {}),
-    points: curve.points.map((p) => ({ ...p, curve: brightnessForLux(p.lux) }))
+    points: curve.points.map((p) => ({
+      ...p, used: p.used !== false, curve: brightnessForLux(p.lux)
+    }))
   };
 }
 
@@ -622,6 +639,9 @@ app.post('/luminance', (req, res) => {
     }
     curve.minPercent = low;
     curve.maxPercent = high;
+    // Which points count as censored depends on where the ceiling is, so the
+    // line has to be worked out again rather than only stored.
+    fit();
     return res.json(luminanceState());
   }
 

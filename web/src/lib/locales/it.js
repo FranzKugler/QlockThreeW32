@@ -67,6 +67,8 @@ export default {
   lumSlopeKept: 'mantenuta, punti troppo vicini',
   lumAnchor: 'Pendenza e livello vengono da tutti i punti (minimi quadrati), con lo stesso peso: la retta quindi in genere non passa per nessuno di essi. È voluto: più misure servono a mediare il proprio errore di valutazione.',
   lumNewest: 'punto più recente: il più vecchio esce non appena ne arriva un undicesimo',
+  lumCensored: 'al limite superiore: non conta per la retta',
+  lumCensoredHint: 'I punti al limite superiore sono disegnati vuoti ed esclusi dalla retta: sopra il massimo non si poteva chiedere nulla, quindi un punto così significa «almeno tanto» — letto come uguaglianza appiattirebbe la retta.',
   lumAdjusting: (want, secs) => `${want} % impostato — appreso entro ${secs} s`,
   lumPoints: 'Punti appresi',
   lumWanted: 'voluto',

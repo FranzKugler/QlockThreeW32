@@ -67,6 +67,8 @@ export default {
   lumSlopeKept: 'kept, points sit too close together',
   lumAnchor: 'Slope and level both come from every point (least squares), all weighted the same — so the line generally passes through none of them. That is the point: several measurements are meant to average out your own guessing error.',
   lumNewest: 'newest point — the oldest drops out as soon as an eleventh arrives',
+  lumCensored: 'at the ceiling — not counted in the fit',
+  lumCensoredHint: 'Points at the ceiling are drawn hollow and left out of the fit: nothing above the maximum could be asked for, so such a point means “at least this much” — read as an equality it would flatten the line.',
   lumAdjusting: (want, secs) => `${want} % set — learned within ${secs} s`,
   lumPoints: 'Points learned',
   lumWanted: 'wanted',

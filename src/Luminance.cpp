@@ -40,6 +40,11 @@ namespace
     float lineOffset = 0.0f;
     bool fittedSlope = false;
 
+    // Which points the last fit actually used. The read-out shows it, because
+    // a point that is stored, visible, and silently ignored is worse than one
+    // that is not stored at all.
+    bool used_[LUM_POINTS];
+
     uint8_t rangeLow = LUM_MIN_PERCENT;
     uint8_t rangeHigh = LUM_MAX_PERCENT;
 
@@ -98,17 +103,51 @@ namespace
             return;
         }
 
-        float sumX = 0.0f, sumY = 0.0f, lowest = 0.0f, highest = 0.0f;
+        // A point at the top of the range is **censored**: the person wanted
+        // "at least this much" and the slider had nothing more to offer. Least
+        // squares reads it as "exactly this much", so in a bright room where
+        // the honest answer would have been 150 % it records 100 and pulls the
+        // bright end of the line down - which flattens the slope and makes the
+        // clock too dim everywhere else. Left out of the fit rather than
+        // stored differently: it is still what somebody said, it still stops a
+        // second point being taught at the same light, and the read-out still
+        // shows it.
+        //
+        // The floor is *not* treated the same way, and the asymmetry is real
+        // rather than an oversight. The ceiling is what the hardware can do;
+        // the floor is a number the owner chose on this very screen as the
+        // dimmest they ever want, so a point sitting on it is a preference
+        // being met, not a wish being cut off.
+        uint8_t usable = 0;
         for (uint8_t i = 0; i < count; i++)
         {
+            used_[i] = points_[i].percent < rangeHigh;
+            if (used_[i]) usable++;
+        }
+
+        // Unless leaving them out leaves nothing to fit. Two points at the
+        // ceiling and nothing else is a poor line, and no line at all is
+        // worse.
+        if (usable < 2)
+        {
+            for (uint8_t i = 0; i < count; i++) used_[i] = true;
+            usable = count;
+        }
+
+        float sumX = 0.0f, sumY = 0.0f, lowest = 0.0f, highest = 0.0f;
+        bool first = true;
+        for (uint8_t i = 0; i < count; i++)
+        {
+            if (!used_[i]) continue;
             float x = logLux(points_[i].lux);
-            if (i == 0 || x < lowest) lowest = x;
-            if (i == 0 || x > highest) highest = x;
+            if (first || x < lowest) lowest = x;
+            if (first || x > highest) highest = x;
+            first = false;
             sumX += x;
             sumY += (float)points_[i].percent;
         }
-        float meanX = sumX / count;
-        float meanY = sumY / count;
+        float meanX = sumX / usable;
+        float meanY = sumY / usable;
 
         bool canFitSlope = (highest - lowest) >= LUM_FIT_MIN_DECADES;
         if (canFitSlope)
@@ -116,6 +155,7 @@ namespace
             float top = 0.0f, bottom = 0.0f;
             for (uint8_t i = 0; i < count; i++)
             {
+                if (!used_[i]) continue;
                 float dx = logLux(points_[i].lux) - meanX;
                 top += dx * ((float)points_[i].percent - meanY);
                 bottom += dx * dx;
@@ -340,6 +380,11 @@ bool Luminance::forget(uint8_t index)
     return true;
 }
 
+bool Luminance::usedInFit(uint8_t index)
+{
+    return index < count ? used_[index] : false;
+}
+
 uint8_t Luminance::minPercent() { return rangeLow; }
 uint8_t Luminance::maxPercent() { return rangeHigh; }
 
@@ -352,6 +397,11 @@ bool Luminance::setRange(uint8_t low, uint8_t high)
 
     rangeLow = low;
     rangeHigh = high;
+
+    // Which points count as censored depends on where the ceiling is, so the
+    // line has to be worked out again rather than only re-stored. Lowering the
+    // ceiling takes points out of the fit; raising it brings them back.
+    fit();
     store();
     debugA("Luminance: range is now %d..%d %%", rangeLow, rangeHigh);
     return true;

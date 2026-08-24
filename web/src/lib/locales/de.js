@@ -68,6 +68,8 @@ export default {
   lumSlopeKept: 'beibehalten, Punkte liegen zu eng',
   lumAnchor: 'Steigung und Höhe kommen aus allen Punkten (kleinste Quadrate), alle gleich gewichtet — die Gerade geht deshalb im Allgemeinen durch keinen von ihnen. Das ist Absicht: mehrere Messungen sollen den eigenen Schätzfehler herausmitteln.',
   lumNewest: 'neuester Punkt — der älteste fällt heraus, sobald ein elfter dazukommt',
+  lumCensored: 'am oberen Anschlag — zählt nicht für die Gerade',
+  lumCensoredHint: 'Punkte am oberen Anschlag sind hohl gezeichnet und fließen nicht in die Gerade ein: mehr als das Maximum konnte nicht eingestellt werden, also heißt so ein Punkt „mindestens so viel“ — als Gleichheit gelesen würde er die Gerade flacher machen, als sie ist.',
   lumAdjusting: (want, secs) => `${want} % eingestellt — wird in bis zu ${secs} s gelernt`,
   lumPoints: 'Gelernte Punkte',
   lumWanted: 'gewollt',

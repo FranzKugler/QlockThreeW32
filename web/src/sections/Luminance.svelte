@@ -374,7 +374,8 @@
       <path class="line" d={linePath} />
 
       {#each data.points as point, i (i)}
-        <circle class="point" cx={xOf(point.lux)} cy={yOf(point.percent)} r="4" />
+        <circle class="point" class:ignored={point.used === false}
+                cx={xOf(point.lux)} cy={yOf(point.percent)} r="4" />
       {/each}
 
       {#if data.available}
@@ -393,6 +394,9 @@
     {#if data.points.length > 1}
       <p class="hint">{t.lumAnchor}</p>
     {/if}
+    {#if data.points.some((point) => point.used === false)}
+      <p class="hint">{t.lumCensoredHint}</p>
+    {/if}
     {#if data.points.length === 0}
       <p class="hint">{t.lumEmpty}</p>
     {:else}
@@ -405,10 +409,13 @@
              one addresses it by - the row order here is the chart's, not the
              clock's. -->
         {#each byLight as row (row.at)}
-          <div class="row" role="row" class:newest={row.last}>
+          <div class="row" role="row" class:newest={row.last}
+               class:ignored={row.point.used === false}>
             <span>{row.point.lux.toFixed(row.point.lux < 1 ? 3 : 2)}</span>
             <span>
-              {row.point.percent} %{#if row.last}<span class="mark" title={t.lumNewest}>•</span>{/if}
+              {row.point.percent} %{#if row.point.used === false}<span
+                class="mark" title={t.lumCensored}>↑</span>{/if}{#if row.last}<span
+                class="mark" title={t.lumNewest}>•</span>{/if}
             </span>
             <span class:off={row.point.curve !== row.point.percent}>{row.point.curve} %</span>
             <span>{since(row.point.seconds)}</span>
@@ -546,6 +553,14 @@
     fill: var(--text);
   }
 
+  /* Stored, shown, and not in the fit. Hollow rather than absent: it is still
+     something somebody said, and a point that vanishes looks like a bug. */
+  .point.ignored {
+    fill: var(--bg);
+    stroke: var(--muted);
+    stroke-width: 1.5;
+  }
+
   /* Where the clock is right now, so a point can be compared against it. */
   .now {
     stroke: var(--muted);
@@ -594,6 +609,10 @@
 
   .row.newest {
     font-weight: 600;
+  }
+
+  .row.ignored {
+    color: var(--muted);
   }
 
   /* A link rather than a button, because a delete per row drawn as five real

@@ -4,7 +4,7 @@
  *
  * The curve is a straight line in log light:
  *
- *     brightness = slope * log10(lux) + offset       clamped to 20..100
+ *     brightness = slope * log10(lux) + offset    clamped to the range below
  *
  * Log, because perception is roughly logarithmic and the range to cover spans
  * decades - a dark bedroom and a sunlit room differ by a factor of thousands,
@@ -26,7 +26,7 @@
  * is not a weight - a point is not less true for being older - and the only
  * ageing is the ring: an eleventh point pushes the first one out.
  *
- * Four things keep the fit from going somewhere silly:
+ * Five things keep the fit from going somewhere silly:
  *
  * - **Too little spread, and only the offset moves.** Ten corrections all made
  *   in the same evening light say nothing about steepness; a least-squares fit
@@ -41,7 +41,13 @@
  * - **A new point replaces a near neighbour** instead of joining the queue, so
  *   ten evening corrections cannot push the one daylight point out of the ring
  *   and collapse the line onto a single lighting condition.
- * - **The output is clamped to 20..100.** Below a fifth the face is not really
+ * - **A point at the top of the range is left out of the fit.** It is
+ *   censored: the slider had nothing more to offer, so "100 %" means "at
+ *   least 100 %", and read as an equality it drags the bright end of the line
+ *   down and flattens the slope. The floor is not treated the same way - it is
+ *   a number the owner chose as the dimmest they ever want, so a point on it
+ *   is a preference met rather than a wish cut off.
+ * - **The output is clamped to the regulated range.** Below a fifth the face is not really
  *   readable, and zero is the display switching itself off - a mode chosen in
  *   the display tab, never something the light sensor gets to decide.
  *
@@ -119,7 +125,7 @@ namespace Luminance
     /** Loads the points and the line from NVS, or starts from the default. */
     void begin();
 
-    /** What the line makes of a reading, clamped to 20..100. */
+    /** What the line makes of a reading, clamped to the regulated range. */
     uint8_t forLux(float lux);
 
     /**
@@ -183,6 +189,17 @@ namespace Luminance
 
     /** The points, oldest first. Returns how many there are, 0..LUM_POINTS. */
     uint8_t points(Point *out, uint8_t max);
+
+    /**
+     * Whether a point was in the last fit.
+     *
+     * A point at the top of the range is censored - the person wanted "at
+     * least this much" and the slider had nothing more to give - and least
+     * squares would read it as an equality and pull the bright end down. It is
+     * kept and shown but left out, unless leaving it out leaves fewer than two
+     * points to fit, in which case a poor line beats no line.
+     */
+    bool usedInFit(uint8_t index);
 
     /**
      * Whether the last fit could estimate a slope, or had to keep the old one

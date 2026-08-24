@@ -67,6 +67,8 @@ export default {
   lumSlopeKept: 'behouden, punten liggen te dicht bijeen',
   lumAnchor: 'Helling en hoogte komen allebei uit alle punten (kleinste kwadraten), even zwaar — de lijn gaat daarom meestal door geen enkel punt. Dat is de bedoeling: meerdere metingen moeten je eigen schattingsfout uitmiddelen.',
   lumNewest: 'nieuwste punt — het oudste valt af zodra er een elfde bij komt',
+  lumCensored: 'aan de bovengrens — telt niet mee voor de lijn',
+  lumCensoredHint: 'Punten aan de bovengrens zijn hol getekend en tellen niet mee: boven het maximum viel niets te vragen, dus zo’n punt betekent “minstens zoveel” — als gelijkheid gelezen zou het de lijn vlakker maken.',
   lumAdjusting: (want, secs) => `${want} % ingesteld — binnen ${secs} s geleerd`,
   lumPoints: 'Geleerde punten',
   lumWanted: 'gewenst',

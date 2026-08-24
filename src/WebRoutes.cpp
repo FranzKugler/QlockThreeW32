@@ -691,6 +691,10 @@ void sendLuminance()
     for (uint8_t i = 0; i < taught; i++)
     {
         JsonObject one = list.add<JsonObject>();
+        // Whether it was in the fit at all: a point at the top of the range
+        // is censored and left out, and one that is shown but silently
+        // ignored is worse than one that is not shown.
+        one["used"]    = Luminance::usedInFit(i);
         one["lux"]     = kept[i].lux;
         one["percent"] = kept[i].percent;
         one["seconds"] = kept[i].seconds;
