@@ -26,7 +26,9 @@
 
 namespace
 {
-    // Oldest first, newest last, always. It was a ring with a write cursor,
+    // Oldest first, newest last, always. That is what makes "the oldest one
+    // leaves when an eleventh arrives" mean something, and it is the order the
+    // read-out shows. It was a ring with a write cursor,
     // which cost nothing to shift and made two things untrue: a replaced point
     // kept the position of the one it replaced, so "the order it happened in"
     // was not the order stored - and there was no way to say which point is
@@ -65,21 +67,28 @@ namespace
     }
 
     /**
-     * Fits the line through whatever points there are.
+     * Fits the line through whatever points there are: least squares, both
+     * halves, every point weighted the same.
      *
-     * The two halves come from different places, and that is the point.
+     * **Averaging out the person is the whole point.** Somebody setting the
+     * brightness by eye is guessing, and guessing differently each time; ten
+     * statements about a room are worth more than the last one, and the way to
+     * use them is to let the errors cancel. Age is deliberately not a weight -
+     * a point is not less true for being older, and when an eleventh arrives
+     * the first one leaves the ring, which is the only ageing this needs.
      *
-     * **The slope is the room**, and it is learned slowly: least squares on
-     * (log10 lux, percent) over every point, and only when they are spread far
-     * enough apart to carry a slope at all - otherwise the old one stands.
+     * The slope is only fitted when the points are spread far enough apart to
+     * carry one; otherwise the old slope stands and the line is moved to the
+     * centroid, which is the same arithmetic with one unknown fixed.
      *
-     * **The level is the instruction**, and it comes from the newest point
-     * alone: the line is moved so it passes exactly through it. Least squares
-     * put the line through the centroid instead, which meant that asking for
-     * 55 % and waiting ten seconds gave back 47 % - and that nudging again at
-     * the same light replaced the same point and produced the same 47 %. A
-     * correction that cannot converge is not a correction; it was being
-     * averaged away against older statements about a room that has changed.
+     * **The cost, stated once so it is not rediscovered as a bug.** A
+     * correction no longer lands exactly on what was asked for: nudge to 55 %
+     * at a light where the fit says 47, and ten seconds later the clock shows
+     * something between the two, and repeating it changes nothing, because the
+     * replaced point is the same point. That was once treated as the defect
+     * and fixed by anchoring the line on the newest point - which converged
+     * perfectly and threw away the averaging this feature exists for. It is a
+     * trade, not a bug, and this is the end of it that was asked for.
      */
     void fit()
     {
@@ -121,11 +130,10 @@ namespace
             else canFitSlope = false;
         }
 
-        // Through the newest point, whatever the slope turned out to be. What
-        // somebody asked for last is what the clock owes them at that light,
-        // and the older points have already had their say in the slope.
-        const Luminance::Point &newest = points_[count - 1];
-        lineOffset = (float)newest.percent - lineSlope * logLux(newest.lux);
+        // Through the centroid, whatever the slope turned out to be. With a
+        // fitted slope that is the least-squares line; with a kept one it is
+        // the same line slid up or down to sit among the points.
+        lineOffset = meanY - lineSlope * meanX;
         fittedSlope = canFitSlope;
     }
 
@@ -143,7 +151,7 @@ namespace
         {
             // Already oldest first, so the order survives a reload and the
             // read-out shows what happened in the order it happened - which is
-            // also what makes the last one the anchor again after a restart.
+            // also what decides who leaves when the ring is full.
             JsonArray one = list.add<JsonArray>();
             one.add(points_[i].lux);
             one.add(points_[i].percent);
@@ -181,9 +189,9 @@ namespace
             if (points_[i].lux > 0.0f && lux > 0.0f && ratio <= LUM_SAME_LIGHT_RATIO)
             {
                 // Taken out rather than overwritten in place, so that what
-                // goes in below is always the last element. The line is
-                // anchored on the newest point, and "newest" has to mean
-                // something.
+                // goes in below is always the last element - otherwise a
+                // replaced point would inherit the age of the one it replaced
+                // and leave the ring in the wrong order.
                 for (uint8_t j = i; j + 1 < count; j++) points_[j] = points_[j + 1];
                 count--;
                 break;   // at most one neighbour; they cannot overlap
@@ -321,7 +329,7 @@ bool Luminance::forget(uint8_t index)
     if (index >= count) return false;
 
     // Shifted down rather than swapped with the last one: the order is the
-    // order things happened, and the fit anchors on the newest point.
+    // order things happened, and that is what decides who leaves next.
     for (uint8_t j = index; j + 1 < count; j++) points_[j] = points_[j + 1];
     count--;
 

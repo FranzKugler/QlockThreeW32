@@ -235,13 +235,13 @@
   }
 
   /*
-   * The point the line is pinned to. Marked, because the chart is otherwise
-   * unreadable without knowing which one it is - and because with the table
-   * sorted by light there is no other way to tell.
+   * The point made last. Worth marking in the table, which is sorted by light
+   * and so carries no other trace of age - it is the one that will still be
+   * there when the ring pushes the others out. Not marked in the chart any
+   * more: it used to be the point the line was pinned to, and with a plain
+   * least-squares fit it is no longer special to the line at all.
    */
-  const newest = $derived(
-    data?.points?.length ? data.points[data.points.length - 1] : null
-  );
+  const newestAt = $derived(data?.points?.length ? data.points.length - 1 : -1);
 
   /*
    * The points by light rather than by when they were made, which is the order
@@ -251,7 +251,7 @@
    */
   const byLight = $derived(
     (data?.points ?? [])
-      .map((point, at) => ({ point, at, last: at === data.points.length - 1 }))
+      .map((point, at) => ({ point, at, last: at === newestAt }))
       .sort((a, b) => a.point.lux - b.point.lux)
   );
 
@@ -376,9 +376,6 @@
       {#each data.points as point, i (i)}
         <circle class="point" cx={xOf(point.lux)} cy={yOf(point.percent)} r="4" />
       {/each}
-      {#if newest}
-        <circle class="anchor" cx={xOf(newest.lux)} cy={yOf(newest.percent)} r="7" />
-      {/if}
 
       {#if data.available}
         <line class="now" x1={xOf(data.lux)} y1={PAD_T} x2={xOf(data.lux)} y2={PAD_T + PLOT_H} />
@@ -408,7 +405,7 @@
              one addresses it by - the row order here is the chart's, not the
              clock's. -->
         {#each byLight as row (row.at)}
-          <div class="row" role="row" class:anchored={row.last}>
+          <div class="row" role="row" class:newest={row.last}>
             <span>{row.point.lux.toFixed(row.point.lux < 1 ? 3 : 2)}</span>
             <span>
               {row.point.percent} %{#if row.last}<span class="mark" title={t.lumNewest}>•</span>{/if}
@@ -518,14 +515,6 @@
     opacity: 0.45;
   }
 
-  /* The point the line is pinned to. A ring rather than a bigger dot, so the
-     point itself stays where it is and the mark reads as a mark. */
-  .anchor {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 1.5;
-  }
-
   /* The two ends of the regulated range. Dotted rather than dashed, to stay
      apart from the dashed line marking the light right now. */
   .clamp {
@@ -603,7 +592,7 @@
     color: var(--accent);
   }
 
-  .row.anchored {
+  .row.newest {
     font-weight: 600;
   }
 

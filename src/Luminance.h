@@ -19,6 +19,13 @@
  * "automatic" throughout, because it still is - it is being taught, not
  * turned off.
  *
+ * The line is a plain least-squares fit through every point, both halves,
+ * every point weighted the same. Averaging out the person is what it is for:
+ * somebody setting the brightness by eye guesses, and guesses differently each
+ * time, so ten statements about a room are worth more than the last one. Age
+ * is not a weight - a point is not less true for being older - and the only
+ * ageing is the ring: an eleventh point pushes the first one out.
+ *
  * Four things keep the fit from going somewhere silly:
  *
  * - **Too little spread, and only the offset moves.** Ten corrections all made

@@ -394,8 +394,8 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 
 #### What keeps the fit from going somewhere silly
 
-- **The slope is the room; the level is the instruction.** Least squares gives the slope, over every point. The offset does *not* come from least squares — the line is moved so it passes exactly through the **newest** point. The intercept used to come from the fit too, which put the line through the centroid, and that had two consequences that were felt rather than seen: asking for 55 % and waiting ten seconds gave back 47 %, and nudging again at the same light replaced the same point and produced the same 47 %. A correction that cannot converge is not a correction. Older points have already had their say in the slope; what somebody asked for last is what the clock owes them at that light.
-- **The points are therefore held oldest-first, not in a ring with a write cursor.** A replaced point is taken out and re-appended rather than overwritten in place, so "newest" means something and the stored order really is the order things happened — which the store comment had been claiming while the ring quietly broke it.
+- **Plain least squares, both halves, every point weighted the same.** Averaging out the person is what the feature is for: somebody setting the brightness by eye is guessing, and guessing differently each time, so ten statements about a room are worth more than the last one. Age is deliberately not a weight — a point is not less true for being older — and the only ageing is the ring: an eleventh point pushes the first one out. **The cost is that a correction does not land exactly on what was asked**: nudge to 55 % where the fit says 47, and the clock settles between the two, and repeating it changes nothing because the replaced point is the same point. That was once treated as the defect and fixed by anchoring the offset on the newest point, which converged perfectly and threw away the averaging. Both ends have now been tried on a real clock; this is the one that was chosen, and the trade is stated in `Luminance.cpp` so it is not rediscovered as a bug.
+- **The points are held oldest-first, not in a ring with a write cursor.** A replaced point is taken out and re-appended rather than overwritten in place, so the stored order really is the order things happened — which is what decides who leaves when an eleventh arrives, and what the store comment had been claiming while the ring quietly broke it.
 - **`applied` in `/light` and `/luminance` is what actually reached the driver**, and it is not the same number as `brightness`: during a nudge the clock shows the nudge, and afterwards it eases towards the curve by an eighth a second. Without it the workbench could say what the curve wants and what the sensor sees but not what the clock is doing, which is exactly the number missing when the automatic first felt wrong.
 - **`POST /color` used to drop `"lum": "55"` in silence.** `doc["lum"].is<int>()` refused a string while the manual branch beside it converted one happily, so the automatic looked broken in a way it had not earned. It is `isNull()` now.
 - **Too little spread, and only the offset moves.** Ten corrections made in one evening say nothing about steepness; least squares through them is noise multiplied by a large number. Below `LUM_FIT_MIN_DECADES` (0.6, a factor of four) the slope stands and only the level is re-fitted. That is exactly what the old "shift the whole curve" did — it was never wrong, it was just done *always* instead of only when it is all one can honestly do. `fitted` in `/light` and `/luminance` says which happened.
@@ -410,23 +410,25 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 - The four `AutoLux*`/`AutoBright*` fields are **gone from `Settings`**, along with `brightnessForLux()`, `luxPosition()` and `CALIBRATION_MIN_RATIO` in `LightSensor`. No `SETTINGS_SCHEMA` bump: an old record simply carries four keys nobody reads, which is not the same as misreading one.
 - **`POST /light` now only takes `{reset: true}`.** The two calibration points and the `{want}` shift are gone. The defaults it restores (`LUM_DEFAULT_*`, 0.3 lx → 20 %, 9 lx → 100 %) are cautious rather than good: they assume a sensor in the open, and behind a front panel both readings shrink by the same factor — which in log space only shifts the line sideways, so an uncalibrated clock still dims in the right direction, just not by the right amount.
 
-#### The line is not a least-squares fit, and the chart has to say so
+#### The line went to the newest point and back, and both ends were tried
 
-Looking at a real curve — three points, the line passing exactly through one of them and both others sitting below it — the reasonable conclusion is that the arithmetic is broken. It is not, and the numbers say which half is which:
+For a while the slope came from least squares and the offset did not: the line was moved to pass exactly through the newest point. On a real curve that reads as a broken fit — the line through one point, the others below it — and the numbers are worth keeping, because both arrangements have now been seen on the same three points:
 
 ```
-#          lux    log10  gewollt Gerade roh   Abstand
-0       0.0507   -1.295       30      46.55    -16.55
-1       0.6225   -0.206       60      64.43     -4.43
-2       0.0202   -1.694       40      40.00     +0.00
-
-echte kleinste Quadrate: slope 16.4178 offset 60.8163
-gespeichert:             slope 16.4178 offset 67.8108
+lux       gewollt   anchored   least squares
+0.0202         40      40.00          33.01
+0.0507         30      46.55          39.56
+0.6225         60      64.43          57.44
+                        slope 16.4178 either way
 ```
 
-**The slope is least squares to five digits. The offset is not**, and never was: the line is moved so it passes exactly through the *newest* point. That is the fix from "Anchor the brightness line on the newest point" — with both halves fitted, the line went through the centroid, so asking for 55 % and waiting ten seconds gave back 47 %, and nudging again at the same light replaced the same point and produced the same 47 %. A correction that cannot converge is not a correction.
+**The slope was never the difference.** Both fit it identically; only the level moved. Anchored, a correction lands exactly where it was asked for and older points are overridden. Averaged, the line runs between the points and no single correction is ever fully honoured — the residuals sum to zero by construction, which is the definition of the fit and also the reason the last nudge is not obeyed.
 
-The cost is visible in that table and is real: the oldest point asked for 30 % at 0.05 lx and now gets 46.5 %, because a newer statement at a nearby light moved the whole line. Older points keep their say in the slope and lose it in the level. That is the trade, and it is the right way round for a control somebody adjusts by feel — but it is not what the words "least squares" lead a reader to expect, so the screen now says it in a line under the points. The chart cannot be read correctly without knowing it.
+The clock now averages, because averaging out the person is what the feature is for: the brightness is set by eye, the guess is different every time, and ten statements about a room are worth more than the last one. **What that costs is a correction that does not converge**, and it is documented at the fit rather than left to be rediscovered.
+
+**The reader's real problem in that table was the data, not the fit.** `0.0202 lx → 40 %` against `0.0507 lx → 30 %` is two and a half times the light asked to be *dimmer*; the near-neighbour rule merges points within a factor of 1.3 and left these two standing. No line can satisfy both, which is why the averaged one misses one by 9.6 % and the anchored one by 16.5 %.
+
+**The mock had been right the whole time.** `server.js` never stopped computing `offset = meanY - slope * meanX`, so the two implementations disagreed from the day the anchoring landed until the day it was taken out again — in a project whose own rule is that a change to the API means touching four places. A behaviour is as much part of the contract as a field name.
 
 #### Scales, a grid, and the two clamps
 
@@ -444,13 +446,11 @@ Brightness is ruled every twenty per cent.
 - **Points outside the new range are kept as they are.** They are what somebody said; a range moved back would want them again. Clamping happens where they are used, not where they are stored.
 - **Both ends are posted together even when one moved**, because the firmware validates them against each other.
 
-#### The anchor is marked, and the table is in the chart's order
+#### The table is in the chart's order
 
-Both come from one confusion, twice: a line that passes exactly through one point and misses the rest looks like broken arithmetic, and nothing on screen said which point it was pinned to.
-
-- **The newest point wears a ring in the chart and a dot in the table.** Without it there is no way to tell the anchor from any other point — least of all once the table is sorted by light rather than by age.
+- **The newest point wears a dot in the table**, because a table sorted by light carries no other trace of age and that is the point the ring will still hold when the others are pushed out. It briefly wore a ring in the chart as well, back when the line was pinned to it; with a plain least-squares fit it is not special to the line at all, and marking it there would only suggest it was.
 - **The table is sorted by light**, because that is the order the points appear in on the chart above and therefore the only order in which the two can be read together. **The row keeps its real position** all the same: forgetting a point addresses it by index into the clock's own oldest-first array, and sorting the display must not renumber it.
-- **What the reader was actually seeing was a contradiction in the data.** On the clock that raised this: `0.0202 lx → 40 %` and `0.0507 lx → 30 %` — two and a half times the light, asked to be *dimmer*. The near-neighbour rule merges points within a factor of 1.3 and left these two standing. Even a plain least-squares line misses the older one by 9.6 %; the anchoring takes it to 16.5 %. The line was not misbehaving, and neither was it averaging anything sensible: the points disagreed.
+- **Sorting by light is what made the contradiction visible.** `0.0202 → 40 %` sitting directly above `0.0507 → 30 %` states the problem; the same two rows in the order they were made say nothing at all.
 
 #### The clock measuring itself
 
@@ -689,7 +689,7 @@ The compensation was checked against this: with the face showing ES IST ZWANZIG 
 - **With the automatic off, the slider is the immediate response.** The firmware applies `Brightness` the moment `POST /color` lands, with no easing at all, so a hand on the slider reaches the LEDs without passing through the script. That is not a compromise for the simulation — it is the same feel the on-clock version has to produce through `Luminance::adjusting()`.
 - **A nudge is noticed by remembering the last value written.** Anything else in `lum` is a hand on the slider. The log was the other candidate and is worse: with the automatic off the firmware logs nothing when the brightness changes, and text would have to be parsed to recover a number `/currentState` already hands over as a number. The exposure is one tick wide, and stays small because a settled regulator writes nothing at all.
 - **`--zero` blinks the face dark for 600 ms and compares.** With no display there is no contribution, so this is the ground truth the compensation is checked against — better than the checkerboard pattern the idea started as, which would still have lit cells two away from the sensor and needed compensating in its turn. `--zero-every N` repeats it, which is the only way to validate the model during the hour when it matters.
-- **The curve is a transcription of `Luminance.cpp`, not a fresh design** — same points, same 1.3 near-neighbour replacement, same 0.6 decades before a slope is fitted, same anchoring on the newest point. Any improvement then has to be made deliberately rather than arrived at by having rewritten it.
+- **The curve is a transcription of `Luminance.cpp`, not a fresh design** — same points, same 1.3 near-neighbour replacement, same 0.6 decades before a slope is fitted. It still anchors the offset on the newest point, which the firmware no longer does; a session run through it will converge where the clock averages. Worth fixing before the next long run, and worth knowing about in the meantime.
 - `curve.json` beside `coupling.json`, per clock and gitignored for the same reason.
 - **Six handlers answer `{msg: ''}` under `application/json`**, which is not JSON — an unquoted key and single quotes, left from the jQuery UI that never read the body. Parsing it is what broke the first live run, at the moment it first tried to correct anything.
 
