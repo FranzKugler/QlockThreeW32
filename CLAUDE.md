@@ -99,7 +99,7 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 [src/WebRoutes.cpp](src/WebRoutes.cpp) (and [src/OtaUpdate.cpp](src/OtaUpdate.cpp) for `/ota/*`) and [server.js](server.js) implement the same endpoints, consumed by [web/src/lib/api.js](web/src/lib/api.js):
 - `GET /currentState` — returns the full current settings object as JSON.
 - `POST /display` — display mode.
-- `POST /color` — hue/saturation/luminance. **With the automatic on, `lum` is a lesson rather than a level** — see "Automatic brightness".
+- `POST /color` — hue, saturation, luminance, and **each of the three is optional**: a missing field means "leave this alone". That is the only way the colour and the brightness can be set independently, and all three had a real fault before — no `hue` set the hue to zero, which is red; no `lum` set the brightness to zero, which is a dark clock the UI still shows as lit; and an *unchanged* `lum` was read as somebody adjusting the brightness, so dragging the colour wheel taught the automatic a calibration point nobody asked for. **With the automatic on, `lum` is a lesson rather than a level** — see "Automatic brightness".
 - `POST /autoluminance` — toggle automatic brightness.
 - `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus `display` (what the clock's own face contributed to that raw reading) and `coupled` (how many cells the stored map describes, 0 for none — so `raw - display` is what the averages were fed), plus the fitted line (`slope`, `offset`, `fitted`), the `brightness` it yields for the current reading, the regulated range (`minPercent`, `maxPercent`), how many points have been `taught`, and whether a nudge is being waited out (`adjusting`). Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
 - `POST /light` — `{reset: true}` throws the curve away; `{coupling: {cells, drive}}` stores the map measured by `scripts/lab.py`, and `{couplingReset: true}` removes it. The curve is not configured any more, it is taught through `POST /color`; see "Automatic brightness". **The two coupling branches are behind the lock and the reset is not**, which is not an oversight: a reset discards what the clock has been told and can be told again, while the map changes how the clock reads its own sensor for good — and it is the one thing here nobody types by hand.
@@ -780,6 +780,18 @@ The clock keeps its last 200 log lines in RAM and serves them through `GET /log`
 - The response is built into one `String` with the room reserved up front rather than through ArduinoJson, which would put every line into a document and serialise that into a second buffer — on the same heap an update wants. `LOG_BATCH` caps one response at about 11 KB.
 
 The tab also carries the state block the update history keeps pointing at: uptime, reset reason, and free / lowest-ever / largest-block heap. The brightness curves that were once meant to land here went to `#luminance` instead, outside the lock: the debug tab is behind expert mode and a brightness curve has no business needing a password.
+
+#### The preview draws which letters are lit, not how bright they are
+
+A lit letter used to be the real colour blended towards the face by the brightness, which is what a dim LED looks like — and which made the window useless at the settings people actually run: at 30 % brightness and 40 % saturation the letters sat a few per cent away from the face they were on, and the one thing the preview is for could not be done.
+
+It is now the chosen hue at **full saturation and full value**, whatever the clock is set to, and plain white below `LIT_MIN_SAT` (20 %) — below that the hue is not a colour anybody chose, it is what is left after dragging saturation to the bottom, and white is what the clock is really showing. The corners lost the same blending, or they would fade while the letters did not.
+
+**The preview shows *which* letters are lit. How bright the clock runs is on the wall and on the slider** — two jobs, and trying to do both cost the first one.
+
+- **`FACE`, `wantedNow` and `asLit()` all went with it.** They existed only for the blend.
+- **White letters need a face darker than `.preview`'s `rgb(244 245 247)`** to be visible at all, and that background is a literal in app.css rather than a token, deliberately, because a physical clock face stays pale in either theme. A clock set to zero saturation therefore previews as a blank face. Left as specified rather than quietly darkened.
+
 
 #### The face in the colour tab
 

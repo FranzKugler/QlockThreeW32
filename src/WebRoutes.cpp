@@ -167,7 +167,7 @@ void updateDisplay()
     needsUpdateFromRtc = true;
     scheduleSettingsSave();
 
-    server.send(200, "application/json", "{msg: ''}");
+    server.send(200, "application/json", "{\"msg\":\"\"}");
 }
 
 // switch on / off auto luminance functionality
@@ -181,7 +181,7 @@ void updateAutoLuminance()
     needsUpdateFromRtc = true;
     scheduleSettingsSave();
 
-    server.send(200, "application/json", "{msg: ''}");
+    server.send(200, "application/json", "{\"msg\":\"\"}");
 }
 
 /**
@@ -202,9 +202,32 @@ void updateColor()
 {
     JsonDocument doc;
     deserializeJson(doc, server.arg(0));
+
+    // Each of the three is optional, and a missing one means "leave this
+    // alone". That is not politeness, it is the only way the three can be set
+    // independently - and every one of them had a real fault before:
+    //
+    //  - a body without `hue` set the hue to zero, which is red;
+    //  - a body without `lum` set the brightness to zero, which is a dark
+    //    clock that the web UI still shows as lit;
+    //  - and a body *with* an unchanged `lum` was read as somebody adjusting
+    //    the brightness, so dragging the colour wheel taught the automatic a
+    //    calibration point nobody asked for. The tab sent all three on every
+    //    change because there was no way to send fewer.
+    //
     // Stored in the units they arrive in; the renderer scales them to 8 bit.
-    settings.setColorHue((uint16_t)doc["hue"]);
-    settings.setColorSat((byte)doc["sat"]);
+    if (!doc["hue"].isNull()) settings.setColorHue((uint16_t)doc["hue"].as<int>());
+    if (!doc["sat"].isNull()) settings.setColorSat((byte)doc["sat"].as<int>());
+
+    if (doc["lum"].isNull())
+    {
+        // Colour only. Nothing about the brightness was said, so nothing about
+        // the brightness is changed and nothing is learned.
+        needsUpdateFromRtc = true;
+        scheduleSettingsSave();
+        server.send(200, "application/json", "{\"msg\":\"\"}");
+        return;
+    }
 
     if (settings.getUseLdr() && ambientLight.present())
     {
@@ -214,21 +237,18 @@ void updateColor()
         // The colour travels with the brightness, because that is the face the
         // person was looking at when they decided what it should be worth. See
         // Luminance::Point.
-        if (!doc["lum"].isNull())
-        {
-            Luminance::nudged((byte)doc["lum"].as<int>(),
-                              settings.getColorHue(), settings.getColorSat());
-        }
+        Luminance::nudged((byte)doc["lum"].as<int>(),
+                          settings.getColorHue(), settings.getColorSat());
     }
     else
     {
-        settings.setBrightness(doc["lum"]);
+        settings.setBrightness((byte)doc["lum"].as<int>());
     }
 
     needsUpdateFromRtc = true;
     scheduleSettingsSave();
     
-    server.send(200, "application/json", "{msg: ''}");
+    server.send(200, "application/json", "{\"msg\":\"\"}");
 }
 
 /**
@@ -279,7 +299,7 @@ void updateConfiguration()
     needsUpdateFromRtc = true;
     scheduleSettingsSave();
     
-    server.send(200, "application/json", "{msg: ''}");
+    server.send(200, "application/json", "{\"msg\":\"\"}");
 }
 
 /**
@@ -330,7 +350,7 @@ void updateTimezone()
     needsUpdateFromRtc = true;
     scheduleSettingsSave();
     
-    server.send(200, "application/json", "{msg: ''}");       
+    server.send(200, "application/json", "{\"msg\":\"\"}");       
 }
 
 // Restyles the WiFiManager config portal to match the SPA in LittleFS. The
@@ -799,7 +819,7 @@ void updateWifi()
     wifiSwitchState = WIFI_SWITCH_START;
 
     debugI("WiFi switch requested: %s", wifiPendingSsid.c_str());
-    server.send(200, "application/json", "{msg: ''}");
+    server.send(200, "application/json", "{\"msg\":\"\"}");
 }
 
 // Drives the switch started by updateWifi(), including the fallback.

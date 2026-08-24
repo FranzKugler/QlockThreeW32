@@ -51,7 +51,15 @@ export async function fetchState() {
 
 export const setDisplay = (display) => post('/display', { display });
 
-export const setColor = ({ hue, sat, lum }) => post('/color', { hue, sat, lum });
+/**
+ * Colour and brightness, and each field is optional.
+ *
+ * A body carrying `lum` is a statement about the brightness, and with the
+ * automatic on the clock reads it as a lesson - "at this light, I want this
+ * much". So the colour wheel must not send one: it used to, unchanged, and
+ * every drag of the wheel taught the automatic a calibration point.
+ */
+export const setColor = (fields) => post('/color', fields);
 
 /**
  * What the light sensor sees, and whether there is one at all. Throws, so the

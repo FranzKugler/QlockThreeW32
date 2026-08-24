@@ -89,10 +89,7 @@
    * Throttled like the colour wheel and for the same reason: one POST per
    * pointer move would bury the clock's single-threaded web server.
    */
-  const pushNudge = throttle(
-    (want) => api.setColor({ hue: clock.hue, sat: clock.sat, lum: want }),
-    250
-  );
+  const pushNudge = throttle((want) => api.setColor({ lum: want }), 250);
 
   function nudge() {
     adjustedAt = Date.now();
@@ -130,10 +127,6 @@
   // Whether the ambient light is actually in charge of the display right now.
   const autoActive = $derived(sensor?.present && clock.automaticLum && hasCurve);
 
-  // Whichever slider is on screen, it means "this is how bright I want it
-  // here". Only the automatic one is also a lesson.
-  const wantedNow = $derived(autoActive ? autoLum : clock.lum);
-
   /*
    * The regulated range, taken from the clock rather than assumed here. Below a
    * fifth the face is not really readable, and zero is the display switching
@@ -150,8 +143,21 @@
     if (!result.error) sensor = result;
   }
 
-  const push = throttle((hue, sat, lum) => api.setColor({ hue, sat, lum }), 120);
-  const send = () => push(clock.hue, clock.sat, clock.lum);
+  /*
+   * Colour and brightness go separately, and that is not tidiness.
+   *
+   * A body carrying `lum` is a statement about the brightness, and with the
+   * automatic on the clock keeps it as a calibration point. Sending all three
+   * on every change therefore meant that dragging the colour wheel taught the
+   * automatic a point nobody had asked for, at whatever brightness happened to
+   * be showing. The firmware now treats each field as optional; this sends
+   * only the one that moved.
+   */
+  const pushColour = throttle((hue, sat) => api.setColor({ hue, sat }), 120);
+  const sendColour = () => pushColour(clock.hue, clock.sat);
+
+  const pushBrightness = throttle((lum) => api.setColor({ lum }), 120);
+  const sendBrightness = () => pushBrightness(clock.lum);
 
   let picker = null;
   // Set while we move the wheel ourselves, so its change event doesn't bounce
@@ -178,7 +184,7 @@
       if (applying) return;
       clock.hue = Math.round(color.hsv.h);
       clock.sat = Math.round(color.hsv.s);
-      send();
+      sendColour();
     };
     picker.on('color:change', onChange);
 
@@ -200,16 +206,8 @@
 
   function onWheelValueChange() {
     syncWheel();
-    send();
+    sendColour();
   }
-
-  /**
-   * The clock's face, which unlit letters blend into. Must match .preview's
-   * background in app.css - that is the light theme's --bg, written out there
-   * for the same reason it is written out here: a physical clock face stays
-   * pale whichever theme the browser is in.
-   */
-  const FACE = [244, 245, 247];
 
   const HUE_TRACK =
     'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)';
@@ -223,19 +221,30 @@
     `linear-gradient(to right, #000, ${css(hsvRgb(clock.hue, clock.sat, 100))})`
   );
 
-  /**
-   * How a lit letter reads against the face: blended from the unlit face colour
-   * towards the full colour as brightness rises, so at 0 % the text disappears
-   * into the face the way dark LEDs do. A straight additive mix would wash
-   * every colour out to near-white against a face this light.
-   */
   const face = $derived(cells(panel));
 
-  /** Blends a full-intensity colour towards the face, the way a lit letter is. */
-  const asLit = (rgb) =>
-    css(rgb.map((part, i) => FACE[i] + (part - FACE[i]) * (wantedNow / 100)));
+  /**
+   * How a lit letter is drawn: the chosen hue at full saturation and full
+   * value, whatever the clock is actually set to.
+   *
+   * It used to be the real colour blended towards the face by the brightness,
+   * which is what a dim LED looks like and which made the preview useless: at
+   * 30 % brightness and 40 % saturation the letters were a few per cent away
+   * from the face they sat on, and the one thing this window is for - reading
+   * what the clock says - could not be done. The preview shows *which* letters
+   * are lit; how bright the clock runs is on the wall and on the slider.
+   *
+   * Below LIT_MIN_SAT the hue means nothing anyway - it is a colour nobody
+   * chose, arrived at by dragging saturation to the bottom - so the letters
+   * are simply white, which is what the clock is really showing.
+   */
+  const LIT_MIN_SAT = 20;
 
-  const ledColor = $derived(asLit(hsvRgb(clock.hue, clock.sat, 100)));
+  const litRgb = $derived(
+    clock.sat < LIT_MIN_SAT ? [255, 255, 255] : hsvRgb(clock.hue, 100, 100)
+  );
+
+  const ledColor = $derived(css(litRgb));
 
   /**
    * The four corner LEDs, in reading order.
@@ -247,9 +256,8 @@
    * it, and a second implementation here would be one to keep in step.
    *
    * Absent means the mode is off, and then a lit corner is simply the display
-   * colour, as before. The colour arrives at full intensity and is blended
-   * down here, the same as the letters: how bright the clock runs is the
-   * preview's business, not the firmware's.
+   * colour, as before. The colours arrive at full intensity and are drawn at
+   * full intensity, the same as the letters.
    */
   const corners = $derived.by(() =>
     [0, 1, 2, 3].map((i) => {
@@ -258,7 +266,7 @@
       if (!hex) return { on: false, color: null };
 
       const rgb = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
-      return { on: true, color: asLit(rgb) };
+      return { on: true, color: css(rgb) };
     })
   );
 </script>
@@ -349,7 +357,7 @@
       unit="%"
       bind:value={clock.lum}
       track={lumTrack}
-      onchange={send}
+      onchange={sendBrightness}
     />
   {/if}
 </section>
