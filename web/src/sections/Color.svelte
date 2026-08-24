@@ -17,6 +17,7 @@
   import { dict } from '../lib/i18n.svelte.js';
   import { errorText } from '../lib/errors.js';
   import SliderRow from './SliderRow.svelte';
+  import { hsvRgb, css } from '../lib/colour.js';
 
   // Aliased: a local binding called `state` would turn every `$state(...)` in
   // this component into a store subscription instead of the rune, and the
@@ -201,28 +202,6 @@
     syncWheel();
     send();
   }
-
-  /**
-   * Same model the firmware uses: CHSV(hue, sat, 255) scaled by brightness,
-   * which is a plain per-channel multiply - so brightness maps onto HSV value.
-   */
-  function hsvRgb(h, s, v) {
-    const S = s / 100;
-    const V = v / 100;
-    const c = V * S;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    const m = V - c;
-    let rgb;
-    if (h < 60) rgb = [c, x, 0];
-    else if (h < 120) rgb = [x, c, 0];
-    else if (h < 180) rgb = [0, c, x];
-    else if (h < 240) rgb = [0, x, c];
-    else if (h < 300) rgb = [x, 0, c];
-    else rgb = [c, 0, x];
-    return rgb.map((part) => (part + m) * 255);
-  }
-
-  const css = (rgb) => `rgb(${rgb.map(Math.round).join(' ')})`;
 
   /**
    * The clock's face, which unlit letters blend into. Must match .preview's

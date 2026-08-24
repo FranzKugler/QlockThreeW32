@@ -69,6 +69,7 @@ export default {
   lumNewest: 'newest point — the oldest drops out as soon as an eleventh arrives',
   lumCensored: 'at the ceiling — not counted in the fit',
   lumCensoredHint: 'Points at the ceiling are drawn hollow and left out of the fit: nothing above the maximum could be asked for, so such a point means “at least this much” — read as an equality it would flatten the line.',
+  lumTaughtIn: (hue, sat) => `taught at hue ${hue}°, saturation ${sat} %`,
   lumAdjusting: (want, secs) => `${want} % set — learned within ${secs} s`,
   lumPoints: 'Points learned',
   lumWanted: 'wanted',

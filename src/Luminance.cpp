@@ -51,6 +51,8 @@ namespace
     // The nudge in progress, if any.
     bool waiting = false;
     uint8_t wanted = 0;
+    uint16_t wantedHue = LUM_HUE_UNKNOWN;
+    uint8_t wantedSat = 0;
     uint32_t settleAt = 0;
 
     /** log10 of a reading, with the floor that keeps log(0) out of it. */
@@ -196,6 +198,11 @@ namespace
             one.add(points_[i].lux);
             one.add(points_[i].percent);
             one.add(points_[i].seconds);
+            // Appended rather than given names: an older firmware reading this
+            // record takes the first three and ignores the rest, and a newer
+            // one reading an older record finds them missing and says so.
+            one.add(points_[i].hue);
+            one.add(points_[i].sat);
         }
 
         String out;
@@ -221,7 +228,8 @@ namespace
      * adjusts their clock when they are sitting in front of it, and that is
      * usually the same room at the same time of day.
      */
-    void remember(float lux, uint8_t percent, uint32_t seconds)
+    void remember(float lux, uint8_t percent, uint32_t seconds,
+                  uint16_t hue, uint8_t sat)
     {
         for (uint8_t i = 0; i < count; i++)
         {
@@ -249,6 +257,8 @@ namespace
         points_[count].lux = lux;
         points_[count].percent = percent;
         points_[count].seconds = seconds;
+        points_[count].hue = hue;
+        points_[count].sat = sat;
         count++;
     }
 }
@@ -297,6 +307,8 @@ void Luminance::begin()
         points_[count].lux = one[0] | 0.0f;
         points_[count].percent = one[1] | rangeLow;
         points_[count].seconds = one[2] | (uint32_t)0;
+        points_[count].hue = one[3] | (uint16_t)LUM_HUE_UNKNOWN;
+        points_[count].sat = one[4] | (uint8_t)0;
         count++;
     }
 
@@ -319,12 +331,14 @@ uint8_t Luminance::forLux(float lux)
     return (uint8_t)value;
 }
 
-void Luminance::nudged(uint8_t percent)
+void Luminance::nudged(uint8_t percent, uint16_t hue, uint8_t sat)
 {
     if (percent < rangeLow) percent = rangeLow;
     if (percent > rangeHigh) percent = rangeHigh;
 
     wanted = percent;
+    wantedHue = hue;
+    wantedSat = sat;
     waiting = true;
     settleAt = millis() + LUM_SETTLE_MS;
 }
@@ -344,13 +358,13 @@ bool Luminance::poll(float lux)
     if ((int32_t)(millis() - settleAt) < 0) return false;
 
     waiting = false;
-    remember(lux, wanted, (uint32_t)(millis() / 1000));
+    remember(lux, wanted, (uint32_t)(millis() / 1000), wantedHue, wantedSat);
     fit();
     store();
 
-    debugI("Luminance: learned %.2f lx -> %d%%, now %d points, "
+    debugI("Luminance: learned %.2f lx -> %d%% (hue %d sat %d), now %d points, "
            "%.1f%%/decade at %.1f%% (slope %s)",
-           lux, wanted, count, lineSlope, lineOffset,
+           lux, wanted, wantedHue, wantedSat, count, lineSlope, lineOffset,
            fittedSlope ? "fitted" : "kept");
     return true;
 }

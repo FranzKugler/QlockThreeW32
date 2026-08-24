@@ -25,6 +25,7 @@
   import * as api from '../lib/api.js';
   import { dict } from '../lib/i18n.svelte.js';
   import { errorText } from '../lib/errors.js';
+  import { hsvRgb, css } from '../lib/colour.js';
 
   // Calibration::Phase in the firmware. Only the one that has to be told apart
   // from the others is named here; the rest are looked up by index in
@@ -139,6 +140,19 @@
     const timer = setInterval(refresh, POLL_MS);
     return () => clearInterval(timer);
   });
+
+  /**
+   * The colour a point was taught in, or null for one from before the clock
+   * kept it.
+   *
+   * Shown because it is stored, and this project's habit is that a fact worth
+   * keeping is a fact worth being able to see - the alternative is three bytes
+   * a point that nobody can check. Nothing computes with it yet: "60 %" means
+   * a different amount of light in blue than in green, and the model that will
+   * use that is not built.
+   */
+  const swatch = (point) =>
+    point.hue == null ? null : css(hsvRgb(point.hue, point.sat, 100));
 
   /** Uptime seconds as h:mm:ss, for "when was this point made". */
   function since(seconds) {
@@ -411,7 +425,12 @@
         {#each byLight as row (row.at)}
           <div class="row" role="row" class:newest={row.last}
                class:ignored={row.point.used === false}>
-            <span>{row.point.lux.toFixed(row.point.lux < 1 ? 3 : 2)}</span>
+            <span>
+              {#if swatch(row.point)}
+                <span class="swatch" style="background: {swatch(row.point)}"
+                      title={t.lumTaughtIn(row.point.hue, row.point.sat)}></span>
+              {/if}{row.point.lux.toFixed(row.point.lux < 1 ? 3 : 2)}
+            </span>
             <span>
               {row.point.percent} %{#if row.point.used === false}<span
                 class="mark" title={t.lumCensored}>↑</span>{/if}{#if row.last}<span
@@ -600,6 +619,18 @@
 
   .act {
     text-align: right;
+  }
+
+  /* Ringed rather than plain, so a dark colour is still visible against a
+     dark theme and a pale one against a light theme. */
+  .swatch {
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    margin-right: 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    vertical-align: baseline;
   }
 
   .mark {

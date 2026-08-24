@@ -202,8 +202,13 @@ app.post('/color', (req, res) => {
 
   if (req.body.lum !== undefined) {
     if (state.automaticLum) {
+      // The colour travels with the brightness: what is being described is the
+      // face the person was looking at, and ten seconds is long enough to have
+      // changed it. Nothing reads it yet - see Luminance::Point.
       nudge = {
-        percent: Math.min(LUM_MAX_PERCENT, Math.max(LUM_MIN_PERCENT, req.body.lum)),
+        percent: Math.min(curve.maxPercent, Math.max(curve.minPercent, req.body.lum)),
+        hue: state.hue,
+        sat: state.sat,
         at: Date.now() + LUM_SETTLE_MS
       };
     } else {
@@ -402,11 +407,11 @@ function brightnessForLux(lux) {
  * corrections made in one evening cannot push the daylight point out and
  * collapse the line onto a single lighting condition.
  */
-function remember(lux, percent) {
+function remember(lux, percent, hue, sat) {
   const near = curve.points.find(
     (p) => Math.max(lux / p.lux, p.lux / lux) <= LUM_SAME_LIGHT_RATIO
   );
-  const point = { lux, percent, seconds: Math.round(process.uptime()) };
+  const point = { lux, percent, hue, sat, seconds: Math.round(process.uptime()) };
   if (near) Object.assign(near, point);
   else {
     curve.points.push(point);
@@ -427,7 +432,7 @@ let nudge = null;
 
 function settle() {
   if (nudge && Date.now() >= nudge.at) {
-    remember(currentLux(), nudge.percent);
+    remember(currentLux(), nudge.percent, nudge.hue, nudge.sat);
     nudge = null;
   }
 }

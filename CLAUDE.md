@@ -405,6 +405,7 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
   - Measured on the clock, with one 100 % point added to three good ones: the fit went from `slope 16.42` to `slope -11.00` — *negative*, darker room and brighter clock. The existing guard would have refused that slope and kept the old one, but the offset is computed from the centroid either way, so the line would still have moved. At 50 lx the difference is 89 % against 30 %.
 - **Too little spread, and only the offset moves.** Ten corrections made in one evening say nothing about steepness; least squares through them is noise multiplied by a large number. Below `LUM_FIT_MIN_DECADES` (0.6, a factor of four) the slope stands and only the level is re-fitted. That is exactly what the old "shift the whole curve" did — it was never wrong, it was just done *always* instead of only when it is all one can honestly do. `fitted` in `/light` and `/luminance` says which happened.
 - **A slope of zero or less is refused** the same way. Darker room, brighter clock is not a thing anybody wants, and one careless nudge in daylight produces it.
+- **Each point records the colour it was taught in**, and nothing reads it yet. "60 %" means a different amount of light in blue than in green — measured on this clock, the same setting emits **0.99 decades less** in full blue than in the green it runs, a factor of ten — so a point is only comparable with another taught in the same colour. The field is kept from now on so that the model which wants it arrives to a history rather than a cold start; three bytes a point, and not recoverable afterwards if they are not spent now. Hue and saturation rather than the RGB the driver writes: those are what the owner set. Absent — not zero — on a point from before, because hue 0 is red and a point silently claiming to have been taught in red is worse than one that admits it does not know.
 - **A new point replaces a near neighbour** (within `LUM_SAME_LIGHT_RATIO`, 1.3) instead of joining the queue. Without that, ten evening corrections push the one daylight point out of the ring and the line collapses onto a single lighting condition — which is the failure this whole scheme has to survive, because people adjust their clock while sitting in front of it, usually in the same room at the same time of day.
 - The ring holds `LUM_POINTS` (10). Enough to describe a home, small enough that a bad point is forgotten within a week of ordinary use.
 
@@ -414,6 +415,31 @@ The switch keeps saying "automatic" throughout, because it still is: it is being
 - **The points are the record; the line is derived.** The coefficients are stored too, for the read-out and for a future tool, but `begin()` re-fits from the points rather than trusting them. If the two ever disagree, the points win.
 - The four `AutoLux*`/`AutoBright*` fields are **gone from `Settings`**, along with `brightnessForLux()`, `luxPosition()` and `CALIBRATION_MIN_RATIO` in `LightSensor`. No `SETTINGS_SCHEMA` bump: an old record simply carries four keys nobody reads, which is not the same as misreading one.
 - **`POST /light` now only takes `{reset: true}`.** The two calibration points and the `{want}` shift are gone. The defaults it restores (`LUM_DEFAULT_*`, 0.3 lx → 20 %, 9 lx → 100 %) are cautious rather than good: they assume a sensor in the open, and behind a front panel both readings shrink by the same factor — which in log space only shifts the line sideways, so an uncalibrated clock still dims in the right direction, just not by the right amount.
+
+#### Colour changes the level, and percent is the wrong variable to say it in
+
+The brightness setting is a percentage; the eye responds to light. Those differ by the display colour, and not slightly — the same setting in full blue emits about a tenth of the light of the green this clock runs.
+
+Whether that is a constant correction depends entirely on what it is expressed in, and the numbers settle it:
+
+```
+ ref %     blau %   Verhaeltnis  Differenz          log L ref   log L blau   Abstand
+    10       25.5        2.55       15.5              -2.9238      -3.9197     0.996
+    20       37.0        1.85       17.0              -2.3162      -3.3283     1.012
+    30       58.8        1.96       28.8              -1.7042      -2.6633     0.959
+    40       94.0        2.35       54.0              -1.2054      -2.1861     0.981
+    45   not reachable                                -0.1521      -1.1415     0.989 (at 100 %)
+```
+
+**In percent it is neither an offset nor a factor** — both wander by three to one across the range. **In log of the emitted light it is a constant**, 0.99 decades, to within 2 %, and that constant is exactly `log10(Y_green / Y_blue)` with standard luminance weights.
+
+So the natural model is `log L = a · log(ambient) + b`, with a colour changing only `b`; percent is the user-facing coordinate, obtained by inverting the gamma and the drive table. That also names an existing wart: the line is fitted in percent, which already carries the 2.2 power, so the "linearised" curve is linear in nothing physical.
+
+Two things follow that are worth knowing before building any of it:
+
+- **The sensor cannot answer this.** The TSL2591 is broadband, not photopic: its own coupling coefficients weight the channels 35 / 40 / 25 where the eye weights them 21 / 72 / 7. It sees blue three and a half times more strongly than a person does. Any colour compensation has to come from standard luminance weights on the RGB, not from this clock's own measurements.
+- **A learned offset is better than a computed one, and not only for accuracy.** People choose deep blue partly *because* it is gentle at night; matching its luminance to white would make it as glaring. What is learned contains the preference, what is computed contains only the physics.
+- Full blue cannot exceed roughly 45 % of this clock's green equivalent at all, so a blue clock would generate ceiling points constantly — which the censoring above already handles, but which the screen should eventually say out loud rather than appearing to under-perform.
 
 #### The line went to the newest point and back, and both ends were tried
 

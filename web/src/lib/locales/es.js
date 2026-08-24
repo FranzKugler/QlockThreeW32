@@ -69,6 +69,7 @@ export default {
   lumNewest: 'punto más reciente: el más antiguo sale en cuanto llega un undécimo',
   lumCensored: 'en el tope superior: no cuenta para la recta',
   lumCensoredHint: 'Los puntos en el tope superior se dibujan huecos y quedan fuera del ajuste: por encima del máximo no se podía pedir nada, así que un punto así significa «al menos tanto»; leído como igualdad aplanaría la recta.',
+  lumTaughtIn: (hue, sat) => `aprendido con tono ${hue}°, saturación ${sat} %`,
   lumAdjusting: (want, secs) => `${want} % ajustado: se aprende en ${secs} s`,
   lumPoints: 'Puntos aprendidos',
   lumWanted: 'deseado',

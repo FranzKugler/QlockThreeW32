@@ -70,6 +70,7 @@ export default {
   lumNewest: 'neuester Punkt — der älteste fällt heraus, sobald ein elfter dazukommt',
   lumCensored: 'am oberen Anschlag — zählt nicht für die Gerade',
   lumCensoredHint: 'Punkte am oberen Anschlag sind hohl gezeichnet und fließen nicht in die Gerade ein: mehr als das Maximum konnte nicht eingestellt werden, also heißt so ein Punkt „mindestens so viel“ — als Gleichheit gelesen würde er die Gerade flacher machen, als sie ist.',
+  lumTaughtIn: (hue, sat) => `gelernt in Farbton ${hue}°, Sättigung ${sat} %`,
   lumAdjusting: (want, secs) => `${want} % eingestellt — wird in bis zu ${secs} s gelernt`,
   lumPoints: 'Gelernte Punkte',
   lumWanted: 'gewollt',

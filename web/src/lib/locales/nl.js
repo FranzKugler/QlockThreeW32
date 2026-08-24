@@ -69,6 +69,7 @@ export default {
   lumNewest: 'nieuwste punt — het oudste valt af zodra er een elfde bij komt',
   lumCensored: 'aan de bovengrens — telt niet mee voor de lijn',
   lumCensoredHint: 'Punten aan de bovengrens zijn hol getekend en tellen niet mee: boven het maximum viel niets te vragen, dus zo’n punt betekent “minstens zoveel” — als gelijkheid gelezen zou het de lijn vlakker maken.',
+  lumTaughtIn: (hue, sat) => `geleerd bij tint ${hue}°, verzadiging ${sat} %`,
   lumAdjusting: (want, secs) => `${want} % ingesteld — binnen ${secs} s geleerd`,
   lumPoints: 'Geleerde punten',
   lumWanted: 'gewenst',

@@ -69,6 +69,7 @@ export default {
   lumNewest: 'point le plus récent — le plus ancien sort dès qu’un onzième arrive',
   lumCensored: 'à la butée haute — non compté dans l’ajustement',
   lumCensoredHint: 'Les points à la butée haute sont dessinés creux et exclus de l’ajustement : rien au-dessus du maximum ne pouvait être demandé, donc un tel point signifie « au moins autant » — pris pour une égalité, il aplatirait la droite.',
+  lumTaughtIn: (hue, sat) => `appris en teinte ${hue}°, saturation ${sat} %`,
   lumAdjusting: (want, secs) => `${want} % réglé — appris d’ici ${secs} s`,
   lumPoints: 'Points appris',
   lumWanted: 'voulu',

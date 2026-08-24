@@ -211,7 +211,14 @@ void updateColor()
         // is<int>() was too strict, and failed silently: "lum": "55" went
         // nowhere while the manual branch below converted it happily, so the
         // automatic looked broken in exactly the way it did not deserve.
-        if (!doc["lum"].isNull()) Luminance::nudged((byte)doc["lum"].as<int>());
+        // The colour travels with the brightness, because that is the face the
+        // person was looking at when they decided what it should be worth. See
+        // Luminance::Point.
+        if (!doc["lum"].isNull())
+        {
+            Luminance::nudged((byte)doc["lum"].as<int>(),
+                              settings.getColorHue(), settings.getColorSat());
+        }
     }
     else
     {
@@ -695,6 +702,13 @@ void sendLuminance()
         // is censored and left out, and one that is shown but silently
         // ignored is worse than one that is not shown.
         one["used"]    = Luminance::usedInFit(i);
+        // Absent rather than null when the point predates the colour being
+        // kept: a reader can then tell "taught in red" from "we do not know".
+        if (kept[i].hue != LUM_HUE_UNKNOWN)
+        {
+            one["hue"] = kept[i].hue;
+            one["sat"] = kept[i].sat;
+        }
         one["lux"]     = kept[i].lux;
         one["percent"] = kept[i].percent;
         one["seconds"] = kept[i].seconds;

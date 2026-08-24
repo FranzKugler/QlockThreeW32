@@ -102,6 +102,11 @@
 // 0.6 is a factor of four, two doublings - the least that says anything.
 #define LUM_FIT_MIN_DECADES 0.6f
 
+// A point from a record written before the colour was kept. Not zero: hue 0 is
+// red, and a point silently claiming to have been taught in red would be worse
+// than one that admits it does not know.
+#define LUM_HUE_UNKNOWN 0xFFFF
+
 // The line a clock starts with, and returns to on reset. Deliberately cautious
 // rather than good: it assumes a sensor in the open, and behind a front panel
 // both readings shrink by the same factor - which in log space only shifts the
@@ -120,6 +125,28 @@ namespace Luminance
         float lux;
         uint8_t percent;
         uint32_t seconds;   // uptime when it was made, for the read-out only
+
+        /**
+         * The colour on the face when it was said, and it is not decoration.
+         *
+         * "60 %" means a different amount of light in blue than in green - the
+         * eye is far less sensitive at 470 nm than at 555 - so a point is only
+         * comparable with another taught in the same colour. Measured on this
+         * clock: the same setting emits 0.99 decades less light in full blue
+         * than in the green it runs, a factor of ten, and constant to 2 % over
+         * the whole range.
+         *
+         * Nothing reads this yet. It is kept from now on so that the model
+         * which wants it - one curve learned once, plus one offset per colour -
+         * arrives to a history rather than a cold start. Three bytes a point,
+         * and not recoverable afterwards if they are not spent now.
+         *
+         * Hue and saturation rather than the RGB the driver writes: those are
+         * what the owner set, and the RGB is a rendering of them the same
+         * driver can produce again.
+         */
+        uint16_t hue;       // 0..359, or LUM_HUE_UNKNOWN
+        uint8_t sat;        // 0..100
     };
 
     /** Loads the points and the line from NVS, or starts from the default. */
@@ -133,8 +160,12 @@ namespace Luminance
      *
      * Suspends the automatic and arms the settle timer. Called again for every
      * move, which only pushes the timer out - a drag is one adjustment.
+     *
+     * The colour comes in with it rather than being read at settle time: what
+     * is being described is the face the person was looking at when they
+     * decided, and ten seconds is long enough to have changed it.
      */
-    void nudged(uint8_t percent);
+    void nudged(uint8_t percent, uint16_t hue, uint8_t sat);
 
     /** True while a nudge is being waited out; `percent` is what to display. */
     bool adjusting(uint8_t &percent);

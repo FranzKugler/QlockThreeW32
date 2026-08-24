@@ -69,6 +69,7 @@ export default {
   lumNewest: 'punto più recente: il più vecchio esce non appena ne arriva un undicesimo',
   lumCensored: 'al limite superiore: non conta per la retta',
   lumCensoredHint: 'I punti al limite superiore sono disegnati vuoti ed esclusi dalla retta: sopra il massimo non si poteva chiedere nulla, quindi un punto così significa «almeno tanto» — letto come uguaglianza appiattirebbe la retta.',
+  lumTaughtIn: (hue, sat) => `appreso con tonalità ${hue}°, saturazione ${sat} %`,
   lumAdjusting: (want, secs) => `${want} % impostato — appreso entro ${secs} s`,
   lumPoints: 'Punti appresi',
   lumWanted: 'voluto',
