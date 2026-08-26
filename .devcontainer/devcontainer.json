@@ -1,0 +1,25 @@
+{
+  "name": "QlockThreeW32",
+  "dockerComposeFile": "compose.yaml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "developer",
+  "forwardPorts": [5173, 8080],
+  "portsAttributes": {
+    "5173": {
+      "label": "Vite web UI"
+    },
+    "8080": {
+      "label": "Mock REST API"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "platformio.platformio-ide",
+        "svelte.svelte-vscode"
+      ]
+    }
+  }
+}

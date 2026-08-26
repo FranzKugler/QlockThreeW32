@@ -1,0 +1,11 @@
+.git
+.pio
+node_modules
+data
+dist
+.mockfs
+hardware/Qlock250mm/3dprint/stl
+hardware/Qlock250mm/pcb/Qlock250mm/Qlock250mm-backups
+hardware/Qlock250mm/pcb/Qlock250mm/production
+src/Secrets.h
+*.tar.gz
