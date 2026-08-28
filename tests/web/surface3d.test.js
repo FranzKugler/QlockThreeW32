@@ -74,8 +74,8 @@ test('the radius is log light, not light', () => {
   // radius as 1 -> 10.
   near(r(1) - r(0.1), r(10) - r(1), 1e-12);
   // And the ends are the ends.
-  near(r(10), 1);
-  near(r(0.1), INNER_RADIUS);
+  near(r(10), INNER_RADIUS);
+  near(r(0.1), 1);
 });
 
 test('the innermost ring is a ring, not the axis', () => {
@@ -86,11 +86,11 @@ test('the innermost ring is a ring, not the axis', () => {
   assert.ok(INNER_RADIUS < 1);
 });
 
-test('the radius grows with the light, and never leaves the disc', () => {
-  let previous = -Infinity;
+test('the radius shrinks with the light, and never leaves the disc', () => {
+  let previous = Infinity;
   for (const lux of [0.02, 0.07, 0.15, 0.5, 1.9, 10]) {
     const r = luxRadius(lux, 0.02, 10);
-    assert.ok(r > previous, `${lux} lx did not move outwards`);
+    assert.ok(r < previous, `${lux} lx did not move inwards`);
     assert.ok(r >= INNER_RADIUS && r <= 1, `${r} is off the disc`);
     previous = r;
   }
@@ -100,8 +100,8 @@ test('light outside the measured range is held on the disc', () => {
   // A room brighter than anything the profile knows is exactly the case worth
   // drawing, and a marker outside the diagram says nothing about where on the
   // model the clock is.
-  near(luxRadius(5000, 0.02, 10), 1);
-  near(luxRadius(1e-9, 0.02, 10), INNER_RADIUS);
+  near(luxRadius(5000, 0.02, 10), INNER_RADIUS);
+  near(luxRadius(1e-9, 0.02, 10), 1);
   // Zero and nonsense do not produce NaN, which would poison a path string.
   assert.ok(Number.isFinite(luxRadius(0, 0.02, 10)));
 });
@@ -299,12 +299,12 @@ test('every cell at one ambient level is at one radius', () => {
   assert.equal(byLux.size, 5, 'a quad per ambient step, less the outermost');
 });
 
-test('the rings grow outwards with the light', () => {
+test('the rings move inwards as the light grows', () => {
   const drawn = projectSurface(surface(), BOX);
   const radii = surface().lux.slice(0, -1)
     .map((lux) => drawn.quads.find((quad) => quad.lux === lux).radius);
   for (let i = 1; i < radii.length; i++) {
-    assert.ok(radii[i] > radii[i - 1], `ring ${i} did not grow`);
+    assert.ok(radii[i] < radii[i - 1], `ring ${i} did not move inward`);
   }
 });
 
@@ -441,9 +441,9 @@ test('the light labels sit on the side facing the reader', () => {
   // way the view is turned, the labelled ray has to be the near one.
   for (const view of views()) {
     const drawn = projectSurface(surface(), { ...BOX, view });
-    const inner = drawn.axes.lux[0];
-    const outer = drawn.axes.lux[drawn.axes.lux.length - 1];
-    assert.ok(outer.depth < inner.depth,
+    const darkOuter = drawn.axes.lux[0];
+    const brightInner = drawn.axes.lux[drawn.axes.lux.length - 1];
+    assert.ok(darkOuter.depth < brightInner.depth,
               `the light axis points away from the reader at ${JSON.stringify(view)}`);
   }
 });

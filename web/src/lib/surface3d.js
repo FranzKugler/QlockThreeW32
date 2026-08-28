@@ -115,17 +115,18 @@ function logLux(lux) {
 }
 
 /**
- * Ambient light as a radius on the disc, in [INNER_RADIUS, 1].
+ * Ambient light as a radius on the disc, in [INNER_RADIUS, 1], brightest in.
  *
- * Clamped rather than allowed off the edge: a room brighter than anything the
- * profile was measured over is exactly the case worth drawing, and a ring
- * outside the diagram says nothing about where on the model the clock is.
+ * Log light still sets the spacing, but the direction is deliberately reversed:
+ * the brightest measured room is the inner ring and the darkest the rim.
+ * Clamped rather than allowed off the edge: a room outside anything measured
+ * is exactly the case worth drawing, and a ring off the diagram says nothing.
  */
 export function luxRadius(lux, min, max) {
   const low = logLux(min);
   const span = logLux(max) - low;
   if (!(span > 0)) return 1;
-  const along = clamp((logLux(lux) - low) / span, 0, 1);
+  const along = 1 - clamp((logLux(lux) - low) / span, 0, 1);
   return INNER_RADIUS + along * (1 - INNER_RADIUS);
 }
 
