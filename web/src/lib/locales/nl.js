@@ -97,6 +97,56 @@ export default {
   lumCalibrateResult: (cells, rung) => `${cells} cellen gemeten, trede ${rung}`,
   lumCalibrateAmbient: (lx) => `omgeving ${lx} lx`,
 
+  // --- the colour-aware factory model ---
+  lumSurfaceTitle: 'Fabriekscurve naar kleur',
+  lumSurfaceHint:
+    'Wat de klok wil instellen bij elk lichtniveau en elke kleur. Procenten ' +
+    'zijn geen licht: dezelfde stand geeft in diepblauw ongeveer een tiende ' +
+    'van het licht van het groen dat deze klok toont. De ring is het punt ' +
+    'van nu.',
+  lumSurfaceNone:
+    'Geen fabrieksprofiel geladen — de automatiek regelt op de geleerde ' +
+    'witte curve, zoals vóór deze meting.',
+  lumSurfaceSummary: (lowLux, highLux, low, high) =>
+    `Een vlak van ${lowLux} tot ${highLux} lx over alle kleurtonen; de curve ` +
+    `vraagt tussen ${low} en ${high} %.`,
+  lumSurfaceHere: 'punt van nu',
+  lumSurfaceLimited: 'kleur op de aanslag — hoger kan niet',
+  lumSurfaceBound: 'de meting zei “minstens zoveel”',
+  lumFactory: 'Fabrieksprofiel',
+  lumFactoryNone: 'Geen geladen',
+  lumFactoryStack: (stack) => `Optiek: ${stack}`,
+  lumFactorySource: {
+    legacy: 'geleerde witte curve',
+    factory: 'fabrieksprofiel',
+    'factory+user': 'fabrieksprofiel plus je eigen correcties'
+  },
+  lumFactoryTarget: (percent, factory) =>
+    `${percent} % gewild, het fabrieksprofiel alleen zegt ${factory} %`,
+  lumFactoryAccuracy: (max, hue) =>
+    `Slechtste fout bij kruisvalidatie: ${max} procentpunten, bij kleurtoon ` +
+    `${hue}°. Het doel van 10 is niet gehaald — het verschil zit in de ` +
+    `metingen van die ene kleurtoon, niet in de vorm van het model.`,
+  lumFactoryAccuracyMet: 'Kruisvalidatie gehaald.',
+  lumFactoryObservations:
+    'De metingen eronder spreken elkaar op plaatsen tegen; het geleverde ' +
+    'raster stijgt toch overal met het licht.',
+  lumFactoryMismatch:
+    'De opgeslagen correcties zijn op een ander profiel geleerd en worden ' +
+    'niet toegepast. “Fabriek herstellen” ruimt ze op.',
+  lumResiduals: 'Je eigen correcties',
+  lumResidualsHint:
+    'Wat de automatiek van je bijstellen heeft geleerd — als afwijking van ' +
+    'het fabrieksprofiel, in decaden licht, per kleur apart gehouden. Twee ' +
+    'correcties bij hetzelfde licht in verschillende kleuren vervangen ' +
+    'elkaar niet.',
+  lumResidualsEmpty: 'Nog niets bijgesteld.',
+  lumResidualDecades: 'Afwijking',
+  lumFactoryRestore: 'Fabriek herstellen',
+  lumFactoryRestoreHint:
+    'Wist je correcties en de geleerde witte curve. De eigenlichtmeting ' +
+    'blijft: die hoort bij de optiek van deze klok, niet bij een smaak.',
+
   // --- timezone tab ---
   timeServer: 'Tijdserver',
   ntpServer: 'NTP-server',
@@ -407,6 +457,16 @@ export default {
   err_nvsDelete: 'Verwijderen mislukt',
   err_nvsMemory: 'Te weinig geheugen',
   err_nvsNamespaceDelete: 'Een naamruimte verdwijnt met haar laatste sleutel',
+  err_factoryMissing: 'Geen fabrieksprofiel in het bestandssysteem',
+  err_factoryLayout: 'Het fabrieksprofiel heeft niet de verwachte opbouw',
+  err_factoryChecksum: 'Het fabrieksprofiel klopt niet met zijn eigen controlesom',
+  err_factorySchema: 'Onbekend schema van het fabrieksprofiel',
+  err_factoryModel: 'Het fabrieksprofiel beschrijft een ander model',
+  err_factoryShape: 'Fabrieksprofiel onvolledig of onjuist',
+  err_factoryNotMonotone: 'Het fabrieksraster daalt terwijl het licht stijgt',
+  err_factoryTooBig: 'Het fabrieksprofiel heeft niet de grootte van een profiel',
+  err_factoryUnreadable: 'Fabrieksprofiel niet leesbaar',
+  err_factoryUnavailable: 'Geen geldig fabrieksprofiel om naar terug te zetten',
 
   // --- api errors ---
   connectionLost: 'Verbinding met de klok verbroken',

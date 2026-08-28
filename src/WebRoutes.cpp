@@ -40,6 +40,7 @@
 #include "DisplayModes.h"
 #include "LedDriverWS2812FastLED.h"   // the corner colours in sendPanel()
 #include "Luminance.h"
+#include "FactoryLuminance.h"
 #include "Coupling.h"
 #include "Calibration.h"
 #include "Renderer.h"
@@ -651,6 +652,191 @@ void updateLight()
 }
 
 /**
+ * The colour-aware model, as much of it as a screen needs.
+ *
+ * Three separate things, and they are separate because their remedies are:
+ * **which profile** is installed (identity, and whether the corrections in
+ * NVS were learned on it), **what it is worth** (the acceptance figures it was
+ * measured to, carried rather than hidden - the reviewed profile misses its
+ * goal at one hue and a clock that omitted that would be claiming an accuracy
+ * nobody measured), and **what it says right now** in the colour the face is
+ * actually showing.
+ *
+ * What is not here is the measurement. The levels, the residual grid and the
+ * drive table are 3 KB and change never; the diagram fetches them once from
+ * /luminance/surface. Putting them in a response polled once a second would
+ * be sending a constant over and over on a synchronous web server.
+ */
+static void describeFactory(JsonDocument &doc)
+{
+    JsonObject factory = doc["factory"].to<JsonObject>();
+    factory["valid"]   = FactoryLuminance::available();
+    factory["error"]   = FactoryLuminance::error();
+    factory["profileId"] = FactoryLuminance::profileId();
+    factory["stackId"]   = FactoryLuminance::stackId();
+    factory["checksum"]  = FactoryLuminance::sourceChecksum();
+
+    // The two monotonicity answers, which read alike and are not. See
+    // FactoryLuminance.h: one is about the observations, one about the grid.
+    factory["observationsMonotone"] = FactoryLuminance::observationsMonotone();
+    factory["gridMonotone"] = FactoryLuminance::gridMonotone();
+    factory["gridDip"]      = FactoryLuminance::gridDip();
+
+    factory["acceptanceMet"] = FactoryLuminance::acceptanceMet();
+    factory["maxError"]      = FactoryLuminance::maxError();
+    factory["worstHue"]      = FactoryLuminance::worstHue();
+
+    // Which profile the stored corrections belong to. A filesystem update can
+    // bring a new measurement underneath them, and adding a correction learned
+    // on one baseline to another is arithmetic across two models.
+    // Two different facts that used to be one. `recorded` is the profile NVS
+    // says this clock is on, written once; `matched` is whether the
+    // corrections in hand were learned about the profile now installed - and
+    // on a clock that has never corrected anything nothing disagrees, which is
+    // not the same as "no". See Luminance::residualsStale().
+    factory["recorded"] = FactoryLuminance::recordedChecksum();
+    factory["matched"]  = !Luminance::residualsStale();
+
+    if (FactoryLuminance::available())
+    {
+        const FactoryProfile::Profile &model = FactoryLuminance::profile();
+        factory["levels"] = model.levelCount;
+        factory["huePeriod"] = model.huePeriod;
+        JsonArray hues = factory["hueKnots"].to<JsonArray>();
+        for (uint8_t i = 0; i < model.hueCount; i++) hues.add(model.hueKnot[i]);
+        JsonArray luxes = factory["luxKnots"].to<JsonArray>();
+        for (uint8_t i = 0; i < model.levelCount; i++)
+        {
+            luxes.add(pow(10.0, model.level[i].logLux));
+        }
+    }
+
+    // What it asks for here, now, in the colour on the face - and what the
+    // grid alone asked for beside it, because "the model says 42 and you have
+    // taught it 47" is the sentence somebody needs when the automatic feels
+    // wrong.
+    Luminance::Target wanted;
+    Luminance::targetFor(ambientLight.lux(), settings.getColorHue(),
+                         settings.getColorSat(), wanted);
+    JsonObject target = doc["target"].to<JsonObject>();
+    target["percent"] = wanted.percent;
+    target["factory"] = wanted.factory;
+    target["bias"]    = wanted.bias;
+    target["hue"]     = settings.getColorHue();
+    target["sat"]     = settings.getColorSat();
+    target["limited"] = wanted.limited;
+    target["bound"]   = wanted.bound;
+    target["clamped"] = wanted.clamped;
+    target["source"]  = wanted.source == Luminance::SOURCE_FACTORY_USER ? "factory+user"
+                      : wanted.source == Luminance::SOURCE_FACTORY ? "factory"
+                      : "legacy";
+
+    // The corrections themselves: few, small, and the thing somebody wants to
+    // forget one of when the clock has learned something silly.
+    Luminance::Residual kept[LUM_USER_POINTS];
+    uint8_t held = Luminance::residuals(kept, LUM_USER_POINTS);
+    JsonObject user = doc["user"].to<JsonObject>();
+    user["capacity"] = LUM_USER_POINTS;
+    JsonArray list = user["residuals"].to<JsonArray>();
+    for (uint8_t i = 0; i < held; i++)
+    {
+        JsonObject one = list.add<JsonObject>();
+        one["lux"]     = pow(10.0, kept[i].logLux);
+        one["decades"] = kept[i].decades;
+        one["hue"]     = kept[i].hue;
+        one["sat"]     = kept[i].sat;
+        one["seconds"] = kept[i].seconds;
+        // Whether the slider had anything left to give. "At least this much"
+        // is a weaker statement than "exactly this much" and the screen has to
+        // be able to say which one it is holding - a correction that reads as
+        // exact while the model quietly treats it as a bound is the worst of
+        // both. See ResidualStore::Residual::bound.
+        one["bound"]   = kept[i].bound != 0;
+    }
+}
+
+/**
+ * The surface the diagram draws: a percentage for every knot and every hue.
+ *
+ * Computed here rather than in the browser, and that is the same rule the face
+ * preview follows - the browser is not a second opinion. Rebuilding the
+ * inversion in JavaScript would be a second implementation of the one thing
+ * the golden vectors exist to pin down, and it would hide exactly the faults
+ * worth seeing.
+ *
+ * At saturation 100, because that is where the colour residual is whole and
+ * therefore where the surface has any shape at all; at sat 0 it is a flat
+ * sheet and says nothing. The hue axis is walked at a finer step than the
+ * knots so the seam at 300 -> 0 is drawn rather than implied.
+ *
+ * Fetched once. It changes when the profile changes, which is when the
+ * filesystem image changes, which is a reboot away.
+ */
+void sendLuminanceSurface()
+{
+    JsonDocument doc;
+    doc["valid"] = FactoryLuminance::available();
+    doc["error"] = FactoryLuminance::error();
+
+    if (!FactoryLuminance::available())
+    {
+        String out;
+        serializeJson(doc, out);
+        server.send(200, "application/json", out);
+        return;
+    }
+
+    const FactoryProfile::Profile &model = FactoryLuminance::profile();
+    doc["profileId"] = FactoryLuminance::profileId();
+    doc["checksum"]  = FactoryLuminance::sourceChecksum();
+    doc["sat"]       = 100;
+    doc["minPercent"] = Luminance::minPercent();
+    doc["maxPercent"] = Luminance::maxPercent();
+
+    JsonArray luxes = doc["lux"].to<JsonArray>();
+    for (uint8_t i = 0; i < model.levelCount; i++)
+    {
+        luxes.add(pow(10.0, model.level[i].logLux));
+    }
+
+    JsonArray hues = doc["hue"].to<JsonArray>();
+    for (int hue = 0; hue < model.huePeriod; hue += LUM_SURFACE_HUE_STEP) hues.add(hue);
+
+    // Row per ambient level, column per hue. Three parallel grids rather than
+    // objects per cell: the percentages are what is drawn, and the two flags
+    // are what is shaded - a reader of `curl` output can line them up, and the
+    // response stays a few hundred bytes rather than a few thousand.
+    JsonArray percent = doc["percent"].to<JsonArray>();
+    JsonArray limited = doc["limited"].to<JsonArray>();
+    JsonArray bound = doc["bound"].to<JsonArray>();
+    for (uint8_t i = 0; i < model.levelCount; i++)
+    {
+        double lux = pow(10.0, model.level[i].logLux);
+        JsonArray row = percent.add<JsonArray>();
+        JsonArray limitedRow = limited.add<JsonArray>();
+        JsonArray boundRow = bound.add<JsonArray>();
+        for (int hue = 0; hue < model.huePeriod; hue += LUM_SURFACE_HUE_STEP)
+        {
+            FactoryProfile::Answer answer;
+            if (!FactoryProfile::evaluate(model, lux, (uint16_t)hue, 100, answer))
+            {
+                row.add(0);
+                limitedRow.add(false);
+                boundRow.add(false);
+                continue;
+            }
+            row.add(answer.percent);
+            limitedRow.add(answer.limited != FactoryProfile::LIMITED_NONE);
+            boundRow.add(answer.bound);
+        }
+    }
+
+    String out;
+    serializeJson(doc, out);
+    server.send(200, "application/json", out);
+}
+
+/**
  * Everything the automatic brightness is thinking, for a human.
  *
  * Reached at #luminance in the web UI, with no chip in the tab row - it is a
@@ -703,6 +889,14 @@ void sendLuminance()
     doc["capacity"]   = LUM_POINTS;
     doc["settleMs"]   = LUM_SETTLE_MS;
     doc["uptime"]     = (uint32_t)(millis() / 1000);
+
+    // The colour-aware model: which one is installed, whether it may be acted
+    // on, and what it asks for right now in the colour the face is showing.
+    // Deliberately compact - the identity and the axes, not the measurement.
+    // The 43 KB of provenance stays in `artifacts/`, and the surface the
+    // diagram draws has an endpoint of its own because it is fetched once
+    // while this is polled every second.
+    describeFactory(doc);
 
     byte nudge;
     bool busy = Luminance::adjusting(nudge);
@@ -935,6 +1129,52 @@ void updateLuminance()
         if (index < 0 || !Luminance::forget((uint8_t)index))
         {
             server.send(404, "application/json", "{\"error\":\"lumNoSuchPoint\"}");
+            return;
+        }
+        needsUpdateFromRtc = true;
+        sendLuminance();
+        return;
+    }
+
+    // One colour correction, by its place in `user.residuals`. The same
+    // argument as forgetting a white point: a correction can be wrong rather
+    // than merely old - made ten seconds after somebody turned a lamp off -
+    // and the only remedy before this was throwing all of them away.
+    if (doc["forgetResidual"].is<int>())
+    {
+        int index = doc["forgetResidual"].as<int>();
+        if (index < 0 || !Luminance::forgetResidual((uint8_t)index))
+        {
+            server.send(404, "application/json", "{\"error\":\"lumNoSuchPoint\"}");
+            return;
+        }
+        needsUpdateFromRtc = true;
+        sendLuminance();
+        return;
+    }
+
+    /*
+     * Back to the factory baseline.
+     *
+     * What goes: the colour corrections, and the white points that are the
+     * same preferences said in the old coordinates. What stays: the **coupling
+     * measurement**, which is twenty minutes of the clock measuring where its
+     * own sensor sits behind its own letters and has nothing to do with
+     * anybody's taste. Throwing that away with the preferences would be the
+     * one irreversible part of an otherwise cheap reset.
+     *
+     * Refused when there is no valid profile to restore *to*, and refused
+     * before anything in NVS is touched: a restore that failed half way would
+     * leave the clock between two models, which is a state nothing here can
+     * describe.
+     */
+    if (doc["factoryRestore"] | false)
+    {
+        if (!Luminance::factoryRestore())
+        {
+            server.send(409, "application/json", "{\"error\":\"factoryUnavailable\","
+                        "\"errorDetail\":\"there is no valid factory profile to "
+                        "restore to\"}");
             return;
         }
         needsUpdateFromRtc = true;
@@ -1347,6 +1587,9 @@ void Web::begin()
     server.on("/languages", HTTP_GET, sendLanguages);
     server.on("/luminance", HTTP_GET, sendLuminance);
     server.on("/luminance", HTTP_POST, updateLuminance);
+    // Open, like GET /luminance beside it and for the same reason: it is the
+    // diagram, and a password in front of a diagnosis helps nobody.
+    server.on("/luminance/surface", HTTP_GET, sendLuminanceSurface);
     server.on("/light", HTTP_POST, updateLight);
     server.on("/manifest.webmanifest", HTTP_GET, sendManifest);
     server.on("/hostname", HTTP_POST, updateHostname);

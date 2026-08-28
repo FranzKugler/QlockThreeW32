@@ -18,6 +18,7 @@
 import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import { settleNudge } from './lib/settlement.js';
 
 const app = express();
 
@@ -430,9 +431,195 @@ const currentLux = () => 7.4 + Math.sin(Date.now() / 20000) * 2;
 // firmware too - a browser tab closed mid-adjustment must not lose the point.
 let nudge = null;
 
+/* ==========================================================================
+ * The colour-aware factory model
+ *
+ * The clock reads it out of `/factory-luminance.json` in its filesystem image
+ * and evaluates it in C++; this reads the very same file - `web/public/` is
+ * what Vite copies into that image, so there is exactly one copy of the
+ * numbers and no chance of a mock quietly describing a different model.
+ *
+ * What is *not* mirrored is the evaluator. Inverting the gamma, the
+ * per-channel scaling and the measured drive table over the integers of the
+ * regulated range is the one thing the golden vectors exist to pin down, and a
+ * second implementation of it in JavaScript would be a second thing to keep in
+ * step - which is precisely the mistake this project has already made once,
+ * when the mock and the firmware disagreed about the intercept for weeks. So
+ * the surface here is a plausible shape with the real axes on it: enough to
+ * develop the diagram against, and honest about being a stand-in.
+ * ======================================================================== */
+
+// Resolved from this file rather than from the working directory: the mock is
+// started from the repo root today and a relative path would break the day it
+// is not.
+const FACTORY_FILE = new URL('./web/public/factory-luminance.json', import.meta.url);
+
+function loadFactory() {
+  try {
+    const document = JSON.parse(fs.readFileSync(FACTORY_FILE, 'utf8'));
+    const payload = document.payload;
+    return {
+      valid: true,
+      error: '',
+      profileId: payload.profileId,
+      stackId: payload.stackId,
+      checksum: payload.sourceChecksum,
+      hueKnots: payload.hueKnots,
+      huePeriod: payload.huePeriod,
+      luxKnots: payload.levels.map((level) => Number((10 ** level.logLux).toFixed(4))),
+      levels: payload.levels,
+      percentRange: payload.percentRange,
+      status: payload.status
+    };
+  } catch (err) {
+    // A clock whose image predates the model behaves exactly as it did before
+    // it existed, and that branch has to be visible in development too.
+    return { valid: false, error: 'factoryMissing' };
+  }
+}
+
+const factory = loadFactory();
+
+// Which profile the corrections below were learned against. On the clock this
+// is a string in NVS; here it is the same string in memory, and the factory
+// restore is what sets it.
+let recordedProfile = factory.valid ? factory.checksum : '';
+
+// Which profile the corrections below were learned on. Separate from the line
+// above on purpose: `recordedProfile` is "which profile is this clock on",
+// written once, and this is "were these corrections said about it". On a clock
+// that has never corrected anything nothing disagrees, which is not the same
+// as "no" - read the other way round, a brand new clock shows a warning about
+// a mismatch it does not have.
+let residualsProfile = factory.valid ? factory.checksum : '';
+
+/*
+ * The corrections, in decades of emitted light rather than in percent.
+ *
+ * Two of them at the same light in different colours, because that is the case
+ * the old white-only ring could not express and the one the screen has to be
+ * able to draw: neither replaces the other.
+ */
+let residuals = factory.valid
+  ? [
+      { lux: 0.42, decades: 0.061, hue: 120, sat: 90, seconds: 4210 },
+      { lux: 0.44, decades: -0.088, hue: 240, sat: 100, seconds: 6890 },
+      { lux: 6.1, decades: 0.024, hue: 120, sat: 90, seconds: 9120 }
+    ]
+  : [];
+
+// LUM_SURFACE_HUE_STEP in src/Luminance.h. The knots are 60 degrees apart and
+// what is interesting is between them - the seam at 300 back to 0 above all.
+const LUM_SURFACE_HUE_STEP = 15;
+
+const LUM_USER_POINTS = 8;
+const LUM_USER_LUX_SPAN = 0.9;
+const LUM_USER_HUE_SPAN = 90;
+const LUM_USER_SAT_SPAN = 60;
+
+const hueDistance = (a, b) => {
+  const gap = Math.abs(a - b) % 360;
+  return gap > 180 ? 360 - gap : gap;
+};
+const taper = (distance, span) => Math.max(0, 1 - Math.abs(distance) / span);
+
+/** What the stored corrections say here, and whether they say anything. */
+function userBias(lux, hue, sat) {
+  let top = 0;
+  let bottom = 0;
+  for (const one of residuals) {
+    const weight = taper(logLux(lux) - logLux(one.lux), LUM_USER_LUX_SPAN)
+      * taper(hueDistance(hue, one.hue), LUM_USER_HUE_SPAN)
+      * taper(sat - one.sat, LUM_USER_SAT_SPAN);
+    if (weight <= 0) continue;
+    top += weight * one.decades;
+    bottom += weight;
+  }
+  return { bias: bottom > 0 ? top / bottom : 0, weight: bottom };
+}
+
+/**
+ * The stand-in surface: the white line of the real profile, plus the real
+ * residual grid, turned into a percentage by a monotone map rather than by the
+ * firmware's inversion. See the note above for why it is not the real one.
+ */
+function factoryPercent(lux, hue, sat) {
+  if (!factory.valid) return null;
+  const levels = factory.levels;
+  const x = logLux(lux);
+  const xs = levels.map((level) => level.logLux);
+
+  let low = 0;
+  let high = 0;
+  let along = 0;
+  let clamped = false;
+  if (x <= xs[0]) { clamped = x < xs[0]; }
+  else if (x >= xs[xs.length - 1]) { low = high = xs.length - 1; clamped = x > xs[xs.length - 1]; }
+  else {
+    for (let i = 0; i + 1 < xs.length; i++) {
+      if (x >= xs[i] && x <= xs[i + 1]) {
+        low = i; high = i + 1; along = (x - xs[i]) / (xs[i + 1] - xs[i]);
+        break;
+      }
+    }
+  }
+
+  const knots = factory.hueKnots;
+  const span = factory.huePeriod / knots.length;
+  const position = ((hue % factory.huePeriod) + factory.huePeriod) % factory.huePeriod / span;
+  const lowHue = Math.floor(position) % knots.length;
+  const highHue = (lowHue + 1) % knots.length;
+  const fraction = position - Math.floor(position);
+
+  const residualAt = (level) => level.residuals[lowHue]
+    + (level.residuals[highHue] - level.residuals[lowHue]) * fraction;
+  const boundAt = (level) => (fraction < 1 && level.bounds[lowHue])
+    || (fraction > 0 && level.bounds[highHue]);
+
+  const white = levels[low].white + (levels[high].white - levels[low].white) * along;
+  const fade = Math.min(1, Math.max(0, sat / 100));
+  const residual = (residualAt(levels[low])
+    + (residualAt(levels[high]) - residualAt(levels[low])) * along) * fade;
+  const bound = fade > 0 && Boolean(boundAt(levels[low]) || boundAt(levels[high]));
+
+  // The map from decades to percent. Not the firmware's; monotone, so the
+  // shape of the surface is right even though the numbers are a stand-in.
+  const target = white + residual;
+  const percent = Math.round(100 * 10 ** (target / 2.2));
+  const { min, max } = factory.percentRange;
+  return {
+    percent: Math.min(max, Math.max(min, percent)),
+    target,
+    limited: percent > max,
+    bound,
+    clamped
+  };
+}
+
+/*
+ * Ten seconds after the last move, decide what the nudge just taught.
+ *
+ * With no factory profile this is exactly what it always was: fold the point
+ * into the white-only curve. With one installed, the white curve has no hue
+ * or saturation axis to be corrected on, so the nudge becomes a colour-aware
+ * residual instead - see lib/settlement.js, which is what makes that decision
+ * testable without a clock or a fake timer.
+ */
 function settle() {
   if (nudge && Date.now() >= nudge.at) {
-    remember(currentLux(), nudge.percent, nudge.hue, nudge.sat);
+    settleNudge({
+      factoryValid: factory.valid,
+      lux: currentLux(),
+      percent: nudge.percent,
+      hue: nudge.hue,
+      sat: nudge.sat,
+      maxPercent: curve.maxPercent,
+      residuals,
+      factoryTarget: (lux, hue, sat) => factoryPercent(lux, hue, sat).target,
+      remember,
+      seconds: Math.round(process.uptime()),
+      capacity: LUM_USER_POINTS
+    });
     nudge = null;
   }
 }
@@ -616,9 +803,112 @@ function luminanceState() {
     ...(nudge ? { wanted: nudge.percent } : {}),
     points: curve.points.map((p) => ({
       ...p, used: p.used !== false, curve: brightnessForLux(p.lux)
-    }))
+    })),
+    ...factoryState(lux)
   };
 }
+
+/**
+ * The colour-aware half: which profile is installed, what it is worth, and
+ * what it asks for right now in the colour the face is showing.
+ *
+ * Three separate things because their remedies are separate - see
+ * describeFactory() in src/WebRoutes.cpp, which this mirrors field for field.
+ */
+function factoryState(lux) {
+  const asked = factoryPercent(lux, state.hue, state.sat);
+  const { bias, weight } = userBias(lux, state.hue, state.sat);
+
+  // The bias moves the target, and in the stand-in map above that comes out as
+  // a multiplication on the percentage. The real clock re-inverts through the
+  // gamma and the drive table; see the note beside factoryPercent().
+  const percent = asked
+    ? Math.min(curve.maxPercent, Math.max(curve.minPercent,
+        Math.round(asked.percent * 10 ** (weight > 0 ? bias / 2.2 : 0))))
+    : brightnessForLux(lux);
+
+  return {
+    factory: {
+      valid: factory.valid,
+      error: factory.error,
+      profileId: factory.profileId ?? '',
+      stackId: factory.stackId ?? '',
+      checksum: factory.checksum ?? '',
+      // Two monotonicity answers that read alike and are not: one is about the
+      // observations the profile was fitted to, one about the grid that was
+      // shipped. The reviewed profile is `false` for the first and `true` for
+      // the second, and confusing them makes the clock report a fault it does
+      // not have.
+      observationsMonotone: factory.status?.monotone ?? true,
+      gridMonotone: factory.valid,
+      gridDip: 0,
+      acceptanceMet: factory.status?.acceptanceMet ?? false,
+      maxError: factory.status?.maxError ?? -1,
+      worstHue: factory.status?.worstHue ?? -1,
+      recorded: recordedProfile,
+      matched: residuals.length === 0 || residualsProfile === factory.checksum,
+      levels: factory.levels?.length ?? 0,
+      huePeriod: factory.huePeriod ?? 360,
+      hueKnots: factory.hueKnots ?? [],
+      luxKnots: factory.luxKnots ?? []
+    },
+    target: {
+      percent,
+      factory: asked ? asked.percent : brightnessForLux(lux),
+      bias: weight > 0 ? bias : 0,
+      hue: state.hue,
+      sat: state.sat,
+      limited: Boolean(asked?.limited),
+      bound: Boolean(asked?.bound),
+      clamped: Boolean(asked?.clamped),
+      source: !factory.valid ? 'legacy' : (weight > 0 ? 'factory+user' : 'factory')
+    },
+    user: {
+      capacity: LUM_USER_POINTS,
+      residuals: residuals.map((one) => ({ ...one }))
+    }
+  };
+}
+
+/**
+ * The surface the diagram draws, at full saturation.
+ *
+ * Fetched once rather than polled: it changes when the filesystem image
+ * changes. Same shape as the firmware's - three parallel grids rather than an
+ * object per cell, so `curl` output lines up and the response stays small.
+ */
+app.get('/luminance/surface', (req, res) => {
+  if (!factory.valid) {
+    return res.json({ valid: false, error: factory.error });
+  }
+  const hue = [];
+  for (let degrees = 0; degrees < factory.huePeriod; degrees += LUM_SURFACE_HUE_STEP) {
+    hue.push(degrees);
+  }
+  const percent = [];
+  const limited = [];
+  const bound = [];
+  for (const lux of factory.luxKnots) {
+    percent.push(hue.map((one) => factoryPercent(lux, one, 100).percent));
+    limited.push(hue.map((one) => factoryPercent(lux, one, 100).limited));
+    bound.push(hue.map((one) => factoryPercent(lux, one, 100).bound));
+  }
+  res.json({
+    valid: true,
+    error: '',
+    profileId: factory.profileId,
+    checksum: factory.checksum,
+    sat: 100,
+    minPercent: curve.minPercent,
+    maxPercent: curve.maxPercent,
+    lux: factory.luxKnots,
+    hue,
+    percent,
+    limited,
+    bound
+  });
+});
+
 
 /**
  * The two writes on the brightness screen: drop one point, or drop them all.
@@ -658,6 +948,38 @@ app.post('/luminance', (req, res) => {
     // happened, and the fit anchors on the newest point.
     curve.points.splice(body.forget, 1);
     fit();
+    return res.json(luminanceState());
+  }
+
+  // One colour correction, by its place in `user.residuals`.
+  if (Number.isInteger(body.forgetResidual)) {
+    if (body.forgetResidual < 0 || body.forgetResidual >= residuals.length) {
+      return res.status(404).json({ error: 'lumNoSuchPoint' });
+    }
+    residuals.splice(body.forgetResidual, 1);
+    return res.json(luminanceState());
+  }
+
+  /*
+   * Back to the factory baseline: the corrections go, the coupling stays.
+   *
+   * Refused when there is no valid profile to restore *to* - otherwise
+   * "restore" would quietly mean "delete", which is the one thing this button
+   * must not do behind a word that promises the opposite.
+   */
+  if (body.factoryRestore) {
+    if (!factory.valid) {
+      return res.status(409).json({
+        error: 'factoryUnavailable',
+        errorDetail: 'there is no valid factory profile to restore to'
+      });
+    }
+    residuals = [];
+    curve.points = [];
+    nudge = null;
+    defaultLine();
+    recordedProfile = factory.checksum;
+    residualsProfile = factory.checksum;
     return res.json(luminanceState());
   }
 
@@ -1480,4 +1802,8 @@ app.post('/restart', (req, res) => {
   res.json({ restarting: true });
 });
 
-app.listen(8080, () => console.log('QlockThreeW32 mock API on http://localhost:8080'));
+// 8080 is what vite.config.js proxies to, so that is the default and nobody
+// has to set anything. The override exists for the API-shape tests, which
+// start a second copy and must not fight a mock somebody left running.
+const PORT = Number(process.env.QLOCK_MOCK_PORT || 8080);
+app.listen(PORT, () => console.log(`QlockThreeW32 mock API on http://localhost:${PORT}`));

@@ -98,6 +98,57 @@ export default {
   lumCalibrateResult: (cells, rung) => `${cells} Zellen vermessen, Sprosse ${rung}`,
   lumCalibrateAmbient: (lx) => `Umgebung ${lx} lx`,
 
+  // --- the colour-aware factory model ---
+  lumSurfaceTitle: 'Farbabhängige Werkskurve',
+  lumSurfaceHint:
+    'Was die Uhr bei welchem Umgebungslicht und welcher Farbe einstellen ' +
+    'will. Prozent sind nicht gleich Licht: dieselbe Einstellung gibt in ' +
+    'tiefem Blau rund ein Zehntel des Lichts wie im Grün, das diese Uhr ' +
+    'zeigt. Der Ring markiert den aktuellen Betriebspunkt.',
+  lumSurfaceNone:
+    'Kein Werksprofil geladen — die Automatik regelt auf der gelernten ' +
+    'Weißkurve, wie vor dieser Messung.',
+  lumSurfaceSummary: (lowLux, highLux, low, high) =>
+    `Fläche über ${lowLux} bis ${highLux} lx und alle Farbtöne; die Kurve ` +
+    `verlangt zwischen ${low} und ${high} %.`,
+  lumSurfaceHere: 'aktueller Punkt',
+  lumSurfaceLimited: 'Farbe am Anschlag — mehr geht nicht',
+  lumSurfaceBound: 'Messpunkt hieß „mindestens so viel“',
+  lumFactory: 'Werksprofil',
+  lumFactoryNone: 'Keines geladen',
+  lumFactoryStack: (stack) => `Optik: ${stack}`,
+  lumFactorySource: {
+    legacy: 'gelernte Weißkurve',
+    factory: 'Werksprofil',
+    'factory+user': 'Werksprofil + eigene Korrekturen'
+  },
+  lumFactoryTarget: (percent, factory) =>
+    `${percent} % gewollt, Werksprofil allein sagt ${factory} %`,
+  lumFactoryAccuracy: (max, hue) =>
+    `Schlechtester Fehler der Kreuzvalidierung: ${max} Prozentpunkte, bei ` +
+    `Farbton ${hue}°. Das Ziel von 10 wurde nicht erreicht — die Abweichung ` +
+    `steckt in den Messungen dieses einen Farbtons, nicht im Modell.`,
+  lumFactoryAccuracyMet: 'Kreuzvalidierung bestanden.',
+  lumFactoryObservations:
+    'Die zugrunde liegenden Messungen widersprechen sich stellenweise; das ' +
+    'ausgelieferte Gitter steigt trotzdem überall mit dem Licht.',
+  lumFactoryMismatch:
+    'Die gespeicherten Korrekturen wurden auf einem anderen Profil gelernt ' +
+    'und werden nicht angewendet. „Auf Werk zurücksetzen“ räumt sie weg.',
+  lumResiduals: 'Eigene Korrekturen',
+  lumResidualsHint:
+    'Was die Automatik aus dem Nachregeln gelernt hat — als Abweichung vom ' +
+    'Werksprofil, in Dekaden Licht, und getrennt nach Farbe. Zwei ' +
+    'Korrekturen bei gleichem Licht in verschiedenen Farben verdrängen ' +
+    'einander nicht.',
+  lumResidualsEmpty: 'Noch nichts nachgeregelt.',
+  lumResidualDecades: 'Abweichung',
+  lumFactoryRestore: 'Auf Werk zurücksetzen',
+  lumFactoryRestoreHint:
+    'Löscht die eigenen Korrekturen und die gelernte Weißkurve. Die ' +
+    'Eigenlicht-Messung bleibt: die gehört zur Optik dieser Uhr, nicht zum ' +
+    'Geschmack.',
+
   // --- timezone tab ---
   timeServer: 'Zeitserver',
   ntpServer: 'NTP-Server',
@@ -408,6 +459,16 @@ export default {
   err_nvsDelete: 'Löschen fehlgeschlagen',
   err_nvsMemory: 'Zu wenig Arbeitsspeicher',
   err_nvsNamespaceDelete: 'Ein Namensraum verschwindet mit seinem letzten Schlüssel',
+  err_factoryMissing: 'Kein Werksprofil im Dateisystem',
+  err_factoryLayout: 'Werksprofil hat nicht den erwarteten Aufbau',
+  err_factoryChecksum: 'Werksprofil stimmt nicht mit seiner Prüfsumme überein',
+  err_factorySchema: 'Werksprofil hat ein unbekanntes Schema',
+  err_factoryModel: 'Werksprofil beschreibt ein anderes Modell',
+  err_factoryShape: 'Werksprofil ist unvollständig oder fehlerhaft',
+  err_factoryNotMonotone: 'Werksgitter fällt mit steigendem Licht',
+  err_factoryTooBig: 'Werksprofil hat nicht die Größe eines Profils',
+  err_factoryUnreadable: 'Werksprofil ist nicht lesbar',
+  err_factoryUnavailable: 'Kein gültiges Werksprofil zum Zurücksetzen',
 
   // --- api errors ---
   connectionLost: 'Verbindung zur Uhr unterbrochen',

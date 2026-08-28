@@ -51,6 +51,7 @@
 #include "Settings.h"
 #include "LightSensor.h"
 #include "Luminance.h"
+#include "FactoryLuminance.h"
 #include "Coupling.h"
 #include "Calibration.h"
 #include "OtaUpdate.h"
@@ -494,7 +495,17 @@ byte brightnessToApply()
         return nudge;
     }
 
-    byte target = Luminance::forLux(ambientLight.lux());
+    // The colour the face is actually showing goes in with the light. What a
+    // percentage is worth depends on it - the same setting emits about a tenth
+    // as much in full blue as in the green this clock runs - so a regulator
+    // that ignored it would be steady in percent and swing by a factor of ten
+    // in light. Luminance::targetFor() falls back to the white curve when
+    // there is no factory profile, so this line is the same behaviour as
+    // before on a clock that has none.
+    Luminance::Target wanted;
+    Luminance::targetFor(ambientLight.lux(), settings.getColorHue(),
+                         settings.getColorSat(), wanted);
+    byte target = wanted.percent;
 
     if (applied < 0) applied = target;
 
@@ -665,7 +676,32 @@ void setup()
     // started at the plug. Before the server, so no request can arrive while
     // the answer to "is this clock unlocked" is still the default.
     Expert::begin();
+
+    // The colour-aware model, out of the filesystem image and checked before
+    // it is believed. **Before Luminance::begin()**, which reads the stored
+    // corrections and has to know which profile they were learned against -
+    // and after the filesystem is mounted, since that is where it lives. A
+    // clock whose image predates this, or whose file fails any of the checks,
+    // simply carries on with the white curve; see FactoryLuminance.h.
+    if (!FactoryLuminance::begin())
+    {
+        debugI("No factory colour profile (%s) - the automatic runs on the "
+               "learned white curve, as it did before", FactoryLuminance::error());
+    }
     Luminance::begin();
+
+    // Which profile this clock is on, written into NVS the first time there is
+    // one to write. Only when nothing is recorded yet: after a filesystem
+    // update has brought a *different* measurement in, the old identity is the
+    // interesting one - it is what the corrections in hand were said about -
+    // and the factory restore is the deliberate act that moves it on.
+    if (FactoryLuminance::available()
+        && strlen(FactoryLuminance::recordedChecksum()) == 0)
+    {
+        FactoryLuminance::record();
+        debugI("Factory profile %s recorded as this clock's baseline",
+               FactoryLuminance::profileId());
+    }
 
     Web::begin();
     Files::begin();

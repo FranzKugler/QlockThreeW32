@@ -14,6 +14,8 @@
 #include <math.h>
 
 #include "Luminance.h"
+#include "FactoryLuminance.h"
+#include "ResidualStore.h"
 #include "LightSensor.h"   // LUX_FLOOR
 #include "LogBuffer.h"
 
@@ -23,6 +25,11 @@
 // and ten points would be a filing system rather than a record.
 #define LUM_NAMESPACE "qlocklight"
 #define LUM_KEY       "curve"
+// The corrections on top of the factory model, under a key of their own beside
+// the white curve rather than inside it. They are written on a different
+// occasion, they survive a different set of resets, and an older firmware
+// reading this namespace finds its own record untouched.
+#define LUM_USER_KEY  "user"
 
 namespace
 {
@@ -261,9 +268,160 @@ namespace
         points_[count].sat = sat;
         count++;
     }
+
+    // ------------------------------------------------------------------
+    // The user layer: corrections on top of the factory model
+    //
+    // The white ring above is what a clock learns when it has no model of its
+    // own optics. With a factory profile there *is* one, and it already
+    // carries the shape - how much brighter a decade of ambient light is
+    // worth, and how much more slider a blue face needs than a green one. What
+    // is left to learn is a preference, and a preference is small.
+    //
+    // So a nudge is not stored as "at this lux, this percent". It is stored as
+    // the difference, in decades of emitted light, between what the person
+    // wanted and what the model asked for - keyed by the light *and the
+    // colour* it was said in. Two nudges at the same lux in different colours
+    // are two statements and neither replaces the other. That is the whole
+    // point: the old ring could not tell them apart, so an evening in blue
+    // silently overwrote an afternoon in green.
+    // ------------------------------------------------------------------
+
+    // The corrections themselves live in ResidualStore, which is pure and
+    // therefore testable: every rule about which of two statements survives is
+    // there, checked by tests/host/test_residual_store.cpp. What is left here
+    // is the storage and the timing.
+    ResidualStore::Store user_;
+
+    /*
+     * Whether there is a stored record of corrections that were learned on a
+     * *different* profile from the one now installed.
+     *
+     * The fact belongs here rather than in FactoryLuminance, and the
+     * difference matters: the NVS key FactoryLuminance keeps is "which
+     * profile is this clock on", written once, while this is "were the
+     * corrections in hand said about it" - and on a clock that has never
+     * corrected anything the honest answer is "nothing disagrees", not "no".
+     * Read the other way round, a brand new clock shows a warning about a
+     * mismatch it does not have.
+     */
+    bool userStale = false;
+
+    void storeUser()
+    {
+        JsonDocument doc;
+        // Which profile these were learned against. A correction measured on
+        // one baseline means nothing on another, and a filesystem update can
+        // bring a new measurement underneath them.
+        doc["profile"] = FactoryLuminance::sourceChecksum();
+        JsonArray list = doc["residuals"].to<JsonArray>();
+        for (uint8_t i = 0; i < user_.count; i++)
+        {
+            JsonArray one = list.add<JsonArray>();
+            one.add(user_.at[i].logLux);
+            one.add(user_.at[i].decades);
+            one.add(user_.at[i].hue);
+            one.add(user_.at[i].sat);
+            one.add(user_.at[i].seconds);
+            // Appended, so a record written before the bound was represented
+            // reads as exact - which is what such a clock believed it was.
+            one.add(user_.at[i].bound);
+        }
+
+        String out;
+        serializeJson(doc, out);
+
+        Preferences preferences;
+        if (!preferences.begin(LUM_NAMESPACE, false))
+        {
+            debugE("Luminance: cannot open NVS for the corrections");
+            return;
+        }
+        if (preferences.getString(LUM_USER_KEY, "") != out)
+        {
+            preferences.putString(LUM_USER_KEY, out);
+        }
+        preferences.end();
+    }
+
+    void loadUser()
+    {
+        user_.count = 0;
+        userStale = false;
+
+        Preferences preferences;
+        if (!preferences.begin(LUM_NAMESPACE, true)) return;
+        String stored = preferences.getString(LUM_USER_KEY, "");
+        preferences.end();
+        if (stored.length() == 0) return;
+
+        JsonDocument doc;
+        if (deserializeJson(doc, stored) != DeserializationError::Ok)
+        {
+            debugE("Luminance: the stored corrections are not readable");
+            return;
+        }
+
+        // Learned against a different baseline. Kept in NVS rather than
+        // deleted - they are still what somebody said - but not applied, since
+        // adding them to a grid they were not measured on is arithmetic across
+        // two models. The read-out says so and the factory restore clears them.
+        String against = doc["profile"] | "";
+        if (FactoryLuminance::available()
+            && against != FactoryLuminance::sourceChecksum())
+        {
+            userStale = true;
+            debugW("Luminance: %d corrections were learned on another profile "
+                   "and are not being applied", (int)doc["residuals"].size());
+            return;
+        }
+
+        for (JsonArray one : doc["residuals"].as<JsonArray>())
+        {
+            if (user_.count >= RESIDUAL_MAX) break;
+
+            uint16_t hue = one[2] | (uint16_t)LUM_HUE_UNKNOWN;
+            uint8_t sat = one[3] | (uint8_t)0;
+            // A correction with no colour cannot be placed on a colour-aware
+            // grid, and guessing one would put it at hue 0, which is red. It
+            // belongs to the legacy white line and stays there.
+            if (hue == LUM_HUE_UNKNOWN) continue;
+
+            ResidualStore::Residual &into = user_.at[user_.count++];
+            into.logLux = one[0] | 0.0;
+            into.decades = one[1] | 0.0;
+            // Canonicalised on the way in as well as on the way out, so a
+            // record written before white lost its hue reads as one white
+            // rather than as several.
+            into.hue = ResidualStore::canonicalHue(hue, sat);
+            into.sat = sat;
+            into.seconds = one[4] | (uint32_t)0;
+            into.bound = (one[5] | 0) ? 1 : 0;
+        }
+    }
+
+    /** True when the factory model is the one answering. */
+    bool factoryRuns(uint16_t hue)
+    {
+        return FactoryLuminance::available() && hue != LUM_HUE_UNKNOWN;
+    }
 }
 
-void Luminance::begin()
+/**
+ * Reads the legacy white curve, if there is one.
+ *
+ * Its own function, and that is the fix for a real bug rather than tidiness.
+ * This used to be the body of begin() with three early returns in it - no NVS
+ * namespace, no stored key, unreadable JSON - and loadUser() sat *after* them.
+ * On a clock that has only ever known the factory model there is no `curve`
+ * key at all, so the second return fired, the corrections were never read
+ * back, and everything the owner had taught the clock vanished at every
+ * reboot while the read-out went on showing an empty list as though nothing
+ * had been said.
+ *
+ * The two records are independent and are now read independently.
+ */
+static void loadCurve()
 {
     defaultLine();
     count = 0;
@@ -316,9 +474,28 @@ void Luminance::begin()
     // read-out and a future tool can see them, but the points are the record
     // and the line is derived. If the two ever disagree the points win.
     fit();
+}
 
-    debugI("Luminance: %d points, %.1f%%/decade at %.1f%%, slope %s",
-           count, lineSlope, lineOffset, fittedSlope ? "fitted" : "kept");
+/**
+ * Both records, unconditionally.
+ *
+ * There is deliberately no `return` in this function. The two stores are
+ * independent - a clock can have corrections and no white curve, or a white
+ * curve and no corrections - and every early exit added here is a way for one
+ * of them to be silently skipped because the *other* one is missing. That is
+ * exactly the bug loadCurve() was split out of.
+ */
+void Luminance::begin()
+{
+    loadCurve();
+    loadUser();
+
+    debugI("Luminance: %d points, %.1f%%/decade at %.1f%%, slope %s, "
+           "%d colour corrections on %s",
+           count, lineSlope, lineOffset, fittedSlope ? "fitted" : "kept",
+           user_.count,
+           FactoryLuminance::available() ? FactoryLuminance::profileId()
+                                         : "no factory profile");
 }
 
 uint8_t Luminance::forLux(float lux)
@@ -358,7 +535,47 @@ bool Luminance::poll(float lux)
     if ((int32_t)(millis() - settleAt) < 0) return false;
 
     waiting = false;
-    remember(lux, wanted, (uint32_t)(millis() / 1000), wantedHue, wantedSat);
+    uint32_t seconds = (uint32_t)(millis() / 1000);
+
+    // With a factory profile, what is learned is a *correction to it*, not a
+    // point on a line of its own. The grid already says what this stack does
+    // at this light in this colour; the person is saying it should be a little
+    // more or a little less, and that difference is what generalises.
+    if (factoryRuns(wantedHue))
+    {
+        FactoryProfile::Answer asked;
+        if (FactoryLuminance::evaluate(lux, wantedHue, wantedSat, asked))
+        {
+            // In decades of emitted light, which is the coordinate the
+            // difference is constant in. Expressed in percent it would mean
+            // something else the next time the colour changed.
+            double got = FactoryProfile::logOutput(FactoryProfile::relativeOutput(
+                FactoryLuminance::profile(), wantedHue, wantedSat, wanted));
+            // A nudge sitting at the top of the regulated range is a lower
+            // bound: the slider had nothing above it to offer, so what was
+            // said is "at least this much". Kept as such rather than as an
+            // equality - read as one it would make the model dimmer than the
+            // only thing anybody measured, and it would do so in bright rooms,
+            // where being too dim is worst. The floor is deliberately not
+            // treated the same way; see ResidualStore::Residual::bound.
+            bool censored = (wanted >= rangeHigh);
+
+            ResidualStore::add(user_, logLux(lux), got - asked.target,
+                               wantedHue, wantedSat, seconds, censored);
+            storeUser();
+
+            debugI("Luminance: %.2f lx hue %d sat %d - wanted %d%%, the model "
+                   "asked %d%%, keeping %+.3f decades%s (%d corrections)",
+                   lux, wantedHue, wantedSat, wanted, asked.percent,
+                   got - asked.target, censored ? " as a lower bound" : "",
+                   user_.count);
+            return true;
+        }
+    }
+
+    // No profile, or a nudge made in a colour nobody recorded. The white line,
+    // exactly as before.
+    remember(lux, wanted, seconds, wantedHue, wantedSat);
     fit();
     store();
 
@@ -366,6 +583,95 @@ bool Luminance::poll(float lux)
            "%.1f%%/decade at %.1f%% (slope %s)",
            lux, wanted, wantedHue, wantedSat, count, lineSlope, lineOffset,
            fittedSlope ? "fitted" : "kept");
+    return true;
+}
+
+void Luminance::targetFor(float lux, uint16_t hue, uint8_t sat, Target &out)
+{
+    out.percent = forLux(lux);
+    out.source = SOURCE_LEGACY;
+    out.factory = out.percent;
+    out.bias = 0.0f;
+    out.limited = out.bound = out.clamped = false;
+
+    if (!factoryRuns(hue)) return;
+
+    // What the grid alone asks for, kept separately - the read-out shows both,
+    // because "the model says 42 and you have taught it 47" is the sentence
+    // somebody needs when the automatic feels wrong.
+    FactoryProfile::Answer plain;
+    if (!FactoryLuminance::evaluate(lux, hue, sat, plain)) return;
+
+    double weight = 0.0;
+    double bias = ResidualStore::bias(user_, logLux(lux), hue, sat, weight);
+
+    FactoryProfile::Answer answer = plain;
+    if (weight > 0.0
+        && !FactoryProfile::evaluateWith(FactoryLuminance::profile(), (double)lux,
+                                         hue, sat, bias, answer))
+    {
+        answer = plain;
+        bias = 0.0;
+        weight = 0.0;
+    }
+
+    // Clamped to the regulated range the owner set on this very screen, which
+    // is not the same as the range the profile was measured over.
+    long value = answer.percent;
+    if (value < rangeLow) value = rangeLow;
+    if (value > rangeHigh) value = rangeHigh;
+
+    out.percent = (uint8_t)value;
+    out.factory = plain.percent;
+    out.bias = (weight > 0.0) ? (float)bias : 0.0f;
+    out.source = (weight > 0.0) ? SOURCE_FACTORY_USER : SOURCE_FACTORY;
+    out.limited = (answer.limited != FactoryProfile::LIMITED_NONE);
+    out.bound = answer.bound;
+    out.clamped = (answer.clamped != FactoryProfile::CLAMP_NONE);
+}
+
+bool Luminance::residualsStale() { return userStale; }
+
+uint8_t Luminance::residuals(Residual *out, uint8_t max)
+{
+    uint8_t given = 0;
+    for (uint8_t i = 0; i < user_.count && given < max; i++) out[given++] = user_.at[i];
+    return given;
+}
+
+bool Luminance::forgetResidual(uint8_t index)
+{
+    if (!ResidualStore::forget(user_, index)) return false;
+    storeUser();
+    debugA("Luminance: correction %d forgotten, %d left", index, user_.count);
+    return true;
+}
+
+bool Luminance::factoryRestore()
+{
+    // Checked before anything is written. A restore that failed half way
+    // would leave the clock between two models, which is the one state
+    // nothing here can describe.
+    if (!FactoryLuminance::available()) return false;
+
+    user_.count = 0;
+    userStale = false;
+    waiting = false;
+    storeUser();
+
+    // The white points are the same preferences said in the old coordinates.
+    // Left behind, they would make a restored clock read as restored only
+    // until the day its profile is refused.
+    count = 0;
+    defaultLine();
+    store();
+
+    // And a note of which profile this clock is now on. Coupling is untouched:
+    // it is a measurement of this clock's own optics, not of anybody's taste.
+    FactoryLuminance::record();
+
+    debugA("Luminance: back to the factory profile %s, corrections cleared, "
+           "the coupling measurement kept", FactoryLuminance::profileId());
     return true;
 }
 

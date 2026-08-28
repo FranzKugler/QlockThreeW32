@@ -122,6 +122,50 @@ export async function resetLightPoints() {
 }
 
 /**
+ * Forgets one colour correction, by its place in `user.residuals`.
+ *
+ * The same argument as forgetting a taught point, in the layer above it: a
+ * correction can be wrong rather than merely old - made ten seconds after
+ * somebody turned a lamp off - and the only remedy before this was throwing
+ * all of them away with a factory restore.
+ */
+export async function forgetResidual(index) {
+  return writeLuminance({ forgetResidual: index });
+}
+
+/**
+ * Back to the factory baseline.
+ *
+ * What goes: the colour corrections learned from this clock's nudges, and the
+ * white points that are the same preferences said in the old coordinates.
+ * What stays: the **coupling measurement**, which is the clock having measured
+ * where its own sensor sits behind its own letters and has nothing to do with
+ * anybody's taste. Twenty minutes to redo, and no reason to.
+ *
+ * Behind expert mode, like every other write here, and refused by the clock
+ * when there is no valid profile to restore *to* - which is the case worth
+ * refusing, because otherwise "restore" would mean "delete".
+ */
+export async function restoreFactoryLuminance() {
+  return writeLuminance({ factoryRestore: true });
+}
+
+/**
+ * The colour-aware surface: what the factory profile asks for at every ambient
+ * level and every hue, at full saturation.
+ *
+ * Fetched **once**, not polled. It is 3 KB of measurement that changes when
+ * the filesystem image changes, which is a reboot away; /luminance carries the
+ * one number that moves. Throws, so the diagram can say the clock did not
+ * answer rather than draw an empty box that looks like a clock with no model.
+ */
+export async function fetchLuminanceSurface() {
+  const res = await fetch('/luminance/surface');
+  if (!res.ok) throw new Error(`/luminance/surface: HTTP ${res.status}`);
+  return res.json();
+}
+
+/**
  * Starts the clock measuring its own coupling, and stops one.
  *
  * On /light rather than /luminance because what it produces is the same map

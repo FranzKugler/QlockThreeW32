@@ -1,0 +1,1695 @@
+{
+ "checksum": {
+  "algorithm": "sha256",
+  "value": "d970aac4461316700fc01fb7cf3efbf44b0c57a2b7841c5551e2ce56a37ab784"
+ },
+ "diagnostics": {
+  "monotone": false,
+  "nonMonotoneHues": [
+   {
+    "fromLux": 0.15,
+    "fromPercent": 50,
+    "fromTarget": -1.2153330892,
+    "hue": 60,
+    "toLux": 0.5,
+    "toPercent": 50,
+    "toTarget": -1.2271719423
+   },
+   {
+    "fromLux": 0.15,
+    "fromPercent": 50,
+    "fromTarget": -1.0859468677,
+    "hue": 180,
+    "toLux": 0.5,
+    "toPercent": 50,
+    "toTarget": -1.1214634267
+   },
+   {
+    "fromLux": 0.15,
+    "fromPercent": 80,
+    "fromTarget": -1.3046301335,
+    "hue": 240,
+    "toLux": 0.5,
+    "toPercent": 70,
+    "toTarget": -1.5539117408
+   }
+  ],
+  "nonMonotoneWhite": [
+   {
+    "fromLogOutput": -0.962330942,
+    "fromLux": 0.15,
+    "toLogOutput": -1.045202913,
+    "toLux": 0.5
+   }
+  ],
+  "note": "A brighter room asking for less light is not something anybody wants, and it is what these two sittings say to each other. The grid the evaluator reads has been projected onto the nearest non-decreasing one (see `monotonic`), but the contradiction is reported here from the *observed* values, because a profile that only showed the repaired numbers would hide the one thing a reader needs before trusting it. The real remedy is another sitting at these levels."
+ },
+ "extrapolation": "clamp",
+ "hueCyclic": true,
+ "hueKnots": [
+  0,
+  60,
+  120,
+  180,
+  240,
+  300
+ ],
+ "huePeriodDegrees": 360,
+ "levels": [
+  {
+   "censored": false,
+   "declaredRound": true,
+   "logLux": -1.6989700043,
+   "lux": 0.02,
+   "residuals": [
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 0,
+     "index": 27,
+     "logOutput": -2.1949898863,
+     "logOutputResidual": -0.6724367398,
+     "logOutputResidualObserved": -0.6724367398,
+     "observations": [
+      {
+       "censored": false,
+       "index": 27,
+       "kind": "round",
+       "logOutput": -2.1949898863,
+       "logOutputResidual": -0.6724367398,
+       "percent": 30,
+       "roundId": "dark-room-0.02-lux-drift-controlled",
+       "sequence": 1
+      }
+     ],
+     "percent": 30,
+     "replicates": 1,
+     "sequence": 1,
+     "targetLogOutput": -2.1949898863,
+     "targetLogOutputObserved": -2.1949898863,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.5225531465
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 60,
+     "index": 30,
+     "logOutput": -1.5979522183,
+     "logOutputResidual": -0.0753990717,
+     "logOutputResidualObserved": -0.0753990717,
+     "observations": [
+      {
+       "censored": false,
+       "index": 30,
+       "kind": "round",
+       "logOutput": -1.5979522183,
+       "logOutputResidual": -0.0753990717,
+       "percent": 40,
+       "roundId": "dark-room-0.02-lux-drift-controlled",
+       "sequence": 4
+      }
+     ],
+     "percent": 40,
+     "replicates": 1,
+     "sequence": 4,
+     "targetLogOutput": -1.5979522182,
+     "targetLogOutputObserved": -1.5979522182,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.5225531465
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 120,
+     "index": 33,
+     "logOutput": -1.5043745832,
+     "logOutputResidual": 0.0181785633,
+     "logOutputResidualObserved": 0.0181785633,
+     "observations": [
+      {
+       "censored": false,
+       "index": 33,
+       "kind": "round",
+       "logOutput": -1.5043745832,
+       "logOutputResidual": 0.0181785633,
+       "percent": 35,
+       "roundId": "dark-room-0.02-lux-drift-controlled",
+       "sequence": 7
+      }
+     ],
+     "percent": 35,
+     "replicates": 1,
+     "sequence": 7,
+     "targetLogOutput": -1.5043745832,
+     "targetLogOutputObserved": -1.5043745832,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.5225531465
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 180,
+     "index": 28,
+     "logOutput": -1.7020362385,
+     "logOutputResidual": -0.179483092,
+     "logOutputResidualObserved": -0.179483092,
+     "observations": [
+      {
+       "censored": false,
+       "index": 28,
+       "kind": "round",
+       "logOutput": -1.7020362385,
+       "logOutputResidual": -0.179483092,
+       "percent": 35,
+       "roundId": "dark-room-0.02-lux-drift-controlled",
+       "sequence": 2
+      }
+     ],
+     "percent": 35,
+     "replicates": 1,
+     "sequence": 2,
+     "targetLogOutput": -1.7020362385,
+     "targetLogOutputObserved": -1.7020362385,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.5225531465
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 240,
+     "index": 31,
+     "logOutput": -1.9125532403,
+     "logOutputResidual": -0.3969287701,
+     "logOutputResidualObserved": -0.3969287701,
+     "observations": [
+      {
+       "censored": false,
+       "index": 31,
+       "kind": "round",
+       "logOutput": -1.9125532403,
+       "logOutputResidual": -0.3900000938,
+       "percent": 50,
+       "roundId": "dark-room-0.02-lux-drift-controlled",
+       "sequence": 5
+      },
+      {
+       "censored": false,
+       "index": 67,
+       "kind": "targeted",
+       "logOutput": -2.2121270531,
+       "logOutputResidual": -0.4038574465,
+       "percent": 40,
+       "roundId": "hue240-targeted-repeat-2026-08-27-0.02",
+       "sequence": 1
+      }
+     ],
+     "percent": 50,
+     "replicates": 2,
+     "sequence": 5,
+     "targetLogOutput": -1.9194819167,
+     "targetLogOutputObserved": -1.9194819167,
+     "weight": 2.0,
+     "whiteLogOutputBeside": -1.5225531465
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 300,
+     "index": 34,
+     "logOutput": -2.0652846703,
+     "logOutputResidual": -0.5427315238,
+     "logOutputResidualObserved": -0.5427315238,
+     "observations": [
+      {
+       "censored": false,
+       "index": 34,
+       "kind": "round",
+       "logOutput": -2.0652846703,
+       "logOutputResidual": -0.5427315238,
+       "percent": 40,
+       "roundId": "dark-room-0.02-lux-drift-controlled",
+       "sequence": 8
+      }
+     ],
+     "percent": 40,
+     "replicates": 1,
+     "sequence": 8,
+     "targetLogOutput": -2.0652846703,
+     "targetLogOutputObserved": -2.0652846703,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.5225531465
+    }
+   ],
+   "roundId": "dark-room-0.02-lux-drift-controlled",
+   "whiteAdjustmentDecades": 0.0,
+   "whiteAnchors": [
+    {
+     "index": 26,
+     "logOutput": -1.5225531465,
+     "percent": 30,
+     "sat": 0,
+     "sequence": 0
+    },
+    {
+     "index": 29,
+     "logOutput": -1.5225531465,
+     "percent": 30,
+     "sat": 0,
+     "sequence": 3
+    },
+    {
+     "index": 32,
+     "logOutput": -1.5225531465,
+     "percent": 30,
+     "sat": 0,
+     "sequence": 6
+    },
+    {
+     "index": 35,
+     "logOutput": -1.5225531465,
+     "percent": 30,
+     "sat": 0,
+     "sequence": 9
+    }
+   ],
+   "whiteLogOutput": -1.5225531465,
+   "whiteLogOutputObserved": -1.5225531465
+  },
+  {
+   "censored": false,
+   "declaredRound": true,
+   "logLux": -1.15490196,
+   "lux": 0.07,
+   "residuals": [
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 0,
+     "index": 17,
+     "logOutput": -1.7176396528,
+     "logOutputResidual": -0.4365459687,
+     "logOutputResidualObserved": -0.4365459687,
+     "observations": [
+      {
+       "censored": false,
+       "index": 17,
+       "kind": "round",
+       "logOutput": -1.7176396528,
+       "logOutputResidual": -0.4365459687,
+       "percent": 40,
+       "roundId": "dark-0.07-lux-drift-controlled",
+       "sequence": 1
+      }
+     ],
+     "percent": 40,
+     "replicates": 1,
+     "sequence": 1,
+     "targetLogOutput": -1.6810273044,
+     "targetLogOutputObserved": -1.6810273044,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.2810936841
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 60,
+     "index": 20,
+     "logOutput": -1.3831433617,
+     "logOutputResidual": -0.1508661422,
+     "logOutputResidualObserved": -0.1508661422,
+     "observations": [
+      {
+       "censored": false,
+       "index": 20,
+       "kind": "round",
+       "logOutput": -1.3831433617,
+       "logOutputResidual": -0.1508661422,
+       "percent": 45,
+       "roundId": "dark-0.07-lux-drift-controlled",
+       "sequence": 4
+      }
+     ],
+     "percent": 45,
+     "replicates": 1,
+     "sequence": 4,
+     "targetLogOutput": -1.3953474779,
+     "targetLogOutputObserved": -1.3953474779,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.2322772195
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 120,
+     "index": 23,
+     "logOutput": -1.0867981394,
+     "logOutputResidual": 0.0966626156,
+     "logOutputResidualObserved": 0.0966626156,
+     "observations": [
+      {
+       "censored": false,
+       "index": 23,
+       "kind": "round",
+       "logOutput": -1.0867981394,
+       "logOutputResidual": 0.0966626156,
+       "percent": 45,
+       "roundId": "dark-0.07-lux-drift-controlled",
+       "sequence": 7
+      }
+     ],
+     "percent": 45,
+     "replicates": 1,
+     "sequence": 7,
+     "targetLogOutput": -1.1478187201,
+     "targetLogOutputObserved": -1.1478187201,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.183460755
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 180,
+     "index": 18,
+     "logOutput": -1.2673348869,
+     "logOutputResidual": 0.0137587972,
+     "logOutputResidualObserved": 0.0137587972,
+     "observations": [
+      {
+       "censored": false,
+       "index": 18,
+       "kind": "round",
+       "logOutput": -1.2673348869,
+       "logOutputResidual": 0.0137587972,
+       "percent": 45,
+       "roundId": "dark-0.07-lux-drift-controlled",
+       "sequence": 2
+      }
+     ],
+     "percent": 45,
+     "replicates": 1,
+     "sequence": 2,
+     "targetLogOutput": -1.2307225385,
+     "targetLogOutputObserved": -1.2307225385,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.2810936841
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 240,
+     "index": 21,
+     "logOutput": -1.5125673165,
+     "logOutputResidual": -0.3291065614,
+     "logOutputResidualObserved": -0.3291065614,
+     "observations": [
+      {
+       "censored": false,
+       "index": 21,
+       "kind": "round",
+       "logOutput": -1.5125673165,
+       "logOutputResidual": -0.3291065614,
+       "percent": 70,
+       "roundId": "dark-0.07-lux-drift-controlled",
+       "sequence": 5
+      }
+     ],
+     "percent": 70,
+     "replicates": 1,
+     "sequence": 5,
+     "targetLogOutput": -1.5735878971,
+     "targetLogOutputObserved": -1.5735878971,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.183460755
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 300,
+     "index": 24,
+     "logOutput": -1.5479377715,
+     "logOutputResidual": -0.3156605519,
+     "logOutputResidualObserved": -0.3156605519,
+     "observations": [
+      {
+       "censored": false,
+       "index": 24,
+       "kind": "round",
+       "logOutput": -1.5479377715,
+       "logOutputResidual": -0.3156605519,
+       "percent": 55,
+       "roundId": "dark-0.07-lux-drift-controlled",
+       "sequence": 8
+      }
+     ],
+     "percent": 55,
+     "replicates": 1,
+     "sequence": 8,
+     "targetLogOutput": -1.5601418876,
+     "targetLogOutputObserved": -1.5601418876,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.2322772195
+    }
+   ],
+   "roundId": "dark-0.07-lux-drift-controlled",
+   "whiteAdjustmentDecades": 0.0,
+   "whiteAnchors": [
+    {
+     "index": 16,
+     "logOutput": -1.2810936841,
+     "percent": 35,
+     "sat": 0,
+     "sequence": 0
+    },
+    {
+     "index": 19,
+     "logOutput": -1.2810936841,
+     "percent": 35,
+     "sat": 0,
+     "sequence": 3
+    },
+    {
+     "index": 22,
+     "logOutput": -1.1346442905,
+     "percent": 38,
+     "sat": 0,
+     "sequence": 6
+    },
+    {
+     "index": 25,
+     "logOutput": -1.2810936841,
+     "percent": 35,
+     "sat": 0,
+     "sequence": 9
+    }
+   ],
+   "whiteLogOutput": -1.2444813357,
+   "whiteLogOutputObserved": -1.2444813357
+  },
+  {
+   "censored": false,
+   "declaredRound": false,
+   "logLux": -0.8239087409,
+   "lux": 0.15,
+   "residuals": [
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 0,
+     "index": 9,
+     "logOutput": -1.7176396528,
+     "logOutputResidual": -0.6408664652,
+     "logOutputResidualObserved": -0.6961144458,
+     "observations": [
+      {
+       "censored": false,
+       "index": 9,
+       "kind": "round",
+       "logOutput": -1.7176396528,
+       "logOutputResidual": -0.6961144458,
+       "percent": 40,
+       "roundId": "undeclared@-0.823908740944-log10lux",
+       "sequence": 9
+      }
+     ],
+     "percent": 40,
+     "replicates": 1,
+     "sequence": 9,
+     "targetLogOutput": -1.6584453878,
+     "targetLogOutputObserved": -1.6584453878,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.021525207
+    },
+    {
+     "adjusted": true,
+     "adjustmentDecades": -0.0059194265,
+     "bound": null,
+     "hue": 60,
+     "index": 11,
+     "logOutput": -1.2271719422,
+     "logOutputResidual": -0.2036735931,
+     "logOutputResidualObserved": -0.2530021472,
+     "observations": [
+      {
+       "censored": false,
+       "index": 11,
+       "kind": "round",
+       "logOutput": -1.2271719422,
+       "logOutputResidual": -0.2530021472,
+       "percent": 50,
+       "roundId": "undeclared@-0.823908740944-log10lux",
+       "sequence": 11
+      }
+     ],
+     "percent": 50,
+     "replicates": 1,
+     "sequence": 11,
+     "targetLogOutput": -1.2212525158,
+     "targetLogOutputObserved": -1.2153330892,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.974169795
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 120,
+     "index": 13,
+     "logOutput": -0.9464824014,
+     "logOutputResidual": 0.0355799623,
+     "logOutputResidualObserved": -0.0196680183,
+     "observations": [
+      {
+       "censored": false,
+       "index": 13,
+       "kind": "round",
+       "logOutput": -0.9464824014,
+       "logOutputResidual": -0.0196680183,
+       "percent": 50,
+       "roundId": "undeclared@-0.823908740944-log10lux",
+       "sequence": 13
+      }
+     ],
+     "percent": 50,
+     "replicates": 1,
+     "sequence": 13,
+     "targetLogOutput": -0.9819989603,
+     "targetLogOutputObserved": -0.9819989603,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.9268143831
+    },
+    {
+     "adjusted": true,
+     "adjustmentDecades": -0.0177582795,
+     "bound": null,
+     "hue": 180,
+     "index": 10,
+     "logOutput": -1.1214634267,
+     "logOutputResidual": -0.0861262245,
+     "logOutputResidualObserved": -0.1236159257,
+     "observations": [
+      {
+       "censored": false,
+       "index": 10,
+       "kind": "round",
+       "logOutput": -1.1214634267,
+       "logOutputResidual": -0.1236159257,
+       "percent": 50,
+       "roundId": "undeclared@-0.823908740944-log10lux",
+       "sequence": 10
+      }
+     ],
+     "percent": 50,
+     "replicates": 1,
+     "sequence": 10,
+     "targetLogOutput": -1.1037051472,
+     "targetLogOutputObserved": -1.0859468677,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.997847501
+    },
+    {
+     "adjusted": true,
+     "adjustmentDecades": -0.1524062634,
+     "bound": null,
+     "hue": 240,
+     "index": 12,
+     "logOutput": -1.363224544,
+     "logOutputResidual": -0.4394574743,
+     "logOutputResidualObserved": -0.3422991915,
+     "observations": [
+      {
+       "censored": false,
+       "index": 12,
+       "kind": "round",
+       "logOutput": -1.363224544,
+       "logOutputResidual": -0.4127324549,
+       "percent": 80,
+       "roundId": "undeclared@-0.823908740944-log10lux",
+       "sequence": 12
+      },
+      {
+       "censored": false,
+       "index": 69,
+       "kind": "targeted",
+       "logOutput": -1.7944190746,
+       "logOutputResidual": -0.2718659281,
+       "percent": 55,
+       "roundId": "hue240-targeted-repeat-2026-08-27-0.15",
+       "sequence": 1
+      }
+     ],
+     "percent": 80,
+     "replicates": 2,
+     "sequence": 12,
+     "targetLogOutput": -1.4570363969,
+     "targetLogOutputObserved": -1.3046301335,
+     "weight": 2.0,
+     "whiteLogOutputBeside": -0.9504920891
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 300,
+     "index": 14,
+     "logOutput": -1.428816429,
+     "logOutputResidual": -0.4704317713,
+     "logOutputResidualObserved": -0.5256797519,
+     "observations": [
+      {
+       "censored": false,
+       "index": 14,
+       "kind": "round",
+       "logOutput": -1.428816429,
+       "logOutputResidual": -0.5256797519,
+       "percent": 60,
+       "roundId": "undeclared@-0.823908740944-log10lux",
+       "sequence": 14
+      }
+     ],
+     "percent": 60,
+     "replicates": 1,
+     "sequence": 14,
+     "targetLogOutput": -1.4880106939,
+     "targetLogOutputObserved": -1.4880106939,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.9031366771
+    }
+   ],
+   "roundId": "undeclared@-0.823908740944-log10lux",
+   "whiteAdjustmentDecades": -0.0552479806,
+   "whiteAnchors": [
+    {
+     "index": 8,
+     "logOutput": -1.045202913,
+     "percent": 40,
+     "sat": 0,
+     "sequence": 8
+    },
+    {
+     "index": 15,
+     "logOutput": -0.8794589711,
+     "percent": 45,
+     "sat": 0,
+     "sequence": 15
+    }
+   ],
+   "whiteLogOutput": -1.0175789227,
+   "whiteLogOutputObserved": -0.962330942
+  },
+  {
+   "censored": false,
+   "declaredRound": true,
+   "logLux": -0.3010299957,
+   "lux": 0.5,
+   "residuals": [
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 0,
+     "index": 57,
+     "logOutput": -1.4649471165,
+     "logOutputResidual": -0.4473681938,
+     "logOutputResidualObserved": -0.4197442035,
+     "observations": [
+      {
+       "censored": false,
+       "index": 57,
+       "kind": "round",
+       "logOutput": -1.4649471165,
+       "logOutputResidual": -0.4197442035,
+       "percent": 48,
+       "roundId": "mid-0.5-lux-drift-controlled",
+       "sequence": 1
+      }
+     ],
+     "percent": 48,
+     "replicates": 1,
+     "sequence": 1,
+     "targetLogOutput": -1.4649471165,
+     "targetLogOutputObserved": -1.4649471165,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.045202913
+    },
+    {
+     "adjusted": true,
+     "adjustmentDecades": 0.0059194265,
+     "bound": null,
+     "hue": 60,
+     "index": 60,
+     "logOutput": -1.2271719422,
+     "logOutputResidual": -0.2036735931,
+     "logOutputResidualObserved": -0.1819690293,
+     "observations": [
+      {
+       "censored": false,
+       "index": 60,
+       "kind": "round",
+       "logOutput": -1.2271719422,
+       "logOutputResidual": -0.1819690293,
+       "percent": 50,
+       "roundId": "mid-0.5-lux-drift-controlled",
+       "sequence": 4
+      }
+     ],
+     "percent": 50,
+     "replicates": 1,
+     "sequence": 4,
+     "targetLogOutput": -1.2212525158,
+     "targetLogOutputObserved": -1.2271719423,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.045202913
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 120,
+     "index": 63,
+     "logOutput": -0.9464824014,
+     "logOutputResidual": 0.0710965213,
+     "logOutputResidualObserved": 0.0987205116,
+     "observations": [
+      {
+       "censored": false,
+       "index": 63,
+       "kind": "round",
+       "logOutput": -0.9464824014,
+       "logOutputResidual": 0.0987205116,
+       "percent": 50,
+       "roundId": "mid-0.5-lux-drift-controlled",
+       "sequence": 7
+      }
+     ],
+     "percent": 50,
+     "replicates": 1,
+     "sequence": 7,
+     "targetLogOutput": -0.9464824014,
+     "targetLogOutputObserved": -0.9464824014,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.045202913
+    },
+    {
+     "adjusted": true,
+     "adjustmentDecades": 0.0177582795,
+     "bound": null,
+     "hue": 180,
+     "index": 58,
+     "logOutput": -1.1214634267,
+     "logOutputResidual": -0.0861262245,
+     "logOutputResidualObserved": -0.0762605137,
+     "observations": [
+      {
+       "censored": false,
+       "index": 58,
+       "kind": "round",
+       "logOutput": -1.1214634267,
+       "logOutputResidual": -0.0762605137,
+       "percent": 50,
+       "roundId": "mid-0.5-lux-drift-controlled",
+       "sequence": 2
+      }
+     ],
+     "percent": 50,
+     "replicates": 1,
+     "sequence": 2,
+     "targetLogOutput": -1.1037051472,
+     "targetLogOutputObserved": -1.1214634267,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.045202913
+    },
+    {
+     "adjusted": true,
+     "adjustmentDecades": 0.0968753439,
+     "bound": null,
+     "hue": 240,
+     "index": 61,
+     "logOutput": -1.5125673165,
+     "logOutputResidual": -0.4394574743,
+     "logOutputResidualObserved": -0.5087088279,
+     "observations": [
+      {
+       "censored": false,
+       "index": 61,
+       "kind": "round",
+       "logOutput": -1.5125673165,
+       "logOutputResidual": -0.4673644035,
+       "percent": 70,
+       "roundId": "mid-0.5-lux-drift-controlled",
+       "sequence": 5
+      },
+      {
+       "censored": false,
+       "index": 71,
+       "kind": "targeted",
+       "logOutput": -1.5952561651,
+       "logOutputResidual": -0.5500532522,
+       "percent": 65,
+       "roundId": "hue240-targeted-repeat-2026-08-27-0.5",
+       "sequence": 1
+      }
+     ],
+     "percent": 70,
+     "replicates": 2,
+     "sequence": 5,
+     "targetLogOutput": -1.4570363969,
+     "targetLogOutputObserved": -1.5539117408,
+     "weight": 2.0,
+     "whiteLogOutputBeside": -1.045202913
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 300,
+     "index": 64,
+     "logOutput": -1.428816429,
+     "logOutputResidual": -0.4112375063,
+     "logOutputResidualObserved": -0.383613516,
+     "observations": [
+      {
+       "censored": false,
+       "index": 64,
+       "kind": "round",
+       "logOutput": -1.428816429,
+       "logOutputResidual": -0.383613516,
+       "percent": 60,
+       "roundId": "mid-0.5-lux-drift-controlled",
+       "sequence": 8
+      }
+     ],
+     "percent": 60,
+     "replicates": 1,
+     "sequence": 8,
+     "targetLogOutput": -1.428816429,
+     "targetLogOutputObserved": -1.428816429,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -1.045202913
+    }
+   ],
+   "roundId": "mid-0.5-lux-drift-controlled",
+   "whiteAdjustmentDecades": 0.0276239903,
+   "whiteAnchors": [
+    {
+     "index": 56,
+     "logOutput": -1.045202913,
+     "percent": 40,
+     "sat": 0,
+     "sequence": 0
+    },
+    {
+     "index": 59,
+     "logOutput": -1.045202913,
+     "percent": 40,
+     "sat": 0,
+     "sequence": 3
+    },
+    {
+     "index": 62,
+     "logOutput": -1.045202913,
+     "percent": 40,
+     "sat": 0,
+     "sequence": 6
+    },
+    {
+     "index": 65,
+     "logOutput": -1.045202913,
+     "percent": 40,
+     "sat": 0,
+     "sequence": 9
+    }
+   ],
+   "whiteLogOutput": -1.0175789227,
+   "whiteLogOutputObserved": -1.045202913
+  },
+  {
+   "censored": false,
+   "declaredRound": true,
+   "logLux": 0.278753601,
+   "lux": 1.9,
+   "residuals": [
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 0,
+     "index": 47,
+     "logOutput": -1.2053820278,
+     "logOutputResidual": -0.4556098488,
+     "logOutputResidualObserved": -0.4556098488,
+     "observations": [
+      {
+       "censored": false,
+       "index": 47,
+       "kind": "round",
+       "logOutput": -1.2053820278,
+       "logOutputResidual": -0.4556098488,
+       "percent": 60,
+       "roundId": "mid-1.9-lux-drift-controlled",
+       "sequence": 1
+      }
+     ],
+     "percent": 60,
+     "replicates": 1,
+     "sequence": 1,
+     "targetLogOutput": -1.2053820277,
+     "targetLogOutputObserved": -1.2053820277,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.7497721789
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 60,
+     "index": 50,
+     "logOutput": -0.847894194,
+     "logOutputResidual": -0.0981220151,
+     "logOutputResidualObserved": -0.0981220151,
+     "observations": [
+      {
+       "censored": false,
+       "index": 50,
+       "kind": "round",
+       "logOutput": -0.847894194,
+       "logOutputResidual": -0.0981220151,
+       "percent": 65,
+       "roundId": "mid-1.9-lux-drift-controlled",
+       "sequence": 4
+      }
+     ],
+     "percent": 65,
+     "replicates": 1,
+     "sequence": 4,
+     "targetLogOutput": -0.847894194,
+     "targetLogOutputObserved": -0.847894194,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.7497721789
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 120,
+     "index": 53,
+     "logOutput": -0.6310447302,
+     "logOutputResidual": 0.1187274488,
+     "logOutputResidualObserved": 0.1187274488,
+     "observations": [
+      {
+       "censored": false,
+       "index": 53,
+       "kind": "round",
+       "logOutput": -0.6310447302,
+       "logOutputResidual": 0.1187274488,
+       "percent": 65,
+       "roundId": "mid-1.9-lux-drift-controlled",
+       "sequence": 7
+      }
+     ],
+     "percent": 65,
+     "replicates": 1,
+     "sequence": 7,
+     "targetLogOutput": -0.6310447301,
+     "targetLogOutputObserved": -0.6310447301,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.7497721789
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 180,
+     "index": 48,
+     "logOutput": -0.7795383375,
+     "logOutputResidual": -0.0297661585,
+     "logOutputResidualObserved": -0.0297661585,
+     "observations": [
+      {
+       "censored": false,
+       "index": 48,
+       "kind": "round",
+       "logOutput": -0.7795383375,
+       "logOutputResidual": -0.0297661585,
+       "percent": 65,
+       "roundId": "mid-1.9-lux-drift-controlled",
+       "sequence": 2
+      }
+     ],
+     "percent": 65,
+     "replicates": 1,
+     "sequence": 2,
+     "targetLogOutput": -0.7795383374,
+     "targetLogOutputObserved": -0.7795383374,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.7497721789
+    },
+    {
+     "adjusted": true,
+     "adjustmentDecades": 0.0555309195,
+     "bound": null,
+     "hue": 240,
+     "index": 51,
+     "logOutput": -1.5125673165,
+     "logOutputResidual": -0.707264218,
+     "logOutputResidualObserved": -0.7627951375,
+     "observations": [
+      {
+       "censored": false,
+       "index": 51,
+       "kind": "round",
+       "logOutput": -1.5125673165,
+       "logOutputResidual": -0.7627951375,
+       "percent": 70,
+       "roundId": "mid-1.9-lux-drift-controlled",
+       "sequence": 5
+      },
+      {
+       "censored": false,
+       "index": 73,
+       "kind": "targeted",
+       "logOutput": -1.5125673165,
+       "logOutputResidual": -0.7627951375,
+       "percent": 70,
+       "roundId": "hue240-targeted-repeat-2026-08-27-1.9",
+       "sequence": 1
+      }
+     ],
+     "percent": 70,
+     "replicates": 2,
+     "sequence": 5,
+     "targetLogOutput": -1.4570363969,
+     "targetLogOutputObserved": -1.5125673164,
+     "weight": 2.0,
+     "whiteLogOutputBeside": -0.7497721789
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 300,
+     "index": 54,
+     "logOutput": -1.2384818012,
+     "logOutputResidual": -0.4887096223,
+     "logOutputResidualObserved": -0.4887096223,
+     "observations": [
+      {
+       "censored": false,
+       "index": 54,
+       "kind": "round",
+       "logOutput": -1.2384818012,
+       "logOutputResidual": -0.4887096223,
+       "percent": 70,
+       "roundId": "mid-1.9-lux-drift-controlled",
+       "sequence": 8
+      }
+     ],
+     "percent": 70,
+     "replicates": 1,
+     "sequence": 8,
+     "targetLogOutput": -1.2384818012,
+     "targetLogOutputObserved": -1.2384818012,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.7497721789
+    }
+   ],
+   "roundId": "mid-1.9-lux-drift-controlled",
+   "whiteAdjustmentDecades": 0.0,
+   "whiteAnchors": [
+    {
+     "index": 46,
+     "logOutput": -0.7497721789,
+     "percent": 50,
+     "sat": 0,
+     "sequence": 0
+    },
+    {
+     "index": 49,
+     "logOutput": -0.7497721789,
+     "percent": 50,
+     "sat": 0,
+     "sequence": 3
+    },
+    {
+     "index": 52,
+     "logOutput": -0.7497721789,
+     "percent": 50,
+     "sat": 0,
+     "sequence": 6
+    },
+    {
+     "index": 55,
+     "logOutput": -0.7497721789,
+     "percent": 50,
+     "sat": 0,
+     "sequence": 9
+    }
+   ],
+   "whiteLogOutput": -0.7497721789,
+   "whiteLogOutputObserved": -0.7497721789
+  },
+  {
+   "censored": true,
+   "declaredRound": true,
+   "logLux": 1.0,
+   "lux": 10.0,
+   "residuals": [
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 0,
+     "index": 37,
+     "logOutput": -0.7228885199,
+     "logOutputResidual": -0.6175980584,
+     "logOutputResidualObserved": -0.6175980584,
+     "observations": [
+      {
+       "censored": false,
+       "index": 37,
+       "kind": "round",
+       "logOutput": -0.7228885199,
+       "logOutputResidual": -0.6175980584,
+       "percent": 95,
+       "roundId": "bright-10-lux-drift-controlled-ceiling-limited",
+       "sequence": 1
+      }
+     ],
+     "percent": 95,
+     "replicates": 1,
+     "sequence": 1,
+     "targetLogOutput": -0.7228885199,
+     "targetLogOutputObserved": -0.7228885199,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.1052904615
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": "lower",
+     "hue": 60,
+     "index": 40,
+     "logOutput": -0.3553437545,
+     "logOutputResidual": -0.250053293,
+     "logOutputResidualObserved": -0.250053293,
+     "observations": [
+      {
+       "censored": true,
+       "index": 40,
+       "kind": "round",
+       "logOutput": -0.3553437545,
+       "logOutputResidual": -0.250053293,
+       "percent": 100,
+       "roundId": "bright-10-lux-drift-controlled-ceiling-limited",
+       "sequence": 4
+      }
+     ],
+     "percent": 100,
+     "replicates": 1,
+     "sequence": 4,
+     "targetLogOutput": -0.3553437545,
+     "targetLogOutputObserved": -0.3553437545,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.1052904615
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": null,
+     "hue": 120,
+     "index": 43,
+     "logOutput": -0.2238230808,
+     "logOutputResidual": -0.1185326193,
+     "logOutputResidualObserved": -0.1185326193,
+     "observations": [
+      {
+       "censored": false,
+       "index": 43,
+       "kind": "round",
+       "logOutput": -0.2238230808,
+       "logOutputResidual": -0.1185326193,
+       "percent": 95,
+       "roundId": "bright-10-lux-drift-controlled-ceiling-limited",
+       "sequence": 7
+      }
+     ],
+     "percent": 95,
+     "replicates": 1,
+     "sequence": 7,
+     "targetLogOutput": -0.2238230808,
+     "targetLogOutputObserved": -0.2238230808,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.1052904615
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": "lower",
+     "hue": 180,
+     "index": 38,
+     "logOutput": -0.3080793606,
+     "logOutputResidual": -0.2027888991,
+     "logOutputResidualObserved": -0.2027888991,
+     "observations": [
+      {
+       "censored": true,
+       "index": 38,
+       "kind": "round",
+       "logOutput": -0.3080793606,
+       "logOutputResidual": -0.2027888991,
+       "percent": 100,
+       "roundId": "bright-10-lux-drift-controlled-ceiling-limited",
+       "sequence": 2
+      }
+     ],
+     "percent": 100,
+     "replicates": 1,
+     "sequence": 2,
+     "targetLogOutput": -0.3080793606,
+     "targetLogOutputObserved": -0.3080793606,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.1052904615
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": "lower",
+     "hue": 240,
+     "index": 41,
+     "logOutput": -1.1157899808,
+     "logOutputResidual": -1.0104995193,
+     "logOutputResidualObserved": -1.0104995193,
+     "observations": [
+      {
+       "censored": true,
+       "index": 41,
+       "kind": "round",
+       "logOutput": -1.1157899808,
+       "logOutputResidual": -1.0104995193,
+       "percent": 100,
+       "roundId": "bright-10-lux-drift-controlled-ceiling-limited",
+       "sequence": 5
+      }
+     ],
+     "percent": 100,
+     "replicates": 1,
+     "sequence": 5,
+     "targetLogOutput": -1.1157899808,
+     "targetLogOutputObserved": -1.1157899808,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.1052904615
+    },
+    {
+     "adjusted": false,
+     "adjustmentDecades": 0.0,
+     "bound": "lower",
+     "hue": 300,
+     "index": 44,
+     "logOutput": -0.8410821351,
+     "logOutputResidual": -0.7357916736,
+     "logOutputResidualObserved": -0.7357916736,
+     "observations": [
+      {
+       "censored": true,
+       "index": 44,
+       "kind": "round",
+       "logOutput": -0.8410821351,
+       "logOutputResidual": -0.7357916736,
+       "percent": 100,
+       "roundId": "bright-10-lux-drift-controlled-ceiling-limited",
+       "sequence": 8
+      }
+     ],
+     "percent": 100,
+     "replicates": 1,
+     "sequence": 8,
+     "targetLogOutput": -0.8410821351,
+     "targetLogOutputObserved": -0.8410821351,
+     "weight": 1.0,
+     "whiteLogOutputBeside": -0.1052904615
+    }
+   ],
+   "roundId": "bright-10-lux-drift-controlled-ceiling-limited",
+   "whiteAdjustmentDecades": 0.0,
+   "whiteAnchors": [
+    {
+     "index": 36,
+     "logOutput": -0.1052904615,
+     "percent": 90,
+     "sat": 0,
+     "sequence": 0
+    },
+    {
+     "index": 39,
+     "logOutput": -0.1052904615,
+     "percent": 90,
+     "sat": 0,
+     "sequence": 3
+    },
+    {
+     "index": 42,
+     "logOutput": -0.1052904615,
+     "percent": 90,
+     "sat": 0,
+     "sequence": 6
+    },
+    {
+     "index": 45,
+     "logOutput": -0.1052904615,
+     "percent": 90,
+     "sat": 0,
+     "sequence": 9
+    }
+   ],
+   "whiteLogOutput": -0.1052904615,
+   "whiteLogOutputObserved": -0.1052904615
+  }
+ ],
+ "logLuxRange": {
+  "max": 1.0,
+  "min": -1.6989700043
+ },
+ "luxRange": {
+  "max": 10.0,
+  "min": 0.02
+ },
+ "modelId": "white-baseline-plus-cyclic-hue-loglux-residual-grid",
+ "monotonic": {
+  "censoredLoss": "one-sided-lower-bound",
+  "coordinate": "targetLogOutput",
+  "method": "weighted-isotonic-pava",
+  "note": "Monotonicity in ambient light is imposed by isotonic regression (pool adjacent violators) on the white baseline and on each hue's target, in log output. It is the least-squares projection onto non-decreasing series, so an already-monotone series is returned unchanged and nothing moves further than it must. White is weighted by how many anchors stand behind each level. Censored observations are lower bounds and are never pulled below what was observed; a record that would require that is refused rather than averaged. The observed values are kept beside the projected ones, and `diagnostics` reports the contradiction in the source rather than hiding it.",
+  "whiteWeight": "anchorCount"
+ },
+ "percentRange": {
+  "max": 100,
+  "min": 20
+ },
+ "profileId": "current-diffuser-before-mask-6levels-6hues",
+ "satFade": {
+  "fullAtSat": 100,
+  "kind": "linear",
+  "measured": false,
+  "note": "The colour residual is scaled by sat/100: nothing at sat=0, all of it at sat=100. Linear because it is the simplest curve through the only two saturations this record contains, and declared here rather than left implicit because nothing in the data identifies the shape between them - every colour observation is at sat=100 and every anchor at sat=0.",
+  "zeroAtSat": 0
+ },
+ "schemaVersion": 1,
+ "source": {
+  "driveAssumed": false,
+  "driveLevels": [
+   255,
+   192,
+   128,
+   96,
+   64,
+   48,
+   32,
+   24,
+   16,
+   12,
+   8,
+   6,
+   4
+  ],
+  "driveResponse": [
+   1.0,
+   0.74409,
+   0.47999,
+   0.34628,
+   0.21544,
+   0.14874,
+   0.08174,
+   0.04815,
+   0.02398,
+   0.01555,
+   0.00759,
+   0.0056,
+   0.00337
+  ],
+  "driveSource": "tests/fixtures/2026-08-26-current-diffuser-before-mask-coupling.json",
+  "excluded": [
+   {
+    "group": "undeclared@0.447158031342-log10lux",
+    "hue": 140,
+    "index": 0,
+    "lux": 2.8,
+    "percent": 60,
+    "reason": "no white anchor at sat=0: without one there is nothing to measure a colour residual against",
+    "sat": 80
+   },
+   {
+    "group": "undeclared@0.380211241712-log10lux",
+    "hue": 240,
+    "index": 1,
+    "lux": 2.4,
+    "percent": 80,
+    "reason": "no white anchor at sat=0: without one there is nothing to measure a colour residual against",
+    "sat": 100
+   },
+   {
+    "group": "undeclared@0.342422680822-log10lux",
+    "hue": 0,
+    "index": 2,
+    "lux": 2.2,
+    "percent": 70,
+    "reason": "no white anchor at sat=0: without one there is nothing to measure a colour residual against",
+    "sat": 100
+   },
+   {
+    "group": "undeclared@0.342422680822-log10lux",
+    "hue": 60,
+    "index": 3,
+    "lux": 2.2,
+    "percent": 75,
+    "reason": "no white anchor at sat=0: without one there is nothing to measure a colour residual against",
+    "sat": 100
+   },
+   {
+    "group": "undeclared@0.322219294734-log10lux",
+    "hue": 180,
+    "index": 4,
+    "lux": 2.1,
+    "percent": 70,
+    "reason": "no white anchor at sat=0: without one there is nothing to measure a colour residual against",
+    "sat": 100
+   },
+   {
+    "group": "undeclared@0.301029995664-log10lux",
+    "hue": 120,
+    "index": 5,
+    "lux": 2.0,
+    "percent": 65,
+    "reason": "not the six hue knots once each; missing 0, 60, 180, 240",
+    "sat": 100
+   },
+   {
+    "group": "undeclared@0.301029995664-log10lux",
+    "hue": 300,
+    "index": 6,
+    "lux": 2.0,
+    "percent": 80,
+    "reason": "not the six hue knots once each; missing 0, 60, 180, 240",
+    "sat": 100
+   },
+   {
+    "group": "undeclared@0.301029995664-log10lux",
+    "hue": 300,
+    "index": 7,
+    "lux": 2.0,
+    "percent": 70,
+    "reason": "not the six hue knots once each; missing 0, 60, 180, 240",
+    "sat": 0
+   }
+  ],
+  "exclusionNote": "Taken without interleaved white anchors, at eight different ambient levels between 2.0 and 2.8 lx, one of them at a saturation and a hue that are not on this grid. Nothing in them can be corrected for the observer drifting, so they are not used - superseded by the drift-controlled 1.9 lx round, which covers the same part of the range and can be.",
+  "generator": "scripts/factory_luminance.py build",
+  "measurementNote": "Not read from clock NVS; preserved externally because near-light replacement currently ignores colour. All points are subjective visual settings.",
+  "measurementSource": "manual visual observations supplied by Franz",
+  "photopicWeights": [
+   0.2126,
+   0.7152,
+   0.0722
+  ],
+  "rounds": [
+   {
+    "anchors": 4,
+    "censored": false,
+    "declared": true,
+    "lux": 0.02,
+    "protocol": "W-0-180-W-60-240-W-120-300-W",
+    "roundId": "dark-room-0.02-lux-drift-controlled"
+   },
+   {
+    "anchors": 4,
+    "censored": false,
+    "declared": true,
+    "lux": 0.07,
+    "protocol": "W-0-180-W-60-240-W-120-300-W",
+    "roundId": "dark-0.07-lux-drift-controlled"
+   },
+   {
+    "anchors": 2,
+    "censored": false,
+    "declared": false,
+    "lux": 0.15,
+    "protocol": "",
+    "roundId": "undeclared@-0.823908740944-log10lux"
+   },
+   {
+    "anchors": 4,
+    "censored": false,
+    "declared": true,
+    "lux": 0.5,
+    "protocol": "W-0-180-W-60-240-W-120-300-W",
+    "roundId": "mid-0.5-lux-drift-controlled"
+   },
+   {
+    "anchors": 4,
+    "censored": false,
+    "declared": true,
+    "lux": 1.9,
+    "protocol": "W-0-180-W-60-240-W-120-300-W",
+    "roundId": "mid-1.9-lux-drift-controlled"
+   },
+   {
+    "anchors": 4,
+    "censored": true,
+    "declared": true,
+    "lux": 10.0,
+    "protocol": "W-0-180-W-60-240-W-120-300-W",
+    "roundId": "bright-10-lux-drift-controlled-ceiling-limited"
+   }
+  ],
+  "stackId": "current-diffuser-before-mask",
+  "supersededBy": "mid-1.9-lux-drift-controlled"
+ },
+ "stackId": "current-diffuser-before-mask",
+ "targeted": {
+  "appliedToResiduals": true,
+  "families": [
+   "hue240-targeted-repeat-2026-08-27"
+  ],
+  "pairs": [
+   {
+    "differenceDecades": -0.0138573527,
+    "family": "hue240-targeted-repeat-2026-08-27",
+    "hue": 240,
+    "lux": 0.02,
+    "roundColourPercent": 50,
+    "roundId": "hue240-targeted-repeat-2026-08-27-0.02",
+    "roundResidual": -0.3900000938,
+    "roundWhitePercents": [
+     30,
+     30,
+     30,
+     30
+    ],
+    "targetedColourPercent": 40,
+    "targetedResidual": -0.4038574465,
+    "targetedWhitePercent": 25,
+    "usedAsReplicate": true
+   },
+   {
+    "differenceDecades": 0.1408665268,
+    "family": "hue240-targeted-repeat-2026-08-27",
+    "hue": 240,
+    "lux": 0.15,
+    "roundColourPercent": 80,
+    "roundId": "hue240-targeted-repeat-2026-08-27-0.15",
+    "roundResidual": -0.4127324549,
+    "roundWhitePercents": [
+     40,
+     45
+    ],
+    "targetedColourPercent": 55,
+    "targetedResidual": -0.2718659281,
+    "targetedWhitePercent": 30,
+    "usedAsReplicate": true
+   },
+   {
+    "differenceDecades": -0.0826888487,
+    "family": "hue240-targeted-repeat-2026-08-27",
+    "hue": 240,
+    "lux": 0.5,
+    "roundColourPercent": 70,
+    "roundId": "hue240-targeted-repeat-2026-08-27-0.5",
+    "roundResidual": -0.4673644035,
+    "roundWhitePercents": [
+     40,
+     40,
+     40,
+     40
+    ],
+    "targetedColourPercent": 65,
+    "targetedResidual": -0.5500532522,
+    "targetedWhitePercent": 40,
+    "usedAsReplicate": true
+   },
+   {
+    "differenceDecades": 0.0,
+    "family": "hue240-targeted-repeat-2026-08-27",
+    "hue": 240,
+    "lux": 1.9,
+    "roundColourPercent": 70,
+    "roundId": "hue240-targeted-repeat-2026-08-27-1.9",
+    "roundResidual": -0.7627951375,
+    "roundWhitePercents": [
+     50,
+     50,
+     50,
+     50
+    ],
+    "targetedColourPercent": 70,
+    "targetedResidual": -0.7627951375,
+    "targetedWhitePercent": 50,
+    "usedAsReplicate": true
+   }
+  ],
+  "residualNote": "A targeted pair measures one hue's residual a second time, so it joins that knot as a replicate and the knot becomes the mean of what it holds, weighted by how many observations that is. It fills in no other hue: a two-point sitting says nothing about the five it did not look at.",
+  "validationOnly": [],
+  "whiteBaseline": {
+   "appliedTo": "residualsOnly",
+   "ifPooled": [
+    {
+     "lux": 0.02,
+     "roundWhiteLogOutput": -1.5225531465,
+     "targetedWhiteLogOutput": -1.8082696066,
+     "wouldMoveDecades": -0.057143292
+    },
+    {
+     "lux": 0.15,
+     "roundWhiteLogOutput": -0.962330942,
+     "targetedWhiteLogOutput": -1.5225531465,
+     "wouldMoveDecades": -0.1867407348
+    },
+    {
+     "lux": 0.5,
+     "roundWhiteLogOutput": -1.045202913,
+     "targetedWhiteLogOutput": -1.045202913,
+     "wouldMoveDecades": 0.0
+    },
+    {
+     "lux": 1.9,
+     "roundWhiteLogOutput": -0.7497721789,
+     "targetedWhiteLogOutput": -0.7497721789,
+     "wouldMoveDecades": 0.0
+    }
+   ],
+   "note": "A targeted pair's white anchor is used to normalise its own colour and nothing else. Its anchors sit up to half a decade below the six-hue rounds' at the dark levels, which says the session was in a different adaptation state rather than that the rounds were wrong - and one anchor from a session aimed at one hue must not move the baseline every hue is measured against. What it *would* have moved is reported under `ifPooled`, so the choice is evidence rather than assertion. The pair's same-sitting difference is unaffected by any of this, which is exactly why the residual travels and the level does not."
+  }
+ }
+}

@@ -26,6 +26,7 @@
   import { dict } from '../lib/i18n.svelte.js';
   import { errorText } from '../lib/errors.js';
   import { hsvRgb, css } from '../lib/colour.js';
+  import LuminanceSurface from './LuminanceSurface.svelte';
 
   // Calibration::Phase in the firmware. Only the one that has to be told apart
   // from the others is named here; the rest are looked up by index in
@@ -45,6 +46,20 @@
   let error = $state(null);
   let busy = $state(false);
 
+  /*
+   * The colour-aware surface, fetched **once**.
+   *
+   * It is the measurement, and the measurement changes when the filesystem
+   * image changes - which is a reboot away. Polling it beside /luminance would
+   * be asking a synchronous web server for the same three kilobytes every
+   * second so that a diagram could redraw identically.
+   *
+   * `null` while it is on its way and `{valid: false}` when the clock has no
+   * profile; the diagram tells those apart, because "not loaded yet" and "this
+   * clock has no model" are different things to say to a reader.
+   */
+  let surface = $state(null);
+
   // Faster than the colour tab, because this is the screen somebody watches
   // while dragging the slider to see what the clock does with it.
   const POLL_MS = 1000;
@@ -55,6 +70,17 @@
       error = null;
     } catch (err) {
       error = err.message;
+    }
+  }
+
+  async function loadSurface() {
+    try {
+      surface = await api.fetchLuminanceSurface();
+    } catch {
+      // Not an error banner. The curve above is the reason somebody opened
+      // this screen and it is on its own poll; a diagram that did not arrive
+      // must not make the page look broken.
+      surface = { valid: false, error: 'factoryMissing' };
     }
   }
 
@@ -78,6 +104,24 @@
   }
 
   const forget = (index) => write(() => api.forgetLightPoint(index));
+  const forgetResidual = (index) => write(() => api.forgetResidual(index));
+
+  /*
+   * Back to the factory baseline.
+   *
+   * Confirmed first, because it is the one button here that throws away
+   * something a person spent evenings on - and the confirmation names what
+   * survives as well as what does not, since "restore" alone sounds like it
+   * might take the coupling measurement with it. It does not.
+   */
+  function restoreFactory() {
+    if (!window.confirm(t.lumFactoryRestoreHint)) return;
+    return write(() => api.restoreFactoryLuminance());
+  }
+
+  const factory = $derived(data?.factory ?? null);
+  const targetNow = $derived(data?.target ?? null);
+  const residuals = $derived(data?.user?.residuals ?? []);
 
   /**
    * The regulated range. Held locally while being typed, because the poll
@@ -137,6 +181,8 @@
 
   onMount(() => {
     refresh();
+    // Once, beside the poll rather than inside it. See `surface` above.
+    loadSurface();
     const timer = setInterval(refresh, POLL_MS);
     return () => clearInterval(timer);
   });
@@ -400,6 +446,97 @@
       <text class="axis y" x={4} y={PAD_T + 4}>%</text>
     </svg>
 
+    <!-- Directly under the curve and before the points, because it is the same
+         question one axis further out: the curve says how bright at how much
+         light, and this says how bright at how much light *in what colour*.
+         Between the two of them the points below make sense; after the points
+         it would be an appendix. -->
+    <LuminanceSurface {surface} target={targetNow} lux={data.lux} />
+
+    <!-- Which model the number on the wall came out of, and what that model is
+         worth. Under the diagram rather than over it: somebody arrives at this
+         screen looking at a picture, and the provenance is what they read next
+         when the picture surprises them. -->
+    <h3>{t.lumFactory}</h3>
+    {#if factory?.valid}
+      <div class="rows">
+        <div class="row">
+          <span class="key">{t.lumFactory}</span>
+          <span class="val">
+            {factory.profileId}
+            <small class="raw">{t.lumFactoryStack(factory.stackId)}</small>
+          </span>
+        </div>
+        {#if targetNow}
+          <div class="row">
+            <span class="key">{t.lumWanted}</span>
+            <span class="val">
+              {t.lumFactorySource[targetNow.source] ?? targetNow.source}
+              <small class="raw">
+                {t.lumFactoryTarget(targetNow.percent, targetNow.factory)}
+              </small>
+            </span>
+          </div>
+        {/if}
+      </div>
+
+      <!-- Not hidden. The reviewed profile misses its own acceptance goal at
+           one hue, and a clock that showed only the pretty surface would be
+           claiming an accuracy nobody measured. -->
+      <p class="hint">
+        {#if factory.acceptanceMet}
+          {t.lumFactoryAccuracyMet}
+        {:else}
+          {t.lumFactoryAccuracy(factory.maxError, factory.worstHue)}
+        {/if}
+      </p>
+      {#if !factory.observationsMonotone}
+        <p class="hint">{t.lumFactoryObservations}</p>
+      {/if}
+      {#if !factory.matched}
+        <!-- A filesystem update can bring a new measurement in underneath the
+             corrections. They are still what somebody said, and adding them to
+             a grid they were not measured on is arithmetic across two models. -->
+        <p class="banner">{t.lumFactoryMismatch}</p>
+      {/if}
+    {:else}
+      <p class="hint">
+        {t.lumFactoryNone}
+        {#if factory?.error}
+          — {errorText(t, factory.error) ?? factory.error}
+        {/if}
+      </p>
+    {/if}
+
+    {#if factory?.valid}
+      <h3>{t.lumResiduals} ({residuals.length}/{data.user?.capacity ?? 0})</h3>
+      <p class="hint">{t.lumResidualsHint}</p>
+      {#if residuals.length === 0}
+        <p class="hint">{t.lumResidualsEmpty}</p>
+      {:else}
+        <div class="rows">
+          {#each residuals as one, i (i)}
+            <div class="row">
+              <span class="key">
+                {one.lux.toFixed(3)} lx
+                <small class="raw">{t.lumTaughtIn(one.hue, one.sat)}</small>
+              </span>
+              <span class="val">
+                {one.decades >= 0 ? '+' : ''}{one.decades.toFixed(3)}
+                <small class="raw">{t.lumResidualDecades}</small>
+              </span>
+              {#if editable}
+                <span class="act">
+                  <button class="link" title={t.lumForgetTitle} disabled={busy}
+                          onclick={() => forgetResidual(i)}>{t.lumForget}</button>
+                </span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {/if}
+
     <h3>{t.lumPoints} ({data.points.length}/{data.capacity})</h3>
     <!-- Said out loud, because the chart looks like a bad least-squares fit
          and is not one: the line is pinned to the newest point on purpose, and
@@ -512,6 +649,22 @@
       {#if data.coupled > 0}
         <p class="hint">{t.lumResetCouplingHint}</p>
       {/if}
+
+      <!-- Deliberately apart from the two buttons above, and last.
+           "Forget the points" and "drop the coupling" each throw one thing
+           away; this throws away everything a person taught the clock and puts
+           it back on the measured baseline. It is disabled outright when there
+           is no valid profile to restore *to*, because otherwise the word
+           would promise a baseline and deliver an empty clock - the firmware
+           refuses it there too, and a button that only fails when pressed is a
+           worse way to learn that. -->
+      <h3>{t.lumFactoryRestore}</h3>
+      <p class="hint">{t.lumFactoryRestoreHint}</p>
+      <div class="buttons">
+        <button disabled={busy || calibrating || !factory?.valid} onclick={restoreFactory}>
+          {t.lumFactoryRestore}
+        </button>
+      </div>
     {/if}
   {/if}
 </section>

@@ -19,6 +19,7 @@ rather than a flash cycle.
     python scripts/lab.py <address> calibrate # the compensation, three per cell
     python scripts/lab.py <address> check     # predicted against measured, live
     python scripts/lab.py <address> feedback # sweep the display, is the loop shut
+    python scripts/lab.py <address> colour   # colours over the range, what the sensor sees
     python scripts/lab.py <address> upload   # put the map on the clock
     python scripts/lab.py <address> wiring    # cell to pixel, against the strip
     python scripts/lab.py <address> off       # give the strip back
@@ -30,11 +31,18 @@ starting from darkness makes the numbers larger than the noise.
 """
 import io
 import json
+import math
 import os
 import sys
 import time
 import urllib.error
 import urllib.request
+
+# The colour sweep writes the frames the driver itself would write. That
+# arithmetic - FastLED's rainbow wheel, the clock's gamma, the per-channel
+# scaling - lives in one place, checked against the pinned library in
+# tests/golden/, and is imported rather than repeated here.
+import colour_luminance
 
 ROWS = 10
 COLUMNS = 11
@@ -618,6 +626,523 @@ def feedback(lab, base=None, cells=None, settle_ms=400, rung=3, path=None):
     print("Mit Kompensation bleibt der Rest im schlechtesten Fall %.1f %% daneben." % worst)
 
 
+# ------ the colour sweep ------
+#
+# What the LEDs do when the colour changes, measured rather than assumed. The
+# regulator is about to be re-expressed in terms of emitted light rather than
+# slider percent, and that model has three hardware claims in it: that the
+# channels add, that the drive response is the one measured curve whatever the
+# colour, and that the wheel's own rounding is what reaches the LED. All three
+# can be checked from here, with no new firmware.
+#
+# **The sensor is a TSL2591 and it is broadband.** Its channels are weighted
+# roughly 35/40/25 where the eye weights them 21/72/7, so it sees blue about
+# three and a half times more strongly than a person does. Everything this run
+# produces is therefore a statement about the LEDs and the optics between them
+# and the sensor - never about perceived brightness. The files say so too.
+
+COLOUR_STACK_ID = "current-diffuser-before-mask"
+
+# The hues are given in the clock's own degrees and go through the same
+# rounding `main .cpp` uses, so what is written is what the driver would write.
+COLOUR_SATURATED_HUES = [0, 60, 120, 180, 240, 300]
+COLOUR_PARTIAL_HUES = [0, 120, 240]
+COLOUR_PARTIAL_SAT = 50
+COLOUR_PERCENTS = [20, 35, 50, 70, 90, 100]
+
+# A small fixed face, three cells of row 8 - about a sixth of the peak coupling
+# each on the clock this was written for, which keeps a full-white frame inside
+# the sensor's scale on a pinned rung and nowhere near the power cap. **The
+# sensor's own cell (7,5) is deliberately not in it**: at 240 lx over dark it
+# runs the ladder out of scale at full white, and a reading against the stop is
+# a floor rather than a measurement.
+COLOUR_CELLS = [(8, 5), (8, 6), (8, 7)]
+
+# More cells than this needs saying out loud. The cap below is what stops a
+# frame browning the clock out; this is what stops a run quietly measuring a
+# different face from the one the numbers will be compared against.
+COLOUR_MAX_CELLS = 3
+
+COLOUR_RUNG = DEFAULT_RUNG
+COLOUR_SETTLE_MS = 400
+
+# Where the run writes, beside coupling.json and curve.json. It is the same
+# kind of thing they are - a measurement of one clock, one optical stack and
+# one room, not source - so it does not belong in the repository either; add it
+# to .gitignore if you keep it. The stack it belongs to is named inside the
+# file, which is what makes two of them comparable at all.
+COLOUR_FILE = "colour_sweep.json"
+
+# `LAB_MAX_DRAW_MW` in src/LabRoutes.h, for the case where the clock does not
+# report its own limit. The clock's number wins when it does.
+LAB_MAX_DRAW_MW = 7500
+
+
+def colour_grid():
+    """The representative colours, white first.
+
+    White is one entry and not six: at zero saturation FastLED's wheel answers
+    (255, 255, 255) whatever the hue, so a second white hue would measure the
+    same lamp twice and pad the run by a minute.
+    """
+    grid = [(0, 0)]
+    grid += [(hue, 100) for hue in COLOUR_SATURATED_HUES]
+    grid += [(hue, COLOUR_PARTIAL_SAT) for hue in COLOUR_PARTIAL_HUES]
+    return grid
+
+
+def colour_rgb(hue, sat, percent):
+    """What the driver would write for this colour at this setting.
+
+    Straight out of scripts/colour_luminance.py rather than worked out again
+    here: FastLED's *rainbow* wheel through the clock's 0..359 rounding, the
+    driver's gamma, and its per-channel scaling. Those three roundings are the
+    whole point of the run - an ordinary HSV conversion would measure a colour
+    the clock never shows.
+    """
+    scaled = colour_luminance.gamma_scale(percent)
+    return [colour_luminance.channel_drive(channel, scaled)
+            for channel in colour_luminance.display_rgb(hue, sat)]
+
+
+def colour_frames(cells, grid, percents):
+    """One frame per colour per percentage, colour by colour.
+
+    In that order so a row of the result reads as one colour swept over the
+    slider, which is the comparison the drive response has to survive.
+    """
+    frames = []
+    for hue, sat in grid:
+        for percent in percents:
+            rgb = colour_rgb(hue, sat, percent)
+            frames.append({"clear": True,
+                           "set": [{"cell": list(cell), "rgb": rgb} for cell in cells]})
+    return frames
+
+
+# FastLED's own numbers, power_mgt.cpp: 16 mA, 11 mA and 15 mA per channel at
+# 5 V, and 1 mA per pixel dark. `LedDriverWS2812FastLED::estimatedDrawMilliwatts`
+# hands the whole strip to `calculate_unscaled_power_mW`, which is what the lab
+# endpoint compares against its budget.
+DRAW_RED_MW, DRAW_GREEN_MW, DRAW_BLUE_MW, DRAW_DARK_MW = 80, 55, 75, 5
+DRAW_PIXELS = 114
+
+
+def estimated_draw_mw(frame):
+    """What this frame would draw, the way the clock works it out.
+
+    Summed per channel over the whole strip and shifted once, not per pixel -
+    the same integer arithmetic `calculate_unscaled_power_mW` does, so this
+    agrees with the number the clock would refuse on rather than approximating
+    it. A frame that clears the strip first is everything that is not in it at
+    zero, hence the dark term over all 114 pixels either way.
+    """
+    red = green = blue = 0
+    for pixel in frame.get("set", []):
+        rgb = pixel.get("rgb", [0, 0, 0])
+        red += rgb[0]
+        green += rgb[1]
+        blue += rgb[2]
+    return (((red * DRAW_RED_MW) >> 8)
+            + ((green * DRAW_GREEN_MW) >> 8)
+            + ((blue * DRAW_BLUE_MW) >> 8)
+            + DRAW_DARK_MW * DRAW_PIXELS)
+
+
+# What a reading against the stop looks like. Full scale is 36863 counts at
+# 100 ms and 65535 above it; `warn_saturated` uses the same numbers to say so
+# out loud, and this records it per frame so the analysis can drop those rows
+# rather than fitting a floor.
+COLOUR_SATURATED_AT = 0.9
+
+# Said once, in the file, because it is the sentence most likely to be
+# forgotten between measuring and using: the sensor is not the eye.
+COLOUR_MEASURES = ("channel mixing and drive linearity of the LEDs as a "
+                   "broadband sensor sees them - not perceived brightness")
+COLOUR_SENSOR_NOTE = ("the TSL2591 is broadband and not photopic: it weights "
+                      "the channels roughly 35/40/25 where the eye weights "
+                      "them 21/72/7, so it sees blue about three and a half "
+                      "times more strongly than a person does")
+
+
+def colour_saturated(reading):
+    """True when this reading ran out of scale and is a floor, not a number."""
+    if "ch0" not in reading:
+        return False
+    ceiling = 36863 if reading.get("ms", 200) == 100 else 65535
+    return reading["ch0"] / float(ceiling) > COLOUR_SATURATED_AT
+
+
+def colour_number(where, reading, field, required=True):
+    """One field of a reading, checked before anything divides by it.
+
+    `measureInto` in LabRoutes.cpp always writes `lux`, and adds `ch0`/`ch1`
+    only when the channels could be read - so a missing count is a thin
+    reading and a *null* one is a failed measurement. ArduinoJson serialises a
+    NaN as `null`, which is exactly what a sensor that could not answer
+    produces, and it must not become a row in a file that later looks
+    complete.
+    """
+    if field not in reading:
+        if required:
+            raise SystemExit("%s hat kein %s - unvollstaendige Messung." % (where, field))
+        return None
+    value = reading[field]
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise SystemExit("%s: %s ist %r, erwartet wird eine Zahl."
+                         % (where, field, value))
+    if not math.isfinite(value):
+        # `json.loads` accepts the literals NaN and Infinity, and a NaN is what
+        # a sensor that could not answer produces on its way through
+        # ArduinoJson. Neither is a measurement.
+        raise SystemExit("%s: %s ist %r - kein endlicher Messwert."
+                         % (where, field, value))
+    return value
+
+
+def colour_check_reading(where, reading):
+    """A reading the report and the saturation check can both use."""
+    if not isinstance(reading, dict):
+        raise SystemExit("%s ist kein Messwert: %r" % (where, reading))
+    colour_number(where, reading, "lux")
+
+    # The raw counts are optional, but not optionally broken, and they come as
+    # a pair: `measureInto` writes ch0 and ch1 inside one branch, so either
+    # `readChannels` succeeded and both are there or neither is. One without
+    # the other is an answer this script does not understand - and ch1 is the
+    # half that would go unnoticed, since only ch0 decides saturation while
+    # both end up in the file.
+    counts = [name for name in ("ch0", "ch1") if name in reading]
+    if counts and len(counts) != 2:
+        raise SystemExit("%s hat %s ohne %s - die Kanaele kommen zu zweit."
+                         % (where, counts[0], "ch1" if counts[0] == "ch0" else "ch0"))
+    if counts:
+        colour_number(where, reading, "ch0")
+        colour_number(where, reading, "ch1")
+        # A clock that could read its channels has a sensor, and a sensor
+        # always writes both of these - `colour_saturated` picks the full-scale
+        # value out of `ms`.
+        colour_number(where, reading, "ms")
+        colour_number(where, reading, "rung")
+    return reading
+
+
+def colour_check_result(result, expected):
+    """The whole answer, checked before a single number out of it is used.
+
+    **The firmware truncates.** A sweep that outruns LAB_MAX_SWEEP_MS (90 s)
+    stops where it is, sets `truncated` and answers with fewer frames than were
+    asked for. The frames carry no colour of their own - the colour comes from
+    the order they were sent in - so a short answer zipped against the
+    requested grid does not fail: it labels every reading from that point on
+    with the wrong colour and writes a file that looks complete. There is no
+    recovering from that afterwards and no way to notice it later, which is
+    what makes it fatal here rather than a warning.
+    """
+    if not isinstance(result, dict):
+        raise SystemExit("Die Uhr hat keinen Sweep geantwortet: %r" % (result,))
+    if result.get("truncated"):
+        raise SystemExit(
+            "Die Uhr hat den Sweep abgebrochen (truncated) - er war laenger "
+            "als LAB_MAX_SWEEP_MS. Weniger Farben, weniger Prozentwerte oder "
+            "eine kuerzere Settle-Zeit.")
+
+    frames = result.get("frames")
+    if not isinstance(frames, list):
+        raise SystemExit("Die Antwort hat keine Bilderliste: %r" % (frames,))
+    if len(frames) != expected:
+        # Either half of this is fatal. Too few is a truncation that did not
+        # say so; too many is an answer to a different request.
+        raise SystemExit("%d Bilder zurueck, %d angefordert - die Messwerte "
+                         "gehoerten dann zu den falschen Farben."
+                         % (len(frames), expected))
+
+    for index, frame in enumerate(frames):
+        if not isinstance(frame, dict):
+            raise SystemExit("Bild %d ist kein Objekt: %r" % (index, frame))
+        for name in ("lit", "dark"):
+            if name not in frame:
+                # `dark` because this run always asks for one: without the
+                # companion reading a passing cloud is indistinguishable from
+                # a result.
+                raise SystemExit("Bild %d hat kein %s - dieser Lauf misst mit "
+                                 "Dunkelwert." % (index, name))
+            colour_check_reading("Bild %d, %s" % (index, name), frame[name])
+    return result
+
+
+def colour_report(result, cells, grid, percents, rung, settle_ms, state, clock,
+                  stack_id):
+    """The sweep as a record: what was asked for, what came back, what it means.
+
+    Deliberately flat - one row per frame, each carrying its own colour - so
+    the file can be read by something that knows nothing about the order the
+    frames were sent in.
+    """
+    wanted = [(hue, sat, percent) for hue, sat in grid for percent in percents]
+    rows = []
+    for (hue, sat, percent), frame in zip(wanted, result["frames"]):
+        lit = frame["lit"]
+        dark = frame.get("dark", {})
+        row = {
+            "hue": hue,
+            "sat": sat,
+            "percent": percent,
+            "rgb": colour_rgb(hue, sat, percent),
+            "lit": lit.get("lux"),
+            "dark": dark.get("lux"),
+            "ch0": lit.get("ch0"),
+            "ch1": lit.get("ch1"),
+            "ms": lit.get("ms"),
+            "rung": lit.get("rung"),
+            "saturated": colour_saturated(lit),
+        }
+        # The frame's own contribution, which is the only number a room that
+        # moves during the run cannot spoil.
+        row["signal"] = (None if row["lit"] is None or row["dark"] is None
+                         else row["lit"] - row["dark"])
+        rows.append(row)
+
+    sensor = dict(state.get("sensor", {}))
+    # Two fields rather than one: a reader skimming for a flag finds one, and a
+    # reader wondering why finds the other.
+    sensor["photopic"] = False
+    sensor["note"] = COLOUR_SENSOR_NOTE
+
+    return {
+        "stackId": stack_id,
+        "measures": COLOUR_MEASURES,
+        "cells": [list(cell) for cell in cells],
+        "grid": [list(colour) for colour in grid],
+        "percents": list(percents),
+        "rung": rung,
+        "settleMs": settle_ms,
+        # The clock as it was found. None of it is changed by this run - the
+        # sweep takes the strip and gives it back - but a record that cannot
+        # say what the clock was set to is hard to read months later.
+        "clock": clock,
+        "sensor": sensor,
+        "frames": rows,
+    }
+
+
+def colour_json(report):
+    """The record as text: sorted, indented, and carrying no timestamp.
+
+    Deterministic on purpose. A file that differs on every run cannot be
+    diffed, and the usual reason is a date nobody reads.
+    """
+    return json.dumps(report, indent=1, sort_keys=True) + "\n"
+
+
+COLOUR_CSV_COLUMNS = ["stackId", "hue", "sat", "percent", "r", "g", "b",
+                      "lit", "dark", "signal", "ch0", "ch1", "ms", "rung",
+                      "saturated"]
+
+
+def colour_csv(report):
+    """One row per frame, for plotting somewhere that has a plotter."""
+    lines = [",".join(COLOUR_CSV_COLUMNS)]
+    for row in report["frames"]:
+        red, green, blue = row["rgb"]
+        lines.append(",".join(str(value) for value in [
+            report["stackId"], row["hue"], row["sat"], row["percent"],
+            red, green, blue,
+            "" if row["lit"] is None else row["lit"],
+            "" if row["dark"] is None else row["dark"],
+            "" if row["signal"] is None else row["signal"],
+            row["ch0"], row["ch1"], row["ms"], row["rung"],
+            int(row["saturated"])]))
+    return "\n".join(lines) + "\n"
+
+
+def colour_cells(text):
+    """`8,5;8,6` to [(8, 5), (8, 6)], or a refusal naming what was wrong.
+
+    Refused rather than guessed: a mistyped cell does not fail on the clock,
+    it lights a different letter and the whole run measures something else.
+    """
+    cells = []
+    for piece in text.split(";"):
+        piece = piece.strip()
+        if not piece:
+            raise SystemExit("Leere Zelle in --cells: %r" % text)
+        parts = piece.split(",")
+        if len(parts) != 2:
+            raise SystemExit("--cells will Paare wie 8,5;8,6 - nicht %r" % piece)
+        try:
+            row, column = int(parts[0]), int(parts[1])
+        except ValueError:
+            raise SystemExit("--cells will Zahlen - nicht %r" % piece)
+        if not (0 <= row < ROWS and 0 <= column < COLUMNS):
+            raise SystemExit("Zelle %d,%d liegt nicht auf dem Gesicht (%dx%d)"
+                             % (row, column, ROWS, COLUMNS))
+        cells.append((row, column))
+    return cells
+
+
+def colour_options(argv):
+    """The command line for `colour`, parsed and nothing else.
+
+    Separate from `main` so the defaults and the refusals can be tested without
+    a clock - and there is nothing interactive in it: the run has to be
+    startable from a shell and left alone for the minute it takes.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="lab.py <clock> colour",
+        description="Sweeps representative colours over the brightness range "
+                    "and records what the light sensor makes of each. Measures "
+                    "the LEDs, not the eye - see COLOUR_SENSOR_NOTE.")
+    parser.add_argument("--cells", help="cells to light, e.g. 8,5;8,6 "
+                                        "(default: %s)" % COLOUR_CELLS)
+    parser.add_argument("--full", action="store_true",
+                        help="allow more than %d cells" % COLOUR_MAX_CELLS)
+    parser.add_argument("--rung", type=int, default=COLOUR_RUNG,
+                        help="sensitivity rung, pinned for the whole run "
+                             "(default: %d)" % COLOUR_RUNG)
+    parser.add_argument("--settle-ms", type=int, default=COLOUR_SETTLE_MS,
+                        help="settle time per frame (default: %d)" % COLOUR_SETTLE_MS)
+    parser.add_argument("--json", default=COLOUR_FILE, dest="json_path",
+                        help="where to write the record (default: %s)" % COLOUR_FILE)
+    parser.add_argument("--csv", default=None, dest="csv_path",
+                        help="also write the rows here")
+    parser.add_argument("--stack-id", default=COLOUR_STACK_ID,
+                        help="the optical stack these numbers belong to "
+                             "(default: %s)" % COLOUR_STACK_ID)
+
+    args = parser.parse_args(argv)
+    return {"cells": colour_cells(args.cells) if args.cells else list(COLOUR_CELLS),
+            "full": args.full,
+            "rung": args.rung,
+            "settle_ms": args.settle_ms,
+            "json_path": args.json_path,
+            "csv_path": args.csv_path,
+            "stack_id": args.stack_id}
+
+
+def colour_sweep(lab, cells=None, percents=None, grid=None, rung=COLOUR_RUNG,
+                 settle_ms=COLOUR_SETTLE_MS, full=False,
+                 json_path=COLOUR_FILE, csv_path=None,
+                 stack_id=COLOUR_STACK_ID):
+    """Sweeps the representative colours over the slider and writes the result.
+
+    Everything is checked before the strip is taken - the sensor, whether
+    somebody else already owns it, how many frames the clock will accept, and
+    what the brightest frame would draw - because the checks that matter are
+    the ones made while the clock is still showing the time.
+
+    One request for the whole sweep, with a dark reading beside every frame:
+    three round trips per frame would put network jitter inside the
+    measurement, and a run takes long enough that the room cannot be assumed
+    constant across it.
+    """
+    cells = [tuple(cell) for cell in (cells or COLOUR_CELLS)]
+    percents = list(percents or COLOUR_PERCENTS)
+    grid = list(grid or colour_grid())
+
+    if not cells:
+        raise SystemExit("Ohne Zellen gibt es nichts zu messen.")
+    if len(cells) > COLOUR_MAX_CELLS and not full:
+        raise SystemExit(
+            "%d Zellen, ohne --full sind hoechstens %d erlaubt. Mehr Zellen "
+            "heisst mehr Strom und ein anderes Gesicht als das, mit dem die "
+            "Zahlen spaeter verglichen werden."
+            % (len(cells), COLOUR_MAX_CELLS))
+
+    state = lab.state()
+    if not state["sensor"]["present"]:
+        raise SystemExit("Diese Uhr hat keinen Lichtsensor.")
+    if state.get("on"):
+        # Somebody else - another script, or a calibration - has the strip.
+        # Taking it would not fail; it would quietly ruin their run.
+        raise SystemExit("Der Lab-Modus laeuft schon. Erst `off`, dann wieder "
+                         "hier - oder warten, bis die andere Messung fertig ist.")
+
+    clock = lab._call("/currentState")
+
+    frames = colour_frames(cells, grid, percents)
+    max_frames = int(state.get("maxFrames", 128))
+    if len(frames) > max_frames:
+        raise SystemExit("%d Bilder, die Uhr nimmt hoechstens %d."
+                         % (len(frames), max_frames))
+
+    # The brightest frame decides. The firmware refuses an over-budget frame
+    # rather than dimming it - FastLED's cap works by scaling the global
+    # brightness, so a frame over budget is not the frame that was asked for -
+    # and the first whole-face white frame browned the clock out. Better to
+    # find out here, before the strip has been taken.
+    limit = int(state.get("maxDrawMw", LAB_MAX_DRAW_MW))
+    worst = max(estimated_draw_mw(frame) for frame in frames)
+    if worst > limit:
+        raise SystemExit("Das hellste Bild zoege %d mW, erlaubt sind %d. "
+                         "Weniger Zellen." % (worst, limit))
+
+    # **Taking the strip is inside the protected region, not before it.** A
+    # failed acquisition is ambiguous - a timeout on the way back says nothing
+    # about whether the clock entered lab mode - so the release has to be tried
+    # either way. Everything is caught, KeyboardInterrupt included: the whole
+    # point is that Ctrl-C during a minute-long sweep gives the clock back.
+    failure = None
+    result = None
+    try:
+        lab.take(True)
+        result = lab.sweep(frames, settle_ms=settle_ms, dark=True, rung=rung)
+    except BaseException as problem:
+        failure = problem
+    finally:
+        release_failure = None
+        try:
+            lab.take(False)
+        except BaseException as problem:
+            # Everything, including KeyboardInterrupt: raised out of a
+            # `finally` it would replace the error that says why the run
+            # failed, and Ctrl-C during the release is exactly when that
+            # matters. `Lab._call` raises SystemExit on an HTTP failure, which
+            # is the likeliest way this fails and is also outside Exception.
+            release_failure = problem
+
+    if failure is not None:
+        # What went wrong first is what the person has to read. A release that
+        # also failed is worth saying, but not instead of this.
+        if release_failure is not None:
+            print("Streifen konnte auch nicht zurueckgegeben werden: %s"
+                  % release_failure)
+        raise failure
+
+    if release_failure is not None:
+        # The measurement is fine and the clock is still in lab mode: dark, not
+        # showing the time, waiting for somebody who thinks the run finished.
+        # Writing the files and reporting success would bury the one thing that
+        # needs acting on, so this is fatal and nothing is written.
+        if not isinstance(release_failure, (Exception, SystemExit)):
+            # A KeyboardInterrupt is re-raised as itself rather than dressed up
+            # as a failure: Ctrl-C means Ctrl-C, and whoever pressed it should
+            # not have that turned into something else. Fatal either way, and
+            # nothing has been written by this point.
+            raise release_failure
+        raise SystemExit(
+            "Der Sweep lief, aber der Streifen liess sich nicht zurueckgeben: "
+            "%s\nDie Uhr steht noch im Lab-Modus - `lab.py <uhr> off`. Es "
+            "wurde nichts geschrieben." % release_failure)
+
+    # Before anything is believed, and before anything is written.
+    colour_check_result(result, len(frames))
+
+    warn_saturated(result)
+    report = colour_report(result, cells, grid, percents, rung, settle_ms,
+                           state, clock, stack_id)
+
+    if json_path:
+        with io.open(json_path, "w", encoding="utf-8") as handle:
+            handle.write(colour_json(report))
+    if csv_path:
+        with io.open(csv_path, "w", encoding="utf-8") as handle:
+            handle.write(colour_csv(report))
+    return report
+
+
 def cell_index(row, column):
     """Cell to strip index - the same arithmetic physicalFor() does on the clock.
 
@@ -717,6 +1242,23 @@ def main():
         # Takes the strip itself: the clock's own colour has to be read off it
         # before the lab blanks it.
         feedback(lab)
+        return
+    if what == "colour":
+        # Also takes the strip itself, and only around the sweep: the generic
+        # wrapper below would hold it across the writing of the files as well,
+        # which is a clock left dark for no reason.
+        options = colour_options(sys.argv[3:])
+        report = colour_sweep(lab, **options)
+        # The summary lives here rather than in colour_sweep, so the function
+        # stays quiet enough to call from anything.
+        print("%d Bilder, %d Farben, Sprosse %d, Zellen %s"
+              % (len(report["frames"]), len(report["grid"]), report["rung"],
+                 report["cells"]))
+        print("Gemessen wird: %s" % report["measures"])
+        if options["json_path"]:
+            print("Geschrieben: %s" % options["json_path"])
+        if options["csv_path"]:
+            print("Geschrieben: %s" % options["csv_path"])
         return
 
     state = lab.state()

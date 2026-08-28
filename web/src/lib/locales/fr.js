@@ -97,6 +97,57 @@ export default {
   lumCalibrateResult: (cells, rung) => `${cells} cellules mesurées, échelon ${rung}`,
   lumCalibrateAmbient: (lx) => `ambiant ${lx} lx`,
 
+  // --- the colour-aware factory model ---
+  lumSurfaceTitle: 'Courbe d’usine selon la couleur',
+  lumSurfaceHint:
+    'Ce que l’horloge veut régler à chaque niveau de lumière et pour chaque ' +
+    'couleur. Le pourcentage n’est pas de la lumière : le même réglage émet ' +
+    'environ dix fois moins en bleu profond qu’au vert de cette horloge. ' +
+    'L’anneau indique le point actuel.',
+  lumSurfaceNone:
+    'Aucun profil d’usine chargé — l’automatique suit la courbe blanche ' +
+    'apprise, comme avant cette mesure.',
+  lumSurfaceSummary: (lowLux, highLux, low, high) =>
+    `Une surface de ${lowLux} à ${highLux} lx sur toutes les teintes ; la ` +
+    `courbe demande entre ${low} et ${high} %.`,
+  lumSurfaceHere: 'point actuel',
+  lumSurfaceLimited: 'couleur en butée — impossible d’aller plus haut',
+  lumSurfaceBound: 'la mesure disait « au moins autant »',
+  lumFactory: 'Profil d’usine',
+  lumFactoryNone: 'Aucun chargé',
+  lumFactoryStack: (stack) => `Optique : ${stack}`,
+  lumFactorySource: {
+    legacy: 'courbe blanche apprise',
+    factory: 'profil d’usine',
+    'factory+user': 'profil d’usine et vos corrections'
+  },
+  lumFactoryTarget: (percent, factory) =>
+    `${percent} % voulus, le profil d’usine seul dit ${factory} %`,
+  lumFactoryAccuracy: (max, hue) =>
+    `Pire erreur en validation croisée : ${max} points de pourcentage, à la ` +
+    `teinte ${hue}°. L’objectif de 10 n’est pas atteint — l’écart vient des ` +
+    `mesures de cette teinte, pas de la forme du modèle.`,
+  lumFactoryAccuracyMet: 'Validation croisée réussie.',
+  lumFactoryObservations:
+    'Les mesures sous-jacentes se contredisent par endroits ; la grille ' +
+    'livrée monte tout de même partout avec la lumière.',
+  lumFactoryMismatch:
+    'Les corrections enregistrées ont été apprises sur un autre profil et ne ' +
+    'sont pas appliquées. « Restaurer l’usine » les efface.',
+  lumResiduals: 'Vos corrections',
+  lumResidualsHint:
+    'Ce que l’automatique a appris de vos réglages — en écart au profil ' +
+    'd’usine, en décades de lumière, séparément par couleur. Deux ' +
+    'corrections à la même lumière dans des couleurs différentes ne se ' +
+    'remplacent pas.',
+  lumResidualsEmpty: 'Rien de corrigé pour l’instant.',
+  lumResidualDecades: 'Écart',
+  lumFactoryRestore: 'Restaurer l’usine',
+  lumFactoryRestoreHint:
+    'Efface vos corrections et la courbe blanche apprise. La mesure de la ' +
+    'lumière propre reste : elle appartient à l’optique de cette horloge, ' +
+    'pas à un goût.',
+
   // --- timezone tab ---
   timeServer: 'Serveur de temps',
   ntpServer: 'Serveur NTP',
@@ -409,6 +460,16 @@ export default {
   err_nvsDelete: 'Échec de la suppression',
   err_nvsMemory: 'Mémoire insuffisante',
   err_nvsNamespaceDelete: 'Un espace de noms disparaît avec sa dernière clé',
+  err_factoryMissing: 'Aucun profil d’usine dans le système de fichiers',
+  err_factoryLayout: 'Le profil d’usine n’a pas la structure attendue',
+  err_factoryChecksum: 'Le profil d’usine ne correspond pas à sa somme de contrôle',
+  err_factorySchema: 'Schéma de profil d’usine inconnu',
+  err_factoryModel: 'Le profil d’usine décrit un autre modèle',
+  err_factoryShape: 'Profil d’usine incomplet ou incorrect',
+  err_factoryNotMonotone: 'La grille d’usine baisse quand la lumière monte',
+  err_factoryTooBig: 'Le profil d’usine n’a pas la taille d’un profil',
+  err_factoryUnreadable: 'Profil d’usine illisible',
+  err_factoryUnavailable: 'Aucun profil d’usine valide à restaurer',
 
   // --- api errors ---
   connectionLost: "Connexion à l'horloge interrompue",

@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "mock": "node server.js"
+    "mock": "node server.js",
+    "test": "node --test \"tests/web/*.test.js\""
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^6.2.1",

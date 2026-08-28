@@ -66,6 +66,8 @@
 
 #include <Arduino.h>
 
+#include "ResidualStore.h"
+
 // How many calibration points are kept. Ten is enough to describe a home - a
 // few daylight levels, a lamp, a dark room - and small enough that a bad one
 // is forgotten within a week of ordinary use.
@@ -117,6 +119,21 @@
 #define LUM_DEFAULT_HIGH_LUX    9.0f
 #define LUM_DEFAULT_HIGH_PERCENT 100
 
+// The corrections on top of the factory model - how many are kept, how far
+// each one reaches, and how much any of them may move the model - are
+// ResidualStore's, because the rules that use them are. The alias exists so
+// callers that size an array by it do not have to know which header it moved
+// to.
+#define LUM_USER_POINTS RESIDUAL_MAX
+
+// How finely the hue axis of the surface at GET /luminance/surface is walked.
+// The knots are 60 degrees apart and the interesting thing about the surface
+// is what happens *between* them - above all across the seam at 300 back to 0,
+// which is the one segment whose far end is not the next knot in store order.
+// Fifteen degrees gives 24 columns: enough to draw a curve, small enough that
+// the whole answer stays under a kilobyte.
+#define LUM_SURFACE_HUE_STEP 15
+
 namespace Luminance
 {
     /** One thing the user said: at this much light, I wanted this much face. */
@@ -149,11 +166,99 @@ namespace Luminance
         uint8_t sat;        // 0..100
     };
 
-    /** Loads the points and the line from NVS, or starts from the default. */
+    /**
+     * One correction of the owner's own, on top of the factory model.
+     *
+     * Defined in ResidualStore rather than here, because the rules that decide
+     * what may replace what are there - pure, and therefore checked by
+     * tests/host/test_residual_store.cpp rather than by a month of evenings.
+     * Two things that a simpler store gets wrong quietly and this does not:
+     * white has no hue, and two corrections at the same light in different
+     * colours are two statements.
+     */
+    typedef ResidualStore::Residual Residual;
+
+    /** Which layers produced the number on the wall. */
+    enum Source
+    {
+        // No factory profile, or one this firmware refuses: the learned white
+        // line, exactly as every clock behaved before the model existed.
+        SOURCE_LEGACY = 0,
+        // The factory grid alone - nothing learned yet, or nothing learned
+        // near enough to this light and colour to say anything about it.
+        SOURCE_FACTORY = 1,
+        // The grid with this clock's owner's own corrections on it.
+        SOURCE_FACTORY_USER = 2,
+    };
+
+    /** What the automatic wants, and what that answer rests on. */
+    struct Target
+    {
+        uint8_t percent;        // clamped into the regulated range
+        uint8_t source;         // Source
+        uint8_t factory;        // what the grid alone asked for
+        float bias;             // decades the user's corrections added
+        bool limited;           // the colour cannot emit this at any setting
+        bool bound;             // a grid corner behind it said "at least"
+        bool clamped;           // the room is outside anything measured
+    };
+
+    /** Loads the points, the line and the residuals from NVS. */
     void begin();
 
     /** What the line makes of a reading, clamped to the regulated range. */
     uint8_t forLux(float lux);
+
+    /**
+     * What the automatic wants at this light **in this colour**.
+     *
+     * The one call the render loop and the API should be making. Falls back to
+     * forLux() when there is no factory profile, so a clock without one
+     * behaves exactly as it did - and says so through `source` rather than
+     * quietly looking the same.
+     */
+    void targetFor(float lux, uint16_t hue, uint8_t sat, Target &out);
+
+    /**
+     * Whether a stored set of corrections was learned on a different profile
+     * from the one now installed, and is therefore being ignored.
+     *
+     * A filesystem update can bring a new measurement in underneath them. They
+     * are still what somebody said, so they are kept rather than deleted - but
+     * adding a correction measured against one baseline to another is
+     * arithmetic across two models, and the factory restore is the deliberate
+     * act that resolves it.
+     *
+     * False on a clock that has never corrected anything, which is the case
+     * this must not report as a mismatch: nothing disagrees with the profile
+     * when nothing has been said about it.
+     */
+    bool residualsStale();
+
+    /** The corrections, oldest first. Returns how many, 0..LUM_USER_POINTS. */
+    uint8_t residuals(Residual *out, uint8_t max);
+
+    /** Forgets one, by its position in residuals(). */
+    bool forgetResidual(uint8_t index);
+
+    /**
+     * Back to the factory baseline: the corrections go, the grid stays.
+     *
+     * The device calibration is **not** touched. The coupling map is a
+     * measurement of where this clock's sensor sits behind its own letters -
+     * twenty minutes of the clock measuring itself - and it has nothing to do
+     * with anybody's preferences. Throwing it away with them would be the one
+     * irreversible part of a reset that is otherwise cheap.
+     *
+     * The legacy white points go too: they are the same preferences said in
+     * the old coordinates, and leaving them would mean a clock that reads as
+     * restored until its profile is next refused.
+     *
+     * False when there is no valid factory profile to restore to - which is
+     * checked *before* anything in NVS is touched, so a failure leaves the
+     * clock exactly as it was rather than half way between two models.
+     */
+    bool factoryRestore();
 
     /**
      * The user moved the brightness slider while the automatic was on.

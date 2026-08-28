@@ -97,6 +97,56 @@ export default {
   lumCalibrateResult: (cells, rung) => `${cells} celle misurate, gradino ${rung}`,
   lumCalibrateAmbient: (lx) => `ambiente ${lx} lx`,
 
+  // --- the colour-aware factory model ---
+  lumSurfaceTitle: 'Curva di fabbrica secondo il colore',
+  lumSurfaceHint:
+    'Cosa vuole impostare l’orologio a ogni livello di luce e per ogni ' +
+    'colore. La percentuale non è luce: la stessa impostazione emette circa ' +
+    'un decimo nel blu profondo rispetto al verde di quest’orologio. ' +
+    'L’anello segna il punto attuale.',
+  lumSurfaceNone:
+    'Nessun profilo di fabbrica caricato — l’automatico segue la curva ' +
+    'bianca appresa, come prima di questa misura.',
+  lumSurfaceSummary: (lowLux, highLux, low, high) =>
+    `Una superficie da ${lowLux} a ${highLux} lx su tutte le tinte; la ` +
+    `curva chiede tra ${low} e ${high} %.`,
+  lumSurfaceHere: 'punto attuale',
+  lumSurfaceLimited: 'colore a fine corsa — non può salire',
+  lumSurfaceBound: 'la misura diceva «almeno tanto»',
+  lumFactory: 'Profilo di fabbrica',
+  lumFactoryNone: 'Nessuno caricato',
+  lumFactoryStack: (stack) => `Ottica: ${stack}`,
+  lumFactorySource: {
+    legacy: 'curva bianca appresa',
+    factory: 'profilo di fabbrica',
+    'factory+user': 'profilo di fabbrica più le tue correzioni'
+  },
+  lumFactoryTarget: (percent, factory) =>
+    `${percent} % voluti, il solo profilo di fabbrica dice ${factory} %`,
+  lumFactoryAccuracy: (max, hue) =>
+    `Errore peggiore in validazione incrociata: ${max} punti percentuali, ` +
+    `alla tinta ${hue}°. L’obiettivo di 10 non è raggiunto — lo scarto sta ` +
+    `nelle misure di quella tinta, non nella forma del modello.`,
+  lumFactoryAccuracyMet: 'Validazione incrociata superata.',
+  lumFactoryObservations:
+    'Le misure alla base si contraddicono in alcuni punti; la griglia ' +
+    'consegnata sale comunque ovunque con la luce.',
+  lumFactoryMismatch:
+    'Le correzioni memorizzate sono state apprese su un altro profilo e non ' +
+    'vengono applicate. «Ripristina fabbrica» le rimuove.',
+  lumResiduals: 'Le tue correzioni',
+  lumResidualsHint:
+    'Cosa ha appreso l’automatico dalle tue regolazioni — come scarto dal ' +
+    'profilo di fabbrica, in decadi di luce, tenute distinte per colore. Due ' +
+    'correzioni alla stessa luce in colori diversi non si sostituiscono.',
+  lumResidualsEmpty: 'Ancora nessuna correzione.',
+  lumResidualDecades: 'Scarto',
+  lumFactoryRestore: 'Ripristina fabbrica',
+  lumFactoryRestoreHint:
+    'Cancella le tue correzioni e la curva bianca appresa. La misura della ' +
+    'luce propria resta: appartiene all’ottica di quest’orologio, non a un ' +
+    'gusto.',
+
   // --- timezone tab ---
   timeServer: 'Server orario',
   ntpServer: 'Server NTP',
@@ -409,6 +459,16 @@ export default {
   err_nvsDelete: 'Eliminazione non riuscita',
   err_nvsMemory: 'Memoria insufficiente',
   err_nvsNamespaceDelete: 'Un namespace sparisce con la sua ultima chiave',
+  err_factoryMissing: 'Nessun profilo di fabbrica nel file system',
+  err_factoryLayout: 'Il profilo di fabbrica non ha la struttura attesa',
+  err_factoryChecksum: 'Il profilo di fabbrica non corrisponde al suo checksum',
+  err_factorySchema: 'Schema del profilo di fabbrica sconosciuto',
+  err_factoryModel: 'Il profilo di fabbrica descrive un altro modello',
+  err_factoryShape: 'Profilo di fabbrica incompleto o errato',
+  err_factoryNotMonotone: 'La griglia di fabbrica cala al crescere della luce',
+  err_factoryTooBig: 'Il profilo di fabbrica non ha la dimensione di un profilo',
+  err_factoryUnreadable: 'Profilo di fabbrica illeggibile',
+  err_factoryUnavailable: 'Nessun profilo di fabbrica valido da ripristinare',
 
   // --- api errors ---
   connectionLost: "Collegamento con l'orologio interrotto",

@@ -97,6 +97,55 @@ export default {
   lumCalibrateResult: (cells, rung) => `${cells} celdas medidas, escalón ${rung}`,
   lumCalibrateAmbient: (lx) => `ambiente ${lx} lx`,
 
+  // --- the colour-aware factory model ---
+  lumSurfaceTitle: 'Curva de fábrica según el color',
+  lumSurfaceHint:
+    'Lo que el reloj quiere ajustar en cada nivel de luz y cada color. El ' +
+    'porcentaje no es luz: el mismo ajuste emite una décima parte en azul ' +
+    'profundo que en el verde de este reloj. El anillo marca el punto actual.',
+  lumSurfaceNone:
+    'No hay perfil de fábrica cargado — el automático sigue la curva blanca ' +
+    'aprendida, como antes de esta medición.',
+  lumSurfaceSummary: (lowLux, highLux, low, high) =>
+    `Una superficie de ${lowLux} a ${highLux} lx sobre todos los tonos; la ` +
+    `curva pide entre ${low} y ${high} %.`,
+  lumSurfaceHere: 'punto actual',
+  lumSurfaceLimited: 'color al tope — no puede subir más',
+  lumSurfaceBound: 'la medición decía «al menos esto»',
+  lumFactory: 'Perfil de fábrica',
+  lumFactoryNone: 'Ninguno cargado',
+  lumFactoryStack: (stack) => `Óptica: ${stack}`,
+  lumFactorySource: {
+    legacy: 'curva blanca aprendida',
+    factory: 'perfil de fábrica',
+    'factory+user': 'perfil de fábrica más tus correcciones'
+  },
+  lumFactoryTarget: (percent, factory) =>
+    `${percent} % deseados, el perfil de fábrica solo dice ${factory} %`,
+  lumFactoryAccuracy: (max, hue) =>
+    `Peor error en validación cruzada: ${max} puntos porcentuales, en el ` +
+    `tono ${hue}°. No se alcanzó el objetivo de 10 — la diferencia está en ` +
+    `las mediciones de ese tono, no en la forma del modelo.`,
+  lumFactoryAccuracyMet: 'Validación cruzada superada.',
+  lumFactoryObservations:
+    'Las mediciones de base se contradicen en algunos puntos; la rejilla ' +
+    'entregada sube igualmente en todas partes con la luz.',
+  lumFactoryMismatch:
+    'Las correcciones guardadas se aprendieron con otro perfil y no se ' +
+    'aplican. «Restaurar fábrica» las elimina.',
+  lumResiduals: 'Tus correcciones',
+  lumResidualsHint:
+    'Lo que el automático aprendió de tus ajustes — como diferencia con el ' +
+    'perfil de fábrica, en décadas de luz, separadas por color. Dos ' +
+    'correcciones con la misma luz en colores distintos no se sustituyen.',
+  lumResidualsEmpty: 'Todavía nada corregido.',
+  lumResidualDecades: 'Diferencia',
+  lumFactoryRestore: 'Restaurar fábrica',
+  lumFactoryRestoreHint:
+    'Borra tus correcciones y la curva blanca aprendida. La medición de la ' +
+    'luz propia permanece: pertenece a la óptica de este reloj, no a un ' +
+    'gusto.',
+
   // --- timezone tab ---
   timeServer: 'Servidor de hora',
   ntpServer: 'Servidor NTP',
@@ -409,6 +458,16 @@ export default {
   err_nvsDelete: 'No se pudo eliminar',
   err_nvsMemory: 'Memoria insuficiente',
   err_nvsNamespaceDelete: 'Un espacio de nombres desaparece con su última clave',
+  err_factoryMissing: 'No hay perfil de fábrica en el sistema de archivos',
+  err_factoryLayout: 'El perfil de fábrica no tiene la estructura esperada',
+  err_factoryChecksum: 'El perfil de fábrica no coincide con su suma de verificación',
+  err_factorySchema: 'Esquema de perfil de fábrica desconocido',
+  err_factoryModel: 'El perfil de fábrica describe otro modelo',
+  err_factoryShape: 'Perfil de fábrica incompleto o incorrecto',
+  err_factoryNotMonotone: 'La rejilla de fábrica baja al subir la luz',
+  err_factoryTooBig: 'El perfil de fábrica no tiene el tamaño de un perfil',
+  err_factoryUnreadable: 'No se puede leer el perfil de fábrica',
+  err_factoryUnavailable: 'No hay perfil de fábrica válido que restaurar',
 
   // --- api errors ---
   connectionLost: 'Se ha perdido la conexión con el reloj',

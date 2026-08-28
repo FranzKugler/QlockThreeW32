@@ -97,6 +97,56 @@ export default {
   lumCalibrateResult: (cells, rung) => `${cells} cells measured, rung ${rung}`,
   lumCalibrateAmbient: (lx) => `ambient ${lx} lx`,
 
+  // --- the colour-aware factory model ---
+  lumSurfaceTitle: 'Colour-aware factory curve',
+  lumSurfaceHint:
+    'What the clock wants to set at each ambient level and each colour. ' +
+    'Per cent is not light: the same setting emits about a tenth as much in ' +
+    'deep blue as in the green this clock runs. The ring is where it is now.',
+  lumSurfaceNone:
+    'No factory profile loaded — the automatic regulates on the learned ' +
+    'white curve, as it did before this measurement existed.',
+  lumSurfaceSummary: (lowLux, highLux, low, high) =>
+    `A surface over ${lowLux} to ${highLux} lx and every hue; the curve asks ` +
+    `for between ${low} and ${high} %.`,
+  lumSurfaceHere: 'where it is now',
+  lumSurfaceLimited: 'colour out of slider — it cannot go brighter',
+  lumSurfaceBound: 'the observation only said “at least this much”',
+  lumFactory: 'Factory profile',
+  lumFactoryNone: 'None loaded',
+  lumFactoryStack: (stack) => `Optics: ${stack}`,
+  lumFactorySource: {
+    legacy: 'learned white curve',
+    factory: 'factory profile',
+    'factory+user': 'factory profile plus your corrections'
+  },
+  lumFactoryTarget: (percent, factory) =>
+    `${percent} % wanted, the factory profile alone says ${factory} %`,
+  lumFactoryAccuracy: (max, hue) =>
+    `Worst held-out error: ${max} percentage points, at hue ${hue}°. The ` +
+    `goal of 10 was not met — the shortfall is that one hue's observations ` +
+    `contradicting each other, not the shape of the model.`,
+  lumFactoryAccuracyMet: 'Cross-validation passed.',
+  lumFactoryObservations:
+    'The observations behind it contradict themselves in places; the grid ' +
+    'that was shipped still rises everywhere with the light.',
+  lumFactoryMismatch:
+    'The stored corrections were learned on a different profile and are not ' +
+    'being applied. “Restore factory” clears them.',
+  lumResiduals: 'Your corrections',
+  lumResidualsHint:
+    'What the automatic learned from your nudges — as a difference from the ' +
+    'factory profile, in decades of light, kept apart by colour. Two ' +
+    'corrections at the same light in different colours do not replace one ' +
+    'another.',
+  lumResidualsEmpty: 'Nothing corrected yet.',
+  lumResidualDecades: 'Difference',
+  lumFactoryRestore: 'Restore factory',
+  lumFactoryRestoreHint:
+    'Clears your corrections and the learned white curve. The self-light ' +
+    'measurement stays: that belongs to this clock’s optics, not to anyone’s ' +
+    'taste.',
+
   // --- timezone tab ---
   timeServer: 'Time server',
   ntpServer: 'NTP server',
@@ -405,6 +455,16 @@ export default {
   err_nvsDelete: 'Delete failed',
   err_nvsMemory: 'Not enough memory',
   err_nvsNamespaceDelete: 'A namespace goes with its last key',
+  err_factoryMissing: 'No factory profile in the filesystem',
+  err_factoryLayout: 'The factory profile is not laid out as expected',
+  err_factoryChecksum: 'The factory profile does not match its own checksum',
+  err_factorySchema: 'The factory profile is a schema this firmware cannot read',
+  err_factoryModel: 'The factory profile describes a different model',
+  err_factoryShape: 'The factory profile is incomplete or malformed',
+  err_factoryNotMonotone: 'The factory grid falls as the light rises',
+  err_factoryTooBig: 'The factory profile is not the size a profile is',
+  err_factoryUnreadable: 'The factory profile cannot be read',
+  err_factoryUnavailable: 'No valid factory profile to restore to',
 
   // --- api errors ---
   connectionLost: 'Connection to the clock was lost',
