@@ -102,8 +102,9 @@ export default {
   lumSurfaceHint:
     'Wat de klok wil instellen bij elk lichtniveau en elke kleur. Procenten ' +
     'zijn geen licht: dezelfde stand geeft in diepblauw ongeveer een tiende ' +
-    'van het licht van het groen dat deze klok toont. De ring is het punt ' +
-    'van nu.',
+    'van het licht van het groen dat deze klok toont. De kleurtoon loopt ' +
+    'helemaal rond, want hij heeft geen eerste en geen laatste waarde en een ' +
+    'rechte as zou hem ergens moeten doorsnijden. De ring is het punt van nu.',
   lumSurfaceNone:
     'Geen fabrieksprofiel geladen — de automatiek regelt op de geleerde ' +
     'witte curve, zoals vóór deze meting.',
@@ -113,6 +114,17 @@ export default {
   lumSurfaceHere: 'punt van nu',
   lumSurfaceLimited: 'kleur op de aanslag — hoger kan niet',
   lumSurfaceBound: 'de meting zei “minstens zoveel”',
+  lumSurfaceRadius:
+    'Hoek = kleurtoon, straal = omgevingslicht (logaritmisch, naar buiten toe ' +
+    'helderder), hoogte = de ingestelde helderheid in procent.',
+  lumSurfaceRotate:
+    'Sleep om te draaien. Met de pijltoetsen draai en kantel je de weergave, ' +
+    'met Home zet je haar terug.',
+  lumSurfaceControls: 'Weergave draaien',
+  lumSurfaceLeft: 'Naar links draaien',
+  lumSurfaceRight: 'Naar rechts draaien',
+  lumSurfaceReset: 'Weergave herstellen',
+  lumSurfaceView: (azimuth, tilt) => `Draaiing ${azimuth}°, kanteling ${tilt}°`,
   lumFactory: 'Fabrieksprofiel',
   lumFactoryNone: 'Geen geladen',
   lumFactoryStack: (stack) => `Optiek: ${stack}`,

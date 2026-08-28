@@ -104,7 +104,9 @@ export default {
     'Was die Uhr bei welchem Umgebungslicht und welcher Farbe einstellen ' +
     'will. Prozent sind nicht gleich Licht: dieselbe Einstellung gibt in ' +
     'tiefem Blau rund ein Zehntel des Lichts wie im Grün, das diese Uhr ' +
-    'zeigt. Der Ring markiert den aktuellen Betriebspunkt.',
+    'zeigt. Der Farbton läuft rundherum, weil er kein Anfang und kein Ende ' +
+    'hat — eine gerade Achse müsste ihn irgendwo aufschneiden. Der Ring ' +
+    'markiert den aktuellen Betriebspunkt.',
   lumSurfaceNone:
     'Kein Werksprofil geladen — die Automatik regelt auf der gelernten ' +
     'Weißkurve, wie vor dieser Messung.',
@@ -114,6 +116,17 @@ export default {
   lumSurfaceHere: 'aktueller Punkt',
   lumSurfaceLimited: 'Farbe am Anschlag — mehr geht nicht',
   lumSurfaceBound: 'Messpunkt hieß „mindestens so viel“',
+  lumSurfaceRadius:
+    'Winkel = Farbton, Radius = Umgebungslicht (logarithmisch, außen ist ' +
+    'heller), Höhe = eingestellte Helligkeit in Prozent.',
+  lumSurfaceRotate:
+    'Zum Drehen ziehen. Mit den Pfeiltasten drehen und neigen, mit Pos1 die ' +
+    'Ansicht zurücksetzen.',
+  lumSurfaceControls: 'Ansicht drehen',
+  lumSurfaceLeft: 'Nach links drehen',
+  lumSurfaceRight: 'Nach rechts drehen',
+  lumSurfaceReset: 'Ansicht zurücksetzen',
+  lumSurfaceView: (azimuth, tilt) => `Drehung ${azimuth}°, Neigung ${tilt}°`,
   lumFactory: 'Werksprofil',
   lumFactoryNone: 'Keines geladen',
   lumFactoryStack: (stack) => `Optik: ${stack}`,

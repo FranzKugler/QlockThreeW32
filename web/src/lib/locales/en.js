@@ -102,7 +102,9 @@ export default {
   lumSurfaceHint:
     'What the clock wants to set at each ambient level and each colour. ' +
     'Per cent is not light: the same setting emits about a tenth as much in ' +
-    'deep blue as in the green this clock runs. The ring is where it is now.',
+    'deep blue as in the green this clock runs. Hue runs the whole way round, ' +
+    'because it has no first value and no last one and a straight axis would ' +
+    'have to cut it somewhere. The ring is where it is now.',
   lumSurfaceNone:
     'No factory profile loaded — the automatic regulates on the learned ' +
     'white curve, as it did before this measurement existed.',
@@ -112,6 +114,17 @@ export default {
   lumSurfaceHere: 'where it is now',
   lumSurfaceLimited: 'colour out of slider — it cannot go brighter',
   lumSurfaceBound: 'the observation only said “at least this much”',
+  lumSurfaceRadius:
+    'Angle = hue, radius = ambient light (logarithmic, brighter further out), ' +
+    'height = the brightness it sets, in per cent.',
+  lumSurfaceRotate:
+    'Drag to turn it. The arrow keys turn and tilt it, and Home puts the view ' +
+    'back.',
+  lumSurfaceControls: 'Turn the view',
+  lumSurfaceLeft: 'Turn left',
+  lumSurfaceRight: 'Turn right',
+  lumSurfaceReset: 'Reset the view',
+  lumSurfaceView: (azimuth, tilt) => `Turned ${azimuth}°, tilted ${tilt}°`,
   lumFactory: 'Factory profile',
   lumFactoryNone: 'None loaded',
   lumFactoryStack: (stack) => `Optics: ${stack}`,

@@ -102,7 +102,9 @@ export default {
   lumSurfaceHint:
     'Lo que el reloj quiere ajustar en cada nivel de luz y cada color. El ' +
     'porcentaje no es luz: el mismo ajuste emite una décima parte en azul ' +
-    'profundo que en el verde de este reloj. El anillo marca el punto actual.',
+    'profundo que en el verde de este reloj. El tono da la vuelta entera, ' +
+    'porque no tiene un primer ni un último valor y un eje recto tendría que ' +
+    'cortarlo en algún sitio. El anillo marca el punto actual.',
   lumSurfaceNone:
     'No hay perfil de fábrica cargado — el automático sigue la curva blanca ' +
     'aprendida, como antes de esta medición.',
@@ -112,6 +114,17 @@ export default {
   lumSurfaceHere: 'punto actual',
   lumSurfaceLimited: 'color al tope — no puede subir más',
   lumSurfaceBound: 'la medición decía «al menos esto»',
+  lumSurfaceRadius:
+    'Ángulo = tono, radio = luz ambiente (escala logarítmica, más claro hacia ' +
+    'fuera), altura = el brillo que ajusta, en por ciento.',
+  lumSurfaceRotate:
+    'Arrastra para girarlo. Las flechas giran e inclinan la vista, e Inicio ' +
+    'la devuelve a su sitio.',
+  lumSurfaceControls: 'Girar la vista',
+  lumSurfaceLeft: 'Girar a la izquierda',
+  lumSurfaceRight: 'Girar a la derecha',
+  lumSurfaceReset: 'Restablecer la vista',
+  lumSurfaceView: (azimuth, tilt) => `Giro ${azimuth}°, inclinación ${tilt}°`,
   lumFactory: 'Perfil de fábrica',
   lumFactoryNone: 'Ninguno cargado',
   lumFactoryStack: (stack) => `Óptica: ${stack}`,

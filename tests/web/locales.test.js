@@ -72,6 +72,11 @@ test('the colour model speaks all six languages', () => {
   const added = [
     'lumSurfaceTitle', 'lumSurfaceHint', 'lumSurfaceNone', 'lumSurfaceSummary',
     'lumSurfaceHere', 'lumSurfaceLimited', 'lumSurfaceBound',
+    // The cylinder: what the three axes are, and how to turn it. The mapping
+    // sentence is not decoration - a radius that is logarithmic and does not
+    // say so is a chart that reads as linear and is wrong by two decades.
+    'lumSurfaceRadius', 'lumSurfaceRotate', 'lumSurfaceControls',
+    'lumSurfaceLeft', 'lumSurfaceRight', 'lumSurfaceReset', 'lumSurfaceView',
     'lumFactory', 'lumFactoryNone', 'lumFactoryStack', 'lumFactorySource',
     'lumFactoryTarget', 'lumFactoryAccuracy', 'lumFactoryAccuracyMet',
     'lumFactoryObservations', 'lumFactoryMismatch',

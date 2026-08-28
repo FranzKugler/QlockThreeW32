@@ -103,7 +103,8 @@ export default {
     'Ce que l’horloge veut régler à chaque niveau de lumière et pour chaque ' +
     'couleur. Le pourcentage n’est pas de la lumière : le même réglage émet ' +
     'environ dix fois moins en bleu profond qu’au vert de cette horloge. ' +
-    'L’anneau indique le point actuel.',
+    'La teinte fait le tour complet, car elle n’a ni début ni fin et un axe ' +
+    'droit devrait la couper quelque part. L’anneau indique le point actuel.',
   lumSurfaceNone:
     'Aucun profil d’usine chargé — l’automatique suit la courbe blanche ' +
     'apprise, comme avant cette mesure.',
@@ -113,6 +114,17 @@ export default {
   lumSurfaceHere: 'point actuel',
   lumSurfaceLimited: 'couleur en butée — impossible d’aller plus haut',
   lumSurfaceBound: 'la mesure disait « au moins autant »',
+  lumSurfaceRadius:
+    'Angle = teinte, rayon = lumière ambiante (échelle logarithmique, plus ' +
+    'clair vers l’extérieur), hauteur = la luminosité réglée, en pour cent.',
+  lumSurfaceRotate:
+    'Faites glisser pour tourner. Les flèches tournent et inclinent la vue, ' +
+    'la touche Origine la remet en place.',
+  lumSurfaceControls: 'Tourner la vue',
+  lumSurfaceLeft: 'Tourner à gauche',
+  lumSurfaceRight: 'Tourner à droite',
+  lumSurfaceReset: 'Réinitialiser la vue',
+  lumSurfaceView: (azimuth, tilt) => `Rotation ${azimuth}°, inclinaison ${tilt}°`,
   lumFactory: 'Profil d’usine',
   lumFactoryNone: 'Aucun chargé',
   lumFactoryStack: (stack) => `Optique : ${stack}`,
