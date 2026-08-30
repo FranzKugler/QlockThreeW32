@@ -271,6 +271,22 @@ up.
 > Clearing NVS resets the clock to defaults. Reflashing the filesystem no
 > longer does.
 
+## Flashing a blank chip
+
+**[franzkugler.github.io/QlockThreeW32](https://franzkugler.github.io/QlockThreeW32/)**
+flashes a factory-fresh Seeed XIAO ESP32-S3 straight from Chrome, Edge or
+Opera — no PlatformIO, no Python, nothing to install. It writes the whole
+chip (bootloader, partition table, firmware and the configuration interface)
+from whatever the latest stable release is, using
+[ESP Web Tools](https://esphome.github.io/esp-web-tools/) over the Web Serial
+API. Once a clock is running this firmware, updates go through its own
+**Update** tab instead — see the next section.
+
+The page is [`docs/`](docs/) in this repository, published as a GitHub Pages
+site by [the release workflow](.github/workflows/release.yml) on every stable
+release; see [`CLAUDE.md`](CLAUDE.md) for why it cannot simply point at the
+release's own download URLs.
+
 ## Updating over the air
 
 There are two images, and they are independent: `firmware.bin` (the program)

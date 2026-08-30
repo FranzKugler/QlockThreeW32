@@ -13,6 +13,17 @@
 #
 # The edge release must stay marked as a pre-release, or it would take over
 # /releases/latest and stable clocks would start following it.
+#
+# A stable release additionally publishes docs/ as a GitHub Pages site - the
+# browser-based flashing page for a blank chip (see docs/index.html). That
+# needs five parts a running clock never touches (the bootloader, the
+# partition table itself, the otadata stub) alongside the two OTA already
+# builds, and it needs them on the *same origin* as the page: a browser
+# fetch() of a GitHub release asset has no CORS header and is silently
+# blocked, so the page cannot point at /releases/ the way a clock's manifest
+# does - see scripts/web_tools_manifest.py. Not built for the edge channel:
+# first-time flashing a blank board is exactly the case that wants the
+# reviewed release, not the rolling one.
 
 name: Release
 
@@ -34,6 +45,8 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.meta.outputs.channel }}
 
     steps:
       - uses: actions/checkout@v4
@@ -136,6 +149,37 @@ jobs:
             --notes-file notes.md \
             "$BUILD/firmware.bin" "$BUILD/littlefs.bin" manifest.json
 
+      # boot_app0.bin and the offsets for it and for bootloader.bin /
+      # partitions.bin never come from this project's own partitions.csv - see
+      # the module docstring in web_tools_manifest.py for where they do come
+      # from, and why they cannot drift out of step with the actual build.
+      - name: Locate boot_app0.bin
+        if: steps.meta.outputs.channel == 'stable'
+        id: boot_app0
+        run: |
+          path="$(find ~/.platformio/packages/framework-arduinoespressif32/tools/partitions -name boot_app0.bin | head -1)"
+          if [ -z "$path" ]; then
+            echo "boot_app0.bin not found under the framework package" >&2
+            exit 1
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      # Only for stable: first-time flashing a blank chip wants the reviewed
+      # release, and the flashing page always points at whichever stable
+      # release last deployed it - see the workflow's own header comment.
+      - name: Write the ESP Web Tools manifest
+        if: steps.meta.outputs.channel == 'stable'
+        env:
+          BUILD: .pio/build/seeed_xiao_esp32s3
+        run: |
+          cp "${{ steps.boot_app0.outputs.path }}" "$BUILD/boot_app0.bin"
+          python scripts/web_tools_manifest.py \
+            --version "${{ steps.meta.outputs.version }}" \
+            --base-url "." \
+            --out esp-web-tools-manifest.json \
+            --boot-app0 "$BUILD/boot_app0.bin" \
+            "$BUILD"
+
       - name: Publish the stable release
         if: steps.meta.outputs.channel == 'stable'
         env:
@@ -145,7 +189,31 @@ jobs:
           gh release create "${{ steps.meta.outputs.tag }}" \
             --title "${{ steps.meta.outputs.tag }}" \
             --generate-notes \
-            "$BUILD/firmware.bin" "$BUILD/littlefs.bin" manifest.json
+            "$BUILD/firmware.bin" "$BUILD/littlefs.bin" manifest.json \
+            "$BUILD/bootloader.bin" "$BUILD/partitions.bin" "$BUILD/boot_app0.bin" \
+            esp-web-tools-manifest.json
+
+      - name: Stage the flashing page
+        if: steps.meta.outputs.channel == 'stable'
+        env:
+          BUILD: .pio/build/seeed_xiao_esp32s3
+        run: |
+          mkdir -p pages/firmware
+          cp -r docs/. pages/
+          cp "$BUILD/bootloader.bin" "$BUILD/partitions.bin" "$BUILD/boot_app0.bin" \
+             "$BUILD/firmware.bin" "$BUILD/littlefs.bin" \
+             esp-web-tools-manifest.json \
+             pages/firmware/
+
+      - name: Configure Pages
+        if: steps.meta.outputs.channel == 'stable'
+        uses: actions/configure-pages@v5
+
+      - name: Upload the flashing page
+        if: steps.meta.outputs.channel == 'stable'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
 
       - name: Summary
         run: |
@@ -156,3 +224,23 @@ jobs:
             cat manifest.json
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Separate job so it gets its own `github-pages` deployment environment and
+  # its own, narrower token - the build job needs `contents: write` for the
+  # releases, this one only ever needs to publish the artifact the build job
+  # staged. actions/deploy-pages picks that artifact up from this workflow
+  # run without being told its name.
+  deploy-pages:
+    needs: build
+    if: needs.build.outputs.channel == 'stable'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

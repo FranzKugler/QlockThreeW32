@@ -279,6 +279,16 @@ Things that are load-bearing here:
 - `src/Secrets.h` does not exist in CI, so published images have no espota password — which is what you want for a public image.
 - [scripts/manifest.py](scripts/manifest.py) writes the manifest and can be run by hand to see what a release would look like.
 
+### Flashing a blank chip
+
+A stable release also publishes [`docs/`](docs/) as a GitHub Pages site — a browser-based first-flash tool for a factory-fresh XIAO ESP32-S3, built on [ESP Web Tools](https://esphome.github.io/esp-web-tools/) (`<esp-web-install-button>`, Web Serial, no software to install). Not built for `edge`: first-time flashing a blank board is exactly the case that wants the reviewed release.
+
+- **A browser `fetch()` of a GitHub release asset has no CORS header and is silently blocked.** ESP Web Tools downloads the manifest and every part with `fetch()`, so pointing it at `/releases/download/...` the way a clock's own OTA manifest does simply does not work from a page on a different origin. The five parts and the manifest are copied onto the *same* GitHub Pages origin instead — a same-origin request needs no CORS header at all — which is the one thing that makes this a two-destination publish rather than a second reader of the existing release assets.
+- **Five parts, not two.** A running clock's OTA only ever touches `app0`/`app1`/`spiffs`; a blank chip additionally needs the bootloader, the partition table itself, and `boot_app0.bin` (the stub that seeds `otadata` to boot `app0` first). None of those come from `partitions.csv` — [scripts/web_tools_manifest.py](scripts/web_tools_manifest.py) hardcodes the three fixed offsets the Arduino build tooling itself uses (`0x0`/`0x8000`/`0xe000` for an S3) and only parses `partitions.csv` for `app0`/`spiffs`, so a changed table cannot silently drift out of step with what actually gets flashed.
+- **`new_install_prompt_erase: true`.** A browser here has never met the chip before — offering the erase checkbox is right on every visit, not only the first.
+- The manifest's parts are relative paths (`./bootloader.bin`, …), resolved against the manifest's own URL — the same manifest works whether it is fetched from a project page at a subpath or a custom domain, because nothing in it names a host.
+- Reachable at **[franzkugler.github.io/QlockThreeW32](https://franzkugler.github.io/QlockThreeW32/)** once the repository's Pages source is set to "GitHub Actions" (Settings → Pages) — a one-time setting this workflow cannot flip by itself. Until then, `deploy-pages` fails with a clear error rather than silently doing nothing.
+
 Version comparison differs per channel, and the firmware client will have to respect that: `stable` gives clean semver (`2.1.0`) where "newer" is meaningful, `edge` gives `git describe` output (`2.0.0-4-gabc123`) where the only sensible test is "differs from what is installed".
 
 ### Versioning
