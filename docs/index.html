@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QlockThreeW32 — Flash a clock</title>
-<meta name="description" content="Flash a blank Seeed XIAO ESP32-S3 with QlockThreeW32 firmware, straight from Chrome or Edge — no software to install.">
+<meta name="description" content="Flash a blank Seeed XIAO ESP32-S3 Plus with QlockThreeW32 firmware, straight from Chrome or Edge — no software to install.">
 <link rel="icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="icon-512.png">
 <style>
@@ -68,20 +68,19 @@
     margin: 0 auto;
   }
 
-  /* A static echo of the real face, not a working replica - just enough that
-     this page is recognisably about the same clock. */
+  /* The real panel, lit for "IT IS FIVE PAST TWO" - see scripts/flash_hero.py.
+     A still image, so it stays light-mode even in a dark browser; that is the
+     point, the same reason the graphic has its own baked-in light background
+     rather than a transparent one. */
   .face {
-    font: 1.05rem/1.9 "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    letter-spacing: 0.12em;
-    background: var(--surface);
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 22rem;
+    margin: 1.6rem auto 0;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1rem 1.4rem;
-    margin: 1.6rem auto 0;
-    max-width: 22rem;
-    color: var(--muted);
   }
-  .face b { color: var(--accent); font-weight: 700; }
 
   section {
     background: var(--surface);
@@ -203,11 +202,12 @@
     <h1>Flash a clock, from the browser</h1>
     <p class="lede">
       A blank <a href="https://github.com/FranzKugler/QlockThreeW32">Seeed XIAO
-      ESP32-S3</a> becomes a word clock in about a minute — no PlatformIO, no
+      ESP32-S3 Plus</a> becomes a word clock in about a minute — no PlatformIO, no
       Python, nothing to install. This page writes the whole flash: bootloader,
       firmware and the configuration interface, in one go.
     </p>
-    <p class="face">ES IST <b>FÜNF</b> NACH <b>ZWEI</b><br><span style="font-size:0.85em">IT IS FIVE PAST TWO</span></p>
+    <img class="face" src="panel-preview.png" width="820" height="752"
+         alt="The clock's own panel, lit to read IT IS FIVE PAST TWO">
   </header>
 
   <section>
@@ -273,7 +273,7 @@
   <details>
     <summary>What exactly does this write?</summary>
     <p>
-      Five parts, at the offsets a factory-fresh XIAO ESP32-S3 needs: the
+      Five parts, at the offsets a factory-fresh XIAO ESP32-S3 Plus needs: the
       second-stage bootloader, the partition table, the tiny stub that tells it
       which partition to boot first, the firmware itself, and the filesystem
       image holding this configuration interface. The "erase" option this tool

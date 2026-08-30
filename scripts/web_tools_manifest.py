@@ -5,7 +5,7 @@ see docs/index.html, the "first flashing" page this feeds. A completely
 different document from manifest.py's: that one is polled by a clock that
 already runs this firmware and only ever touches the two OTA partitions; this
 one is read once, by a browser that has never met the chip, and has to name
-every part a **factory-fresh** XIAO ESP32-S3 needs - the bootloader and the
+every part a **factory-fresh** XIAO ESP32-S3 Plus needs - the bootloader and the
 partition table themselves included, which nothing else here ever writes.
 
 Called by .github/workflows/release.yml, but a plain script so it can be run

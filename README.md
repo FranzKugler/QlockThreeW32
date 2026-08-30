@@ -274,7 +274,7 @@ up.
 ## Flashing a blank chip
 
 **[franzkugler.github.io/QlockThreeW32](https://franzkugler.github.io/QlockThreeW32/)**
-flashes a factory-fresh Seeed XIAO ESP32-S3 straight from Chrome, Edge or
+flashes a factory-fresh Seeed XIAO ESP32-S3 Plus straight from Chrome, Edge or
 Opera — no PlatformIO, no Python, nothing to install. It writes the whole
 chip (bootloader, partition table, firmware and the configuration interface)
 from whatever the latest stable release is, using

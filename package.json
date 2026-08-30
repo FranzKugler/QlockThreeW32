@@ -1,6 +1,6 @@
 {
   "name": "qlockthreew32-web",
-  "version": "2.3.5",
+  "version": "2.3.6",
   "private": true,
   "description": "Configuration web UI for the QlockThreeW32 word clock, built into data/ for the ESP32 LittleFS image",
   "type": "module",
