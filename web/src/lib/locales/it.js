@@ -113,6 +113,7 @@ export default {
     `Una superficie da ${lowLux} a ${highLux} lx su tutte le tinte; la ` +
     `curva chiede tra ${low} e ${high} %.`,
   lumSurfaceHere: 'punto attuale',
+  lumSurfaceTaught: 'insegnato a mano',
   lumSurfaceLimited: 'colore a fine corsa — non può salire',
   lumSurfaceBound: 'la misura diceva «almeno tanto»',
   lumSurfaceRadius:
@@ -142,16 +143,36 @@ export default {
     `nelle misure di quella tinta, non nella forma del modello.`,
   lumFactoryAccuracyMet: 'Validazione incrociata superata.',
   lumFactoryObservations:
-    'Le misure alla base si contraddicono in alcuni punti; la griglia ' +
-    'consegnata sale comunque ovunque con la luce.',
+    'Le misure alla base si contraddicono in alcuni punti; la curva ' +
+    'adattata sale comunque ovunque con la luce.',
   lumFactoryMismatch:
     'Le correzioni memorizzate sono state apprese su un altro profilo e non ' +
     'vengono applicate. «Ripristina fabbrica» le rimuove.',
+  lumGeekTitle: 'Parametri del fit (per i curiosi)',
+  lumGeekCone: 'Cono (pendenza / intercetta)',
+  lumGeekNose: 'Naso del colore (a0 / a1 / b1)',
+  lumGeekBlue: 'Retta propria del blu (pendenza / intercetta)',
+  lumGeekFactory: 'fabbrica',
+  lumGeekLearned: 'appreso',
+  lumGeekWhite: 'curva bianca pura (senza colore, per confronto)',
+  lumGeekAccuracy: 'Convalida incrociata',
+  lumGeekHint:
+    'Tutto in decadi di luce. Il naso del colore è un’unica onda su tutte ' +
+    'le tinte tranne il blu — a0 + a1·cos(tinta) + b1·sin(tinta) —, e il ' +
+    'blu ha una retta tutta sua. «Appreso» compare non appena almeno una ' +
+    'correzione di colore vi è confluita. La curva bianca non guida più ' +
+    'l’orologio una volta caricato un profilo di fabbrica — qui è mostrata ' +
+    'solo per confronto.',
   lumResiduals: 'Le tue correzioni',
   lumResidualsHint:
     'Cosa ha appreso l’automatico dalle tue regolazioni — come scarto dal ' +
     'profilo di fabbrica, in decadi di luce, tenute distinte per colore. Due ' +
-    'correzioni alla stessa luce in colori diversi non si sostituiscono.',
+    'correzioni alla stessa luce in colori diversi non si sostituiscono. ' +
+    'Volutamente meno posti che per i punti bianchi qui sopra: il profilo ' +
+    'di fabbrica porta già la forma della curva, resta da imparare solo un ' +
+    'livello e un po’ di gusto per il colore — e una correzione da sola ' +
+    'spesso sposta la curva di poco, a meno che non cada abbastanza vicino ' +
+    'a una misura di fabbrica da sostituirla.',
   lumResidualsEmpty: 'Ancora nessuna correzione.',
   lumResidualDecades: 'Scarto',
   lumFactoryRestore: 'Ripristina fabbrica',

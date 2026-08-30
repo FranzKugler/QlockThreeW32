@@ -112,6 +112,7 @@ export default {
     `Una superficie de ${lowLux} a ${highLux} lx sobre todos los tonos; la ` +
     `curva pide entre ${low} y ${high} %.`,
   lumSurfaceHere: 'punto actual',
+  lumSurfaceTaught: 'enseñado a mano',
   lumSurfaceLimited: 'color al tope — no puede subir más',
   lumSurfaceBound: 'la medición decía «al menos esto»',
   lumSurfaceRadius:
@@ -141,16 +142,36 @@ export default {
     `las mediciones de ese tono, no en la forma del modelo.`,
   lumFactoryAccuracyMet: 'Validación cruzada superada.',
   lumFactoryObservations:
-    'Las mediciones de base se contradicen en algunos puntos; la rejilla ' +
-    'entregada sube igualmente en todas partes con la luz.',
+    'Las mediciones de base se contradicen en algunos puntos; la curva ' +
+    'ajustada sube igualmente en todas partes con la luz.',
   lumFactoryMismatch:
     'Las correcciones guardadas se aprendieron con otro perfil y no se ' +
     'aplican. «Restaurar fábrica» las elimina.',
+  lumGeekTitle: 'Parámetros del ajuste (para curiosos)',
+  lumGeekCone: 'Cono (pendiente / desplazamiento)',
+  lumGeekNose: 'Nariz de color (a0 / a1 / b1)',
+  lumGeekBlue: 'Recta propia del azul (pendiente / desplazamiento)',
+  lumGeekFactory: 'fábrica',
+  lumGeekLearned: 'aprendido',
+  lumGeekWhite: 'curva blanca pura (sin color, para comparar)',
+  lumGeekAccuracy: 'Validación cruzada',
+  lumGeekHint:
+    'Todo en décadas de luz. La nariz de color es una única onda sobre ' +
+    'todos los tonos salvo el azul — a0 + a1·cos(tono) + b1·sin(tono) —, y ' +
+    'el azul tiene su propia recta. «Aprendido» aparece en cuanto al menos ' +
+    'una corrección de color ha entrado en el ajuste. La curva blanca ya ' +
+    'no gobierna el reloj una vez cargado un perfil de fábrica — aquí solo ' +
+    'se muestra para comparar.',
   lumResiduals: 'Tus correcciones',
   lumResidualsHint:
     'Lo que el automático aprendió de tus ajustes — como diferencia con el ' +
     'perfil de fábrica, en décadas de luz, separadas por color. Dos ' +
-    'correcciones con la misma luz en colores distintos no se sustituyen.',
+    'correcciones con la misma luz en colores distintos no se sustituyen. ' +
+    'Deliberadamente menos huecos que los puntos blancos de arriba: el ' +
+    'perfil de fábrica ya trae la forma de la curva, así que solo queda ' +
+    'por aprender un nivel y un poco de gusto por el color — y una sola ' +
+    'corrección suele mover la curva poco, a menos que caiga bastante ' +
+    'cerca de una medición de fábrica como para sustituirla.',
   lumResidualsEmpty: 'Todavía nada corregido.',
   lumResidualDecades: 'Diferencia',
   lumFactoryRestore: 'Restaurar fábrica',

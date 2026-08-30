@@ -54,7 +54,7 @@
 
   const t = $derived(dict());
 
-  let { surface = null, target = null, lux = null } = $props();
+  let { surface = null, target = null, lux = null, residuals = [] } = $props();
 
   const W = 340;
   const H = 250;
@@ -70,7 +70,28 @@
       : null
   );
 
-  const drawn = $derived(projectSurface(surface, { width: W, height: H, point, view }));
+  /*
+   * Table 2 - what the owner has taught the clock - on the same surface.
+   *
+   * `percent` arrives already computed by the firmware (see WebRoutes.cpp's
+   * describeFactory()): converting a taught decades-residual back to a
+   * percentage is the same inversion the surface itself is built from, and a
+   * second implementation here would be a second place for the two to
+   * quietly disagree. A point missing it - an older firmware, or the factory
+   * profile not loaded when it was taught - is left off rather than guessed
+   * at, and white is left off on principle: it has no hue, and a diagram
+   * whose one axis *is* hue has nowhere honest to put it.
+   */
+  const taught = $derived(
+    surface?.valid
+      ? (residuals ?? []).filter((one) => one.sat > 0 && Number.isFinite(one.percent))
+          .map((one) => ({ lux: one.lux, hue: one.hue, percent: one.percent, bound: one.bound }))
+      : []
+  );
+
+  const drawn = $derived(
+    projectSurface(surface, { width: W, height: H, point, points: taught, view })
+  );
 
   const azimuth = $derived(Math.round(drawn.view.azimuth));
   const tilt = $derived(Math.round(drawn.view.tilt));
@@ -284,6 +305,17 @@
         <text class="tick" x={tick.x - 4} y={tick.y + 3} text-anchor="end">{tick.label}</text>
       {/each}
 
+      <!-- Table 2, before the "here" marker so the current point is never
+           hidden under a taught one sitting at the same spot. A square
+           rather than a circle - the one shape not already used on this
+           diagram - and faded on the far side of the cylinder the same way
+           the hue labels are, or a diagram that only ever shows the near
+           half of what was taught would look like half a calibration. -->
+      {#each drawn.points as mark, i (i)}
+        <rect class="taught" class:bound={mark.bound} class:far={mark.depth > 0}
+              x={mark.x - 3} y={mark.y - 3} width="6" height="6" />
+      {/each}
+
       {#if drawn.point}
         <!-- Two circles rather than one: the ring survives being drawn over a
              band of its own colour, which a filled dot does not. -->
@@ -312,6 +344,9 @@
 
   <ul class="legend">
     <li><span class="chip here-chip"></span>{t.lumSurfaceHere}</li>
+    {#if drawn.points.length > 0}
+      <li><span class="chip taught-chip"></span>{t.lumSurfaceTaught}</li>
+    {/if}
     <li><span class="chip limited-chip"></span>{t.lumSurfaceLimited}</li>
     <li><span class="chip bound-chip"></span>{t.lumSurfaceBound}</li>
   </ul>
@@ -379,6 +414,15 @@
   .here.ring-mark { fill: none; stroke: var(--text); stroke-width: 1.6; }
   .here.dot { fill: var(--text); }
 
+  /* Table 2. Stroked rather than filled, so a marker sitting on a dark band
+     still reads as a shape and not as a blob the same colour as the surface
+     under it - the same reasoning as the ring around the "here" dot. */
+  .taught { fill: var(--surface); stroke: var(--text); stroke-width: 1.3; }
+  .taught.far { opacity: 0.4; }
+  /* "At least this much": the same dashed language the limited cells use,
+     because it is the same kind of statement - a bound, not an equality. */
+  .taught.bound { stroke-dasharray: 1.5 1; }
+
   .viewrow {
     display: flex;
     flex-wrap: wrap;
@@ -410,6 +454,7 @@
     border: 1px solid currentColor;
   }
   .here-chip { border-radius: 50%; background: currentColor; }
+  .taught-chip { background: var(--surface); }
   .limited-chip { opacity: 0.35; background: currentColor; border-style: dashed; }
   .bound-chip { background: none; border-width: 2px; }
 

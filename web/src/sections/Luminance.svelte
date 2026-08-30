@@ -122,6 +122,10 @@
   const factory = $derived(data?.factory ?? null);
   const targetNow = $derived(data?.target ?? null);
   const residuals = $derived(data?.user?.residuals ?? []);
+  // The refit's own numbers, present only once it has produced something
+  // worth showing - see Luminance::learnedFit(). Absent rather than equal to
+  // the factory's own is the same rule the residual points already follow.
+  const learnedFit = $derived(data?.user?.fit ?? null);
 
   /**
    * The regulated range. Held locally while being typed, because the poll
@@ -353,12 +357,21 @@
   {:else if !data}
     <p class="hint">{t.loading}</p>
   {:else}
+    <!-- What the model wants at this light **in the colour on the face right
+         now** - data.target.percent, not data.brightness. The latter is the
+         plain white curve alone (Luminance::forLux()), which keeps running
+         underneath the colour-aware model for the white ring's own sake but
+         stopped being "what the curve wants" the day a factory profile could
+         answer that question in colour. Showing it here read as the headline
+         jumping to a wrong number the moment the face was not white - see the
+         geek section below for it, next to the fit it is being compared
+         against. -->
     <div class="field">
       <span class="key">{t.measured}</span>
       <span>
         {#if data.available}
           {data.lux.toFixed(2)} lx <small class="raw">({data.raw.toFixed(2)} lx)</small>
-          → {data.brightness} %
+          → {data.target.percent} %
         {:else}
           {t.loadingShort}
         {/if}
@@ -372,7 +385,7 @@
          fault. -->
     <div class="field">
       <span class="key">{t.lumApplied}</span>
-      <span class:off={data.applied !== data.brightness}>{data.applied} %</span>
+      <span class:off={data.applied !== data.target.percent}>{data.applied} %</span>
     </div>
 
     <div class="field">
@@ -451,7 +464,7 @@
          light, and this says how bright at how much light *in what colour*.
          Between the two of them the points below make sense; after the points
          it would be an appendix. -->
-    <LuminanceSurface {surface} target={targetNow} lux={data.lux} />
+    <LuminanceSurface {surface} target={targetNow} lux={data.lux} {residuals} />
 
     <!-- Which model the number on the wall came out of, and what that model is
          worth. Under the diagram rather than over it: somebody arrives at this
@@ -480,19 +493,6 @@
         {/if}
       </div>
 
-      <!-- Not hidden. The reviewed profile misses its own acceptance goal at
-           one hue, and a clock that showed only the pretty surface would be
-           claiming an accuracy nobody measured. -->
-      <p class="hint">
-        {#if factory.acceptanceMet}
-          {t.lumFactoryAccuracyMet}
-        {:else}
-          {t.lumFactoryAccuracy(factory.maxError, factory.worstHue)}
-        {/if}
-      </p>
-      {#if !factory.observationsMonotone}
-        <p class="hint">{t.lumFactoryObservations}</p>
-      {/if}
       {#if !factory.matched}
         <!-- A filesystem update can bring a new measurement in underneath the
              corrections. They are still what somebody said, and adding them to
@@ -509,6 +509,74 @@
     {/if}
 
     {#if factory?.valid}
+      <!-- Its own heading, the summary's native disclosure triangle standing
+           in for the h3 the rest of this screen uses - closed by default,
+           because nobody needs three Fourier coefficients to use a word
+           clock. The cross-validation the factory profile shipped with lives
+           here too now rather than above: it is a fact about the reviewed
+           measurement, not about what the automatic is doing right now, and
+           belongs beside the numbers it is a cross-validation of. -->
+      <details class="geek">
+        <summary>{t.lumGeekTitle}</summary>
+        <div class="rows">
+          <div class="row">
+            <span class="key">{t.lumGeekCone}</span>
+            <span class="val">{factory.coneSlope.toFixed(4)} / {factory.coneOffset.toFixed(4)}</span>
+          </div>
+          <div class="row">
+            <span class="key">{t.lumGeekNose} — {t.lumGeekFactory}</span>
+            <span class="val">
+              {factory.noseA0.toFixed(4)} / {factory.noseA1.toFixed(4)} / {factory.noseB1.toFixed(4)}
+            </span>
+          </div>
+          {#if learnedFit}
+            <div class="row">
+              <span class="key">{t.lumGeekNose} — {t.lumGeekLearned}</span>
+              <span class="val">
+                {learnedFit.noseA0.toFixed(4)} / {learnedFit.noseA1.toFixed(4)} /
+                {learnedFit.noseB1.toFixed(4)}
+              </span>
+            </div>
+          {/if}
+          <div class="row">
+            <span class="key">{t.lumGeekBlue} — {t.lumGeekFactory}</span>
+            <span class="val">{factory.blueSlope.toFixed(4)} / {factory.blueOffset.toFixed(4)}</span>
+          </div>
+          {#if learnedFit}
+            <div class="row">
+              <span class="key">{t.lumGeekBlue} — {t.lumGeekLearned}</span>
+              <span class="val">
+                {learnedFit.blueSlope.toFixed(4)} / {learnedFit.blueOffset.toFixed(4)}
+              </span>
+            </div>
+          {/if}
+          <!-- The plain white curve, unaffected by any colour correction -
+               shown here rather than as the headline number above, which is
+               the mistake this section replaces. -->
+          <div class="row">
+            <span class="key">{t.lumGeekWhite}</span>
+            <span class="val">{data.brightness} %</span>
+          </div>
+          <!-- Not hidden when it fails its own goal - the reviewed profile
+               misses acceptance at one hue, and burying that would be
+               claiming an accuracy nobody measured. -->
+          <div class="row">
+            <span class="key">{t.lumGeekAccuracy}</span>
+            <span class="val">
+              {#if factory.acceptanceMet}
+                {t.lumFactoryAccuracyMet}
+              {:else}
+                {t.lumFactoryAccuracy(factory.maxError, factory.worstHue)}
+              {/if}
+            </span>
+          </div>
+        </div>
+        {#if !factory.observationsMonotone}
+          <p class="hint small">{t.lumFactoryObservations}</p>
+        {/if}
+        <p class="hint small">{t.lumGeekHint}</p>
+      </details>
+
       <h3>{t.lumResiduals} ({residuals.length}/{data.user?.capacity ?? 0})</h3>
       <p class="hint">{t.lumResidualsHint}</p>
       {#if residuals.length === 0}
@@ -518,12 +586,18 @@
           {#each residuals as one, i (i)}
             <div class="row">
               <span class="key">
-                {one.lux.toFixed(3)} lx
+                {#if swatch(one)}
+                  <span class="swatch" style="background: {swatch(one)}"
+                        title={t.lumTaughtIn(one.hue, one.sat)}></span>
+                {/if}{one.lux.toFixed(3)} lx
                 <small class="raw">{t.lumTaughtIn(one.hue, one.sat)}</small>
               </span>
               <span class="val">
                 {one.decades >= 0 ? '+' : ''}{one.decades.toFixed(3)}
                 <small class="raw">{t.lumResidualDecades}</small>
+                {#if Number.isFinite(one.percent)}
+                  <small class="raw">→ {one.percent} %</small>
+                {/if}
               </span>
               {#if editable}
                 <span class="act">
@@ -868,5 +942,23 @@
 
   .raw {
     color: var(--muted);
+  }
+
+  .geek {
+    margin-top: 1rem;
+  }
+
+  /* A heading in its own right - same size and weight as the h3 the rest of
+     this screen uses - with the summary's native disclosure triangle doing
+     the job an icon would otherwise have to. */
+  .geek summary {
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .geek .rows {
+    margin-top: 0.6rem;
   }
 </style>

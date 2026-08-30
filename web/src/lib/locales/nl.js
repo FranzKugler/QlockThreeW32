@@ -112,6 +112,7 @@ export default {
     `Een vlak van ${lowLux} tot ${highLux} lx over alle kleurtonen; de curve ` +
     `vraagt tussen ${low} en ${high} %.`,
   lumSurfaceHere: 'punt van nu',
+  lumSurfaceTaught: 'met de hand geleerd',
   lumSurfaceLimited: 'kleur op de aanslag — hoger kan niet',
   lumSurfaceBound: 'de meting zei “minstens zoveel”',
   lumSurfaceRadius:
@@ -141,17 +142,36 @@ export default {
     `metingen van die ene kleurtoon, niet in de vorm van het model.`,
   lumFactoryAccuracyMet: 'Kruisvalidatie gehaald.',
   lumFactoryObservations:
-    'De metingen eronder spreken elkaar op plaatsen tegen; het geleverde ' +
-    'raster stijgt toch overal met het licht.',
+    'De metingen eronder spreken elkaar op plaatsen tegen; de gefitte curve ' +
+    'stijgt toch overal met het licht.',
   lumFactoryMismatch:
     'De opgeslagen correcties zijn op een ander profiel geleerd en worden ' +
     'niet toegepast. “Fabriek herstellen” ruimt ze op.',
+  lumGeekTitle: 'Fitparameters (voor techneuten)',
+  lumGeekCone: 'Kegel (helling / afsnede)',
+  lumGeekNose: 'Kleurneus (a0 / a1 / b1)',
+  lumGeekBlue: 'Blauws eigen lijn (helling / afsnede)',
+  lumGeekFactory: 'fabriek',
+  lumGeekLearned: 'geleerd',
+  lumGeekWhite: 'zuivere witte curve (zonder kleur, ter vergelijking)',
+  lumGeekAccuracy: 'Kruisvalidatie',
+  lumGeekHint:
+    'Alles in decaden licht. De kleurneus is één golf over alle kleurtonen ' +
+    'behalve blauw — a0 + a1·cos(kleurtoon) + b1·sin(kleurtoon) —, en ' +
+    'blauw heeft zijn eigen lijn. “Geleerd” verschijnt zodra er minstens ' +
+    'één kleurcorrectie in is verwerkt. De witte curve stuurt de klok niet ' +
+    'meer aan zodra er een fabrieksprofiel geladen is — hier staat hij ' +
+    'alleen ter vergelijking.',
   lumResiduals: 'Je eigen correcties',
   lumResidualsHint:
     'Wat de automatiek van je bijstellen heeft geleerd — als afwijking van ' +
     'het fabrieksprofiel, in decaden licht, per kleur apart gehouden. Twee ' +
     'correcties bij hetzelfde licht in verschillende kleuren vervangen ' +
-    'elkaar niet.',
+    'elkaar niet. Bewust minder plekken dan bij de witte punten hierboven: ' +
+    'het fabrieksprofiel brengt de vorm van de curve al mee, er blijft dus ' +
+    'alleen een niveau en een beetje kleursmaak te leren over — en één ' +
+    'correctie verschuift de curve vaak maar weinig, tenzij hij dicht ' +
+    'genoeg bij een fabrieksmeting ligt om die te vervangen.',
   lumResidualsEmpty: 'Nog niets bijgesteld.',
   lumResidualDecades: 'Afwijking',
   lumFactoryRestore: 'Fabriek herstellen',

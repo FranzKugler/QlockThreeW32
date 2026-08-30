@@ -109,6 +109,24 @@ export function bandColour(hue) {
   return `hsl(${wrapped} 72% 52%)`;
 }
 
+/**
+ * A lux value at the axis, to three significant figures.
+ *
+ * The knots come from LUM_SURFACE_LUX_ROWS - evenly spaced in log light, not
+ * in round numbers - so `String(value)` gives doubles like
+ * `0.4472135954999579`. Three significant figures is what a reader can
+ * actually use here: the fourth digit was never meaningful in the first
+ * place, since the point it labels is a sampling knot rather than a
+ * measurement. `toPrecision` rather than `toFixed`, because the digit count
+ * has to move with the magnitude - two decimals says as much at 0.02 as
+ * none does at 10.
+ */
+export function formatLux(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return String(value);
+  return number.toPrecision(3);
+}
+
 /** Log light, floored the way the clock floors it. */
 function logLux(lux) {
   return Math.log10(Math.max(Number.isFinite(lux) ? lux : 0, 1e-4));
@@ -272,6 +290,15 @@ function usable(surface) {
  * `options.point` is where the clock is right now, and it is drawn on the
  * surface rather than beside it: the number is already in the read-out, and
  * what the diagram adds is *where* on the model it sits.
+ *
+ * `options.points` is Table 2 - what the owner has taught the clock - each
+ * entry `{lux, hue, percent, bound}` already converted to a percentage on
+ * this same sat-100 surface by the firmware (see WebRoutes.cpp), because the
+ * conversion from a taught decades-residual to a percentage is the inversion
+ * `FactoryProfile::evaluate` already does and a second implementation here
+ * would be the thing this project's own rule warns against. A white point
+ * (drawn nowhere on a diagram whose one axis is hue) is left out by the
+ * caller, not filtered here.
  */
 export function projectSurface(surface, options = {}) {
   const width = options.width ?? 320;
@@ -280,7 +307,7 @@ export function projectSurface(surface, options = {}) {
   const empty = {
     empty: true, width, height, view, quads: [],
     floor: { rings: [], spokes: [] },
-    axes: { lux: [], hue: [], percent: [] }, point: null,
+    axes: { lux: [], hue: [], percent: [] }, point: null, points: [],
     range: { min: 0, max: 100 }
   };
   if (!usable(surface)) return empty;
@@ -433,7 +460,7 @@ export function projectSurface(surface, options = {}) {
   const axes = {
     lux: lux.map((value, row) => {
       const [x, y] = at(r(row), frontAngle, 0);
-      return { value, label: String(value), x, y, depth: depthAt(r(row), frontAngle, 0) };
+      return { value, label: formatLux(value), x, y, depth: depthAt(r(row), frontAngle, 0) };
     }),
     // Labelled at the knots the model was measured at, not at every column:
     // 24 labels round a 320 px disc is a grey smear.
@@ -445,24 +472,33 @@ export function projectSurface(surface, options = {}) {
     axes.percent.push({ value, label: `${value}`, x, y });
   }
 
-  let point = null;
-  if (options.point && Number.isFinite(options.point.lux)) {
-    // Clamped onto the surface rather than drawn off it. A room outside
-    // everything anybody measured is exactly the case worth showing, and a
-    // marker floating in the margin says nothing about where on the model the
-    // clock is - so it sits on the rim and admits it.
-    const clamped = options.point.lux < luxLow || options.point.lux > luxHigh;
-    const [px, py] = at(
-      luxRadius(options.point.lux, luxLow, luxHigh),
-      hueAngle(options.point.hue, period),
-      h(options.point.percent)
-    );
-    point = { x: px, y: py, clamped, ...options.point };
-  }
+  /**
+   * One marker, projected the same way a cell corner is.
+   *
+   * Shared between `options.point` (one, the clock's own) and every entry of
+   * `options.points` (Table 2), because both are "a light, a hue and a
+   * percentage, shown on the surface" and the clamping rule - off the
+   * measured range is exactly the case worth showing, so the marker sits on
+   * the rim and admits it rather than floating in the margin - applies to
+   * either the same way.
+   */
+  const markerAt = (spec) => {
+    if (!spec || !Number.isFinite(spec.lux) || !Number.isFinite(spec.percent)) return null;
+    const clamped = spec.lux < luxLow || spec.lux > luxHigh;
+    const angle = hueAngle(spec.hue, period);
+    const radius = luxRadius(spec.lux, luxLow, luxHigh);
+    const [px, py] = at(radius, angle, h(spec.percent));
+    return { x: px, y: py, depth: depthAt(radius, angle, h(spec.percent)), clamped, ...spec };
+  };
+
+  const point = markerAt(options.point);
+  const points = Array.isArray(options.points)
+    ? options.points.map(markerAt).filter(Boolean)
+    : [];
 
   return {
     empty: false, width, height, view, quads,
-    floor: { rings, spokes }, axes, point,
+    floor: { rings, spokes }, axes, point, points,
     range: { min: low, max: high }
   };
 }

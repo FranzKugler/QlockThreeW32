@@ -114,6 +114,7 @@ export default {
     `Fläche über ${lowLux} bis ${highLux} lx und alle Farbtöne; die Kurve ` +
     `verlangt zwischen ${low} und ${high} %.`,
   lumSurfaceHere: 'aktueller Punkt',
+  lumSurfaceTaught: 'selbst beigebracht',
   lumSurfaceLimited: 'Farbe am Anschlag — mehr geht nicht',
   lumSurfaceBound: 'Messpunkt hieß „mindestens so viel“',
   lumSurfaceRadius:
@@ -143,17 +144,36 @@ export default {
     `steckt in den Messungen dieses einen Farbtons, nicht im Modell.`,
   lumFactoryAccuracyMet: 'Kreuzvalidierung bestanden.',
   lumFactoryObservations:
-    'Die zugrunde liegenden Messungen widersprechen sich stellenweise; das ' +
-    'ausgelieferte Gitter steigt trotzdem überall mit dem Licht.',
+    'Die zugrunde liegenden Messungen widersprechen sich stellenweise; der ' +
+    'gefittete Verlauf steigt trotzdem überall mit dem Licht.',
   lumFactoryMismatch:
     'Die gespeicherten Korrekturen wurden auf einem anderen Profil gelernt ' +
     'und werden nicht angewendet. „Auf Werk zurücksetzen“ räumt sie weg.',
+  lumGeekTitle: 'Fitparameter (für Technikfans)',
+  lumGeekCone: 'Kegel (Steigung / Achsenabschnitt)',
+  lumGeekNose: 'Farbnase (a0 / a1 / b1)',
+  lumGeekBlue: 'Blaus eigene Gerade (Steigung / Achsenabschnitt)',
+  lumGeekFactory: 'Werk',
+  lumGeekLearned: 'gelernt',
+  lumGeekWhite: 'reine Weißkurve (ohne Farbe, zum Vergleich)',
+  lumGeekAccuracy: 'Kreuzvalidierung',
+  lumGeekHint:
+    'Alles in Dekaden Licht. Die Farbnase ist ein einziger Sinus über alle ' +
+    'Farbtöne außer Blau — a0 + a1·cos(Farbton) + b1·sin(Farbton) —, Blau ' +
+    'hat seine eigene Gerade. „Gelernt“ erscheint erst, sobald mindestens ' +
+    'eine Farbkorrektur eingeflossen ist. Die Weißkurve treibt die Uhr ' +
+    'nicht mehr an, sobald ein Werksprofil geladen ist — sie steht hier ' +
+    'nur zum Vergleich.',
   lumResiduals: 'Eigene Korrekturen',
   lumResidualsHint:
     'Was die Automatik aus dem Nachregeln gelernt hat — als Abweichung vom ' +
     'Werksprofil, in Dekaden Licht, und getrennt nach Farbe. Zwei ' +
     'Korrekturen bei gleichem Licht in verschiedenen Farben verdrängen ' +
-    'einander nicht.',
+    'einander nicht. Absichtlich weniger Plätze als bei den weißen Punkten ' +
+    'oben: das Werksprofil bringt die Form der Kurve schon mit, übrig ' +
+    'bleiben nur noch der Pegel und ein wenig Farbgeschmack — und eine ' +
+    'einzelne Korrektur verschiebt die Kurve oft nur wenig, wenn sie nicht ' +
+    'nah genug an einem Werksmesspunkt liegt, um ihn zu ersetzen.',
   lumResidualsEmpty: 'Noch nichts nachgeregelt.',
   lumResidualDecades: 'Abweichung',
   lumFactoryRestore: 'Auf Werk zurücksetzen',

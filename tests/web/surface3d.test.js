@@ -24,7 +24,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  projectSurface, bandColour,
+  projectSurface, bandColour, formatLux,
   luxRadius, hueAngle, percentHeight, projectCylindrical,
   DEFAULT_VIEW, INNER_RADIUS, TILT_MIN, TILT_MAX, ROTATE_STEP, TILT_STEP,
   normaliseView, dragView, keyView
@@ -426,8 +426,9 @@ test('the near cells are drawn last', () => {
 
 test('the axes carry readable numbers', () => {
   const drawn = projectSurface(surface(), BOX);
+  // Three significant figures, uniformly - see formatLux().
   assert.deepEqual(drawn.axes.lux.map((tick) => tick.label),
-                   ['0.02', '0.07', '0.15', '0.5', '1.9', '10']);
+                   ['0.0200', '0.0700', '0.150', '0.500', '1.90', '10.0']);
   // Hue is labelled at the knots, not at every column: 24 labels round a
   // 320 px disc is a grey smear.
   assert.deepEqual(drawn.axes.hue.map((tick) => tick.value),
@@ -497,6 +498,47 @@ test('no point asked for is no point drawn', () => {
   assert.equal(projectSurface(surface(), BOX).point, null);
 });
 
+test('taught points land on the surface the same way the operating point does', () => {
+  // Table 2, drawn with the same projection as the "here" marker - so the two
+  // are checked the same way: the strongest statement is landing exactly on a
+  // grid knot the surface itself is drawn from.
+  const model = surface();
+  const drawn = projectSurface(model, {
+    ...BOX,
+    points: [
+      { lux: model.lux[1], hue: 60, percent: model.percent[1][4] },
+      { lux: model.lux[4], hue: 300, percent: model.percent[4][20], bound: true }
+    ]
+  });
+  assert.equal(drawn.points.length, 2);
+  const quad = drawn.quads.find((one) => one.lux === model.lux[1] && one.hue === 60);
+  near(drawn.points[0].x, quad.points[0][0], 1e-9);
+  near(drawn.points[0].y, quad.points[0][1], 1e-9);
+  // What was passed in travels with the marker - `bound` above all, since the
+  // component draws a bound taught point differently from an exact one.
+  assert.equal(drawn.points[0].bound, undefined);
+  assert.equal(drawn.points[1].bound, true);
+});
+
+test('no points offered is an empty list, not a missing one', () => {
+  // A component that always iterates drawn.points must never see undefined,
+  // whether nothing was asked for or the surface has nothing to draw at all.
+  assert.deepEqual(projectSurface(surface(), BOX).points, []);
+  assert.deepEqual(projectSurface(null, BOX).points, []);
+});
+
+test('a taught point with no finite percentage is left out rather than drawn at the origin', () => {
+  // The firmware leaves `percent` off a point it could not convert (no
+  // profile loaded when it was taught); a caller that forwards `undefined`
+  // must not get a marker at height zero, which would be a wrong statement
+  // rather than a missing one.
+  const drawn = projectSurface(surface(), {
+    ...BOX, points: [{ lux: 0.5, hue: 60, percent: undefined }, { lux: 0.5, hue: 90, percent: 42 }]
+  });
+  assert.equal(drawn.points.length, 1);
+  assert.equal(drawn.points[0].hue, 90);
+});
+
 test('a surface with nothing in it draws nothing and does not throw', () => {
   for (const empty of [
     null,
@@ -523,6 +565,17 @@ test('a ragged grid is refused rather than half drawn', () => {
   // different and much more alarming thing than a response that did not
   // arrive.
   assert.equal(drawn.quads.length, 0);
+});
+
+test('a lux axis label carries three significant figures, not a raw double', () => {
+  // The knots are evenly spaced in log light, not in round numbers, so the
+  // real values look like 0.4472135954999579 - three significant figures is
+  // what the axis actually needs, the rest is sampling noise.
+  assert.equal(formatLux(0.4472135954999579), '0.447');
+  assert.equal(formatLux(0.020000000000000004), '0.0200');
+  assert.equal(formatLux(2.1147425268), '2.11');
+  assert.equal(formatLux(10), '10.0');
+  assert.equal(formatLux(9.999999999999998), '10.0');
 });
 
 test('the band colour is the hue itself, at a lightness both themes can show', () => {

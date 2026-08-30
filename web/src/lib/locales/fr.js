@@ -112,6 +112,7 @@ export default {
     `Une surface de ${lowLux} à ${highLux} lx sur toutes les teintes ; la ` +
     `courbe demande entre ${low} et ${high} %.`,
   lumSurfaceHere: 'point actuel',
+  lumSurfaceTaught: 'appris à la main',
   lumSurfaceLimited: 'couleur en butée — impossible d’aller plus haut',
   lumSurfaceBound: 'la mesure disait « au moins autant »',
   lumSurfaceRadius:
@@ -141,17 +142,37 @@ export default {
     `mesures de cette teinte, pas de la forme du modèle.`,
   lumFactoryAccuracyMet: 'Validation croisée réussie.',
   lumFactoryObservations:
-    'Les mesures sous-jacentes se contredisent par endroits ; la grille ' +
-    'livrée monte tout de même partout avec la lumière.',
+    'Les mesures sous-jacentes se contredisent par endroits ; la courbe ' +
+    'ajustée monte tout de même partout avec la lumière.',
   lumFactoryMismatch:
     'Les corrections enregistrées ont été apprises sur un autre profil et ne ' +
     'sont pas appliquées. « Restaurer l’usine » les efface.',
+  lumGeekTitle: 'Paramètres de l’ajustement (pour les curieux)',
+  lumGeekCone: 'Cône (pente / ordonnée à l’origine)',
+  lumGeekNose: 'Nez de couleur (a0 / a1 / b1)',
+  lumGeekBlue: 'Droite propre au bleu (pente / ordonnée à l’origine)',
+  lumGeekFactory: 'usine',
+  lumGeekLearned: 'appris',
+  lumGeekWhite: 'courbe blanche pure (sans couleur, pour comparer)',
+  lumGeekAccuracy: 'Validation croisée',
+  lumGeekHint:
+    'Tout en décades de lumière. Le nez de couleur est une seule onde sur ' +
+    'toutes les teintes sauf le bleu — a0 + a1·cos(teinte) + b1·sin(teinte) ' +
+    '—, et le bleu a sa propre droite. « Appris » apparaît dès qu’au moins ' +
+    'une correction de couleur y est entrée. La courbe blanche ne pilote ' +
+    'plus l’horloge une fois un profil d’usine chargé — elle n’est ' +
+    'affichée ici qu’à titre de comparaison.',
   lumResiduals: 'Vos corrections',
   lumResidualsHint:
     'Ce que l’automatique a appris de vos réglages — en écart au profil ' +
     'd’usine, en décades de lumière, séparément par couleur. Deux ' +
     'corrections à la même lumière dans des couleurs différentes ne se ' +
-    'remplacent pas.',
+    'remplacent pas. Volontairement moins de places que pour les points ' +
+    'blancs ci-dessus : le profil d’usine apporte déjà la forme de la ' +
+    'courbe, il ne reste à apprendre qu’un niveau et un peu de goût pour ' +
+    'la couleur — et une correction isolée ne déplace souvent la courbe ' +
+    'que faiblement, sauf si elle tombe assez près d’une mesure d’usine ' +
+    'pour la remplacer.',
   lumResidualsEmpty: 'Rien de corrigé pour l’instant.',
   lumResidualDecades: 'Écart',
   lumFactoryRestore: 'Restaurer l’usine',

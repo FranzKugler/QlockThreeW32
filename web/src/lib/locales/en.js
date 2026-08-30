@@ -112,6 +112,7 @@ export default {
     `A surface over ${lowLux} to ${highLux} lx and every hue; the curve asks ` +
     `for between ${low} and ${high} %.`,
   lumSurfaceHere: 'where it is now',
+  lumSurfaceTaught: 'taught by hand',
   lumSurfaceLimited: 'colour out of slider — it cannot go brighter',
   lumSurfaceBound: 'the observation only said “at least this much”',
   lumSurfaceRadius:
@@ -141,17 +142,35 @@ export default {
     `contradicting each other, not the shape of the model.`,
   lumFactoryAccuracyMet: 'Cross-validation passed.',
   lumFactoryObservations:
-    'The observations behind it contradict themselves in places; the grid ' +
-    'that was shipped still rises everywhere with the light.',
+    'The observations behind it contradict themselves in places; the fitted ' +
+    'curve still rises everywhere with the light.',
   lumFactoryMismatch:
     'The stored corrections were learned on a different profile and are not ' +
     'being applied. “Restore factory” clears them.',
+  lumGeekTitle: 'Fit parameters (for the curious)',
+  lumGeekCone: 'Cone (slope / offset)',
+  lumGeekNose: 'Colour nose (a0 / a1 / b1)',
+  lumGeekBlue: 'Blue’s own line (slope / offset)',
+  lumGeekFactory: 'factory',
+  lumGeekLearned: 'learned',
+  lumGeekWhite: 'plain white curve (no colour, for comparison)',
+  lumGeekAccuracy: 'Cross-validation',
+  lumGeekHint:
+    'All in decades of light. The colour nose is a single wave over every ' +
+    'hue but blue — a0 + a1·cos(hue) + b1·sin(hue) — and blue has its own ' +
+    'line. “Learned” appears once at least one colour correction has fed ' +
+    'into it. The white curve no longer drives the clock once a factory ' +
+    'profile is loaded — it is shown here only for comparison.',
   lumResiduals: 'Your corrections',
   lumResidualsHint:
     'What the automatic learned from your nudges — as a difference from the ' +
     'factory profile, in decades of light, kept apart by colour. Two ' +
     'corrections at the same light in different colours do not replace one ' +
-    'another.',
+    'another. Deliberately fewer slots than the white points above: the ' +
+    'factory profile already carries the shape of the curve, so what is ' +
+    'left to learn is a level and a little colour preference — and one ' +
+    'correction on its own often moves the curve only a little, unless it ' +
+    'sits close enough to a factory measurement to replace it.',
   lumResidualsEmpty: 'Nothing corrected yet.',
   lumResidualDecades: 'Difference',
   lumFactoryRestore: 'Restore factory',
