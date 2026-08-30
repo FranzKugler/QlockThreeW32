@@ -29,11 +29,13 @@
  *      field name and mean different things by them.
  *   4. **The shape**: every field read as the type and the range it has to be
  *      - `as<int>()` answers 0 for a missing key, a null, a string, a boolean
- *      and a float alike, which is five faults arriving as data - then the
- *      levels ascending, the residual rows matching the knots, and last the
- *      grid **rising with light**, measured on the grid rather than read out
- *      of the status field beside it. FactoryProfile::valid() does that half,
- *      and it is the same list scripts/factory_luminance.py refuses on.
+ *      and a float alike, which is five faults arriving as data.
+ *      FactoryProfile::valid() then checks what cannot be checked field by
+ *      field: that the cone rises with light and keeps rising once blue's own
+ *      line is fully blended in. That is the whole monotonicity argument this
+ *      model needs, from two numbers rather than a grid walk - see the header
+ *      comment there. It is the same list scripts/factory_luminance.py
+ *      refuses on.
  *
  * A failure at any step leaves `available()` false and `error()` naming which
  * step, in the vocabulary the web UI already translates. It is never partial:
@@ -101,23 +103,14 @@ namespace FactoryLuminance
     const char *sourceChecksum();
 
     /**
-     * Whether the **observations** the profile was fitted to rise with light.
-     *
-     * False on the reviewed profile, and that says nothing about the grid it
-     * was shipped with: one hue's observations fall a quarter of a decade, and
-     * the isotonic step pools the levels that disagreement sits between before
-     * anything is written. Reported because it is provenance - a measurement
-     * that contradicted itself somewhere is worth knowing about - and kept
-     * apart from gridMonotone() because reading one for the other would have
-     * the clock announcing a fault it does not have.
+     * Whether the raw **observations** the fit was built from rose with
+     * light, before any of the fitting the fitted model itself is guaranteed
+     * to be monotone by construction (see FactoryProfile::valid()), so this
+     * is provenance about the measurement rather than a property of what the
+     * clock is running. Reported because a contradiction in the data is worth
+     * knowing about even once the fit has smoothed over it.
      */
     bool observationsMonotone();
-
-    /** Whether the grid the clock is actually running rises with light. */
-    bool gridMonotone();
-
-    /** By how much it falls where it does, in decades. Zero when it does not. */
-    double gridDip();
 
     /** What the held-out folds made of it. */
     bool acceptanceMet();

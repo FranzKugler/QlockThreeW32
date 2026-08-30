@@ -25,5 +25,5 @@ mkdir -p "$out"
 
 "${CXX:-g++}" -std=c++17 -O2 -Wall -Wextra -Werror \
     -o "$out/residual-store" \
-    "$here/test_residual_store.cpp" "$root/src/ResidualStore.cpp"
+    "$here/test_residual_store.cpp" "$root/src/ResidualStore.cpp" "$root/src/FactoryProfile.cpp"
 "$out/residual-store"

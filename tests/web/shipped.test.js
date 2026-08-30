@@ -56,7 +56,7 @@ test('it is a sealed document, not a bag of numbers', () => {
   const document = JSON.parse(text);
   assert.equal(document.checksum.value.length, 64);
   assert.equal(document.payload.modelId,
-               'white-baseline-plus-cyclic-hue-loglux-residual-grid');
+               'white-cone-plus-first-harmonic-hue-nose-with-blue-line');
 });
 
 test('it is what the generator makes, byte for byte', () => {
@@ -66,8 +66,7 @@ test('it is what the generator makes, byte for byte', () => {
   const scratch = new URL('web/public/.factory-luminance.check', ROOT);
   try {
     execFileSync('/usr/bin/python3',
-                 ['scripts/factory_luminance.py', 'runtime',
-                  '--out', new URL(scratch).pathname],
+                 ['scripts/build_cone_profile.py', new URL(scratch).pathname],
                  { cwd: new URL('.', ROOT), encoding: 'utf8' });
     assert.equal(fs.readFileSync(scratch, 'utf8'), fs.readFileSync(SHIPPED, 'utf8'));
   } finally {

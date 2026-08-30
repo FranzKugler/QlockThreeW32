@@ -1,76 +1,92 @@
 /**
  * ResidualStore
- * What the owner has taught the clock on top of the factory model.
+ * Table 2: what the owner has taught the clock, and how it is combined with
+ * Table 1 - the factory measurement the shipped nose and blue's line were
+ * fitted from - into a model refit rather than a correction bolted on top.
  *
- * The factory grid says what this optical stack does: how much brighter a
- * decade of ambient light is worth, and how much more slider a blue face needs
- * than a green one. What it cannot know is a preference, and a preference is
- * what a nudge on the brightness slider expresses. So a nudge is not stored as
- * "at this lux, this percent" - the grid already answers that - but as the
- * **difference** between what the model asked for and what the person wanted,
- * in decades of emitted light.
+ * **This replaced a bias.** The first version of this file stored the same
+ * shape - a colour, a light level, a residual - and answered a locally
+ * weighted average of nearby ones, added to whatever the factory nose and
+ * blue's line already said. That works, but it never moves the nose or the
+ * line themselves: a dozen corrections in cyan taught the clock to argue with
+ * its own model at every query rather than teaching the model. What is here
+ * instead is closer to what was asked for from the start - the parameters
+ * refit, online, from Table 1 and Table 2 together - and it is possible now
+ * because the factory model is small enough to refit in a fraction of a
+ * second: three numbers for the nose, two for blue's line, not a grid.
  *
- * Decades rather than percentage points, because that is the coordinate the
- * difference is constant in: "a bit brighter" is a different number of slider
- * steps in blue than in green, and stored as steps it would mean something
- * else the next time the colour changed.
- *
- * Three rules carry the whole design, and each of them is a case that a
- * simpler store gets wrong quietly:
+ * Three rules carry the whole design, and each is a case a simpler store gets
+ * wrong quietly:
  *
  * - **The colour is part of the identity, not decoration beside it.** Two
  *   corrections at the same light in different colours are two statements and
  *   neither replaces the other. That is the failure the old white-only ring
- *   could not even express: an evening in blue silently overwrote an afternoon
- *   in green.
+ *   could not even express: an evening in blue silently overwrote an
+ *   afternoon in green.
  * - **White has no hue.** At saturation zero the driver emits 255,255,255
  *   whatever the hue byte says, so two whites with different hues beside them
- *   are the same statement and must not fill two of the eight slots.
+ *   are the same statement and must not fill two of the eight slots - and,
+ *   new here, white says nothing about a colour correction at all and takes
+ *   no part in refit() on either side of the wheel.
  * - **A nudge that ran out of slider is a lower bound.** Somebody who drags to
- *   the top said "at least this much"; read as an equality it makes the model
- *   dimmer than the one thing they actually measured, and it does so in bright
- *   rooms, where being too dim is worst.
+ *   the top said "at least this much"; read as an equality by refit() it
+ *   would make the model dimmer than the one thing they actually measured,
+ *   and it does so in bright rooms, where being too dim is worst. It is still
+ *   real evidence for the *other* rule below, though - see refit().
  *
- * **This file is pure.** No Arduino, no NVS, no logging - so `tests/host/` can
- * compile it with a desktop compiler and ask it in a second the questions a
- * clock would take a month of evenings to answer. Luminance owns the storage
- * and the timing; this owns the arithmetic and the rules.
+ * **A taught point shadows a factory one that sits inside its sphere,
+ * rather than merely outvoting it in an average.** A radius in hue and a
+ * ratio in light, both already used elsewhere for "the same statement" (see
+ * RESIDUAL_SHADOW_HUE/RESIDUAL_SHADOW_LUX): a factory point inside it is what
+ * the owner just said is wrong, at the light and colour they said it at, and
+ * keeping it in the fit would have the model average its own contradiction
+ * with itself. Outside the sphere Table 1 stands, which is what lets ten
+ * evening corrections in one colour still leave a factory profile with
+ * something to say about the other five.
+ *
+ * **This file is no longer independent of FactoryProfile.** The first version
+ * was pure in a stronger sense - it knew nothing about the model it corrected,
+ * only decades and a colour. Combining Table 1 and Table 2 into one fit needs
+ * the shape both are already in (FactoryProfile::Point) and the boundary
+ * between the nose and blue's line (Profile::blueHue/blendHalfWidth), so that
+ * coupling is now real rather than avoided. It is still pure in the sense that
+ * matters for testing: no Arduino, no NVS, no logging - `tests/host/` compiles
+ * it and FactoryProfile.cpp together with a desktop compiler.
  *
  * @mc       ESP32S3
  * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
- * @version  2.2
+ * @version  2.4
  * @created  28.8.2026
- * @updated  28.8.2026
+ * @updated  30.8.2026
  */
 #ifndef RESIDUAL_STORE_H
 #define RESIDUAL_STORE_H
 
 #include <stdint.h>
 
+#include "FactoryProfile.h"
+
 // How many corrections are kept. Fewer than the white ring holds, and
-// deliberately: the grid already carries the shape of the room-to-brightness
-// relation, so what is left to learn is a level and a little colour
-// preference, and eight statements are plenty for that.
+// deliberately: the factory fit already carries the shape of the room-to-
+// brightness relation, so what is left to learn is a level and a little
+// colour preference, and eight statements are plenty for that.
 #define RESIDUAL_MAX 8
 
-// How far a correction reaches, in each of the three directions it can be away
-// from where it was made. A triangular weight, zero beyond these, so a
-// correction made one evening in deep blue says nothing about a bright
-// afternoon in green - which is the failure the old single line had.
-#define RESIDUAL_LUX_SPAN 0.9    // decades
-#define RESIDUAL_HUE_SPAN 90.0   // degrees, measured the short way round
-#define RESIDUAL_SAT_SPAN 60.0   // percentage points
+// The sphere a taught point shadows a factory one within: near enough in hue
+// and in light that the factory point is a statement about the same thing
+// the owner just corrected, not a neighbour left standing to say something
+// else. RESIDUAL_SHADOW_LUX is log10(1.3), the same ratio the white ring and
+// the "same statement" rule below both already call "the same light".
+#define RESIDUAL_SHADOW_HUE 30.0
+#define RESIDUAL_SHADOW_LUX 0.11394335230683676
 
 // Near enough in light to be the same statement said again. log10(1.3), the
-// same ratio the white ring calls "the same light".
+// same ratio the white ring calls "the same light" - kept as its own name
+// from RESIDUAL_SHADOW_LUX even though the value is identical, because the
+// two answer different questions (replace this exact statement, against
+// shadow that factory point) and a future change to one must not silently
+// move the other.
 #define RESIDUAL_SAME_LUX 0.11394335230683676
-
-// The most a correction may move the model. Half a decade is a factor of three
-// in light and far more than anybody means by "a bit brighter"; beyond it,
-// something other than a preference is being expressed - a sensor in the wrong
-// place, or a profile measured on another clock - and a model that followed it
-// would be hiding the fault it should be showing.
-#define RESIDUAL_MAX_DECADES 0.5
 
 namespace ResidualStore
 {
@@ -78,7 +94,11 @@ namespace ResidualStore
     struct Residual
     {
         double logLux;
-        double decades;     // wanted minus what the factory model asked for
+        // Decades, relative to the cone, at saturation 100 - Table 1's own
+        // coordinate. Un-faded on the way in (see FactoryProfile::fadeFor())
+        // so a point taught at sat 60 sits in the same units as one taught at
+        // sat 100 and both can be fitted together.
+        double decades;
         uint16_t hue;       // 0..359, canonicalised: see canonicalHue()
         uint8_t sat;        // 0..100; zero is white and has no hue
         uint32_t seconds;   // uptime when it was said, for the read-out
@@ -86,11 +106,13 @@ namespace ResidualStore
          * Whether the slider had anything left to give.
          *
          * 1 when the nudge sat at the top of the regulated range, which makes
-         * this "at least `decades`" rather than "exactly". Kept rather than
-         * dropped: it is still evidence, it still occupies its colour and its
-         * light so a second statement cannot be made there unnoticed, and it
-         * is the only evidence there will ever be that the model is too dim in
-         * a room the slider cannot reach out of.
+         * this "at least `decades`" rather than "exactly". Left out of
+         * refit()'s regression for the same reason a censored Table 1 point
+         * is - reading "at least" as "exactly" pulls the fit towards a value
+         * nobody measured - but it still occupies its colour and its light,
+         * so a second statement cannot be made there unnoticed, and it still
+         * shadows a factory point inside its sphere: "at least this much" is
+         * still evidence that the factory number there is wrong.
          *
          * The floor is deliberately **not** treated the same way. The ceiling
          * is what the hardware can do; the floor is a number the owner chose
@@ -105,6 +127,13 @@ namespace ResidualStore
     {
         Residual at[RESIDUAL_MAX];
         uint8_t count;
+    };
+
+    /** What refit() makes of Table 1 and Table 2 together. */
+    struct Fit
+    {
+        double noseA0, noseA1, noseB1;
+        double blueSlope, blueOffset;
     };
 
     /**
@@ -132,36 +161,35 @@ namespace ResidualStore
     /**
      * Keeps a correction, replacing one that says the same thing.
      *
-     * "The same thing" is the same colour *and* the same light. Either one
-     * different and it is a new statement. When the store is full the oldest
-     * leaves, which is the only ageing this needs - a correction is not less
-     * true for being older.
+     * "The same thing" is the same colour *and* the same light (within
+     * RESIDUAL_SAME_LUX). Either one different and it is a new statement.
+     * When the store is full the oldest leaves, which is the only ageing this
+     * needs - a correction is not less true for being older.
      */
     void add(Store &store, double logLux, double decades, uint16_t hue,
              uint8_t sat, uint32_t seconds, bool bound);
 
-    /**
-     * What the stored corrections say about this light in this colour.
-     *
-     * A weighted mean over everything near enough, rather than the nearest
-     * one: corrections are guesses made by eye, and averaging the ones that
-     * are close is the same argument the white fit rests on.
-     *
-     * **A bound can raise the answer and can never lower it.** It says "at
-     * least this much", so an exact statement beside it wins whenever the
-     * bound is the smaller of the two - and when there is nothing exact at
-     * all, acting on it can only make the clock brighter, which is the
-     * direction the person asked for.
-     *
-     * `weight` comes back zero when nothing is near enough to say anything,
-     * which is a different answer from "they say nothing changes" and the
-     * caller reports it as such.
-     */
-    double bias(const Store &store, double logLux, uint16_t hue, uint8_t sat,
-                double &weight);
-
     /** Forgets one by its place, keeping the order of the rest. */
     bool forget(Store &store, uint8_t index);
+
+    /**
+     * Table 1 and Table 2, refit.
+     *
+     * Every factory point not shadowed by a taught one, plus every taught
+     * point that is not a bound and not white, split by distance from
+     * `factory.blueHue` (inside `factory.blendHalfWidth` feeds blue's line,
+     * outside feeds the nose) and each half solved by ordinary least squares -
+     * the same fit `scripts/build_cone_profile.py` ran once at measurement
+     * time, run again here on whatever is left after shadowing.
+     *
+     * `out` is always written, even on failure: seeded with the factory's own
+     * numbers first, so a half that cannot be refit (too few points once the
+     * censored and the white are out) is left exactly as the factory shipped
+     * it rather than zeroed. Returns false only when the profile itself is
+     * not one FactoryProfile::valid() accepts, in which case `out` is
+     * untouched and the caller keeps whatever it already had.
+     */
+    bool refit(const FactoryProfile::Profile &factory, const Store &store, Fit &out);
 }
 
 #endif

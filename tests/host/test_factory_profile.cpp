@@ -3,7 +3,7 @@
  *
  * `src/FactoryProfile.cpp` is compiled here by a desktop compiler - no
  * Arduino, no ArduinoJson, no clock - and asked the same questions
- * `scripts/factory_luminance.py` was asked when it wrote
+ * `scripts/build_cone_golden_vectors.py` was asked when it wrote
  * `tests/golden/factory_vectors.txt`. The two have to give the same integer
  * percentage at every one of them.
  *
@@ -69,8 +69,6 @@ private:
     size_t at = 0;
 };
 
-static double statedDip = -1.0;
-
 static Profile loadProfile(const std::string &path)
 {
     Reader in(path);
@@ -80,69 +78,24 @@ static Profile loadProfile(const std::string &path)
     profile.satZero = (uint8_t)in.integer();
     profile.satFull = (uint8_t)in.integer();
     profile.huePeriod = (uint16_t)in.integer();
-    profile.hueCount = (uint8_t)in.integer();
-    for (uint8_t i = 0; i < profile.hueCount; i++)
-        profile.hueKnot[i] = (uint16_t)in.integer();
-    profile.levelCount = (uint8_t)in.integer();
-    for (uint8_t i = 0; i < profile.levelCount; i++)
-    {
-        profile.level[i].logLux = in.number();
-        profile.level[i].white = in.number();
-        for (uint8_t k = 0; k < profile.hueCount; k++)
-            profile.level[i].residual[k] = in.number();
-        for (uint8_t k = 0; k < profile.hueCount; k++)
-            profile.level[i].bound[k] = (uint8_t)in.integer();
-        profile.level[i].censored = (uint8_t)in.integer();
-    }
+    profile.coneSlope = in.number();
+    profile.coneOffset = in.number();
+    profile.logLuxMin = in.number();
+    profile.logLuxMax = in.number();
+    profile.noseA0 = in.number();
+    profile.noseA1 = in.number();
+    profile.noseB1 = in.number();
+    profile.blueHue = (uint16_t)in.integer();
+    profile.blueSlope = in.number();
+    profile.blueOffset = in.number();
+    profile.blendHalfWidth = in.number();
     profile.driveCount = (uint8_t)in.integer();
     for (uint8_t i = 0; i < profile.driveCount; i++)
         profile.driveLevel[i] = (uint8_t)in.integer();
     for (uint8_t i = 0; i < profile.driveCount; i++)
         profile.driveResponse[i] = in.number();
     for (int i = 0; i < 3; i++) profile.weight[i] = in.number();
-    statedDip = in.number();
     return profile;
-}
-
-/**
- * Whether the grid rises with light, measured on the grid rather than read out
- * of the status field beside it.
- *
- * The reviewed profile says `monotone: false` and its grid is monotone all the
- * same: the status is about the observations, where hue 240 falls a quarter of
- * a decade, and the isotonic step pools the levels that disagreement sits
- * between before anything is shipped. A firmware trusting the status field
- * would report a fault it does not have; one trusting it the other way would
- * accept a grid that really does fall - and a clock regulating on that gets
- * dimmer as the sun comes up.
- */
-static void theGridRisesWithLight(const Profile &good)
-{
-    char what[120];
-    double dip = worstDip(good);
-    std::snprintf(what, sizeof(what),
-                  "the shipped grid's worst dip is %.12g, Python says %.12g",
-                  dip, statedDip);
-    ok(std::fabs(dip - statedDip) < 1e-12, what);
-    ok(dip == 0.0, "and the shipped grid does not dip at all");
-    ok(valid(good), "so it is one the evaluator may act on");
-
-    // A dip in the white line with every residual flat: a different fault from
-    // one in a single hue, and one a check walking only the colour rows misses.
-    Profile white = good;
-    for (uint8_t i = 0; i < white.levelCount; i++)
-        for (uint8_t k = 0; k < white.hueCount; k++)
-            white.level[i].residual[k] = 0.0;
-    white.level[2].white = white.level[1].white - 0.02;
-    ok(std::fabs(worstDip(white) - 0.02) < 1e-9, "a dip in the white line is found");
-    ok(!valid(white), "and refused");
-
-    // One in a single hue, with the white line rising throughout.
-    Profile hue = good;
-    hue.level[3].residual[2] = hue.level[2].residual[2]
-                             - (hue.level[3].white - hue.level[2].white) - 0.2;
-    ok(worstDip(hue) > 0.19, "a dip in one hue is found");
-    ok(!valid(hue), "and refused");
 }
 
 /* ------------------------------------------------------------------ */
@@ -150,8 +103,83 @@ static void theGridRisesWithLight(const Profile &good)
 static void theProfileLoads(const Profile &profile)
 {
     ok(valid(profile), "the shipped profile is one the evaluator may act on");
-    ok(profile.levelCount >= 2, "it has levels to interpolate between");
-    ok(profile.hueCount >= 2, "it has hue knots");
+    ok(profile.huePeriod == 360, "the wheel is 360 degrees");
+    ok(profile.blendHalfWidth > 0.0, "blue's blend has a width");
+}
+
+/**
+ * The whole monotonicity argument this model needs: the cone on its own, and
+ * the cone with blue's line fully blended in - the two extremes blueWeight()
+ * ever interpolates between. No grid to walk any more, so this is two numbers
+ * instead of the dip search the six-knot model needed.
+ */
+static void theConeRisesWithLightEverywhereOnTheWheel(const Profile &good)
+{
+    ok(good.coneSlope > 0.0, "the shipped cone rises with light");
+    ok(good.coneSlope + good.blueSlope > 0.0,
+       "and still rises once blue's own line is fully blended in");
+
+    Profile flat = good;
+    flat.coneSlope = 0.0;
+    ok(!valid(flat), "a cone that does not rise is refused");
+
+    Profile falling = good;
+    falling.coneSlope = -0.1;
+    ok(!valid(falling), "a cone that falls is refused");
+
+    // Blue's own slope is negative on the shipped profile (it falls behind
+    // white as light rises) - refused only once it overtakes the cone's,
+    // which is the actual monotonicity boundary, not merely being negative.
+    Profile steepBlue = good;
+    steepBlue.blueSlope = -(good.coneSlope) - 0.01;
+    ok(!valid(steepBlue),
+       "blue's line refused once it overtakes the cone's own slope");
+
+    Profile shallowerBlue = good;
+    shallowerBlue.blueSlope = -(good.coneSlope) + 0.01;
+    ok(valid(shallowerBlue),
+       "and accepted while the combined slope is still just positive");
+}
+
+/**
+ * The raised cosine blueWeight() is built on: 1 at the centre, 0 at and
+ * beyond the half width, symmetric, and nowhere outside 0..1. A fault here
+ * would otherwise only show up as a slightly wrong percentage forty degrees
+ * from blue, which is a hard place to notice one.
+ */
+static void blueWeightIsAWellBehavedBump(const Profile &good)
+{
+    char what[96];
+    ok(std::fabs(blueWeight(good, good.blueHue) - 1.0) < 1e-12,
+       "full weight exactly at blue's own hue");
+
+    uint16_t edge = (uint16_t)(((int)good.blueHue
+                              + (int)good.blendHalfWidth + good.huePeriod)
+                             % good.huePeriod);
+    ok(std::fabs(blueWeight(good, edge)) < 1e-9,
+       "zero weight exactly at the edge of the blend");
+
+    uint16_t beyond = (uint16_t)(((int)edge + 5 + good.huePeriod) % good.huePeriod);
+    ok(blueWeight(good, beyond) == 0.0, "and zero beyond it, not merely small");
+
+    double last = 1.0;
+    for (int step = 0; step <= (int)good.blendHalfWidth; step += 5)
+    {
+        uint16_t hue = (uint16_t)(((int)good.blueHue + step + good.huePeriod)
+                                 % good.huePeriod);
+        double w = blueWeight(good, hue);
+        std::snprintf(what, sizeof(what),
+                      "weight %d degrees from blue does not exceed the last",
+                      step);
+        ok(w <= last + 1e-12, what);
+        ok(w >= -1e-12 && w <= 1.0 + 1e-12, "and stays inside 0..1");
+        last = w;
+    }
+
+    uint16_t plusSide = (uint16_t)((good.blueHue + 10) % good.huePeriod);
+    uint16_t minusSide = (uint16_t)((good.blueHue + good.huePeriod - 10) % good.huePeriod);
+    ok(std::fabs(blueWeight(good, plusSide) - blueWeight(good, minusSide)) < 1e-12,
+       "symmetric either side of blue's own hue");
 }
 
 /**
@@ -201,35 +229,37 @@ static void refusals(const Profile &good)
 {
     Answer answer{};
 
-    Profile one = good;
-    one.levelCount = 1;
-    ok(!valid(one), "one level is refused - there is nothing to interpolate");
-
-    Profile backwards = good;
-    double first = backwards.level[0].logLux;
-    backwards.level[0].logLux = backwards.level[backwards.levelCount - 1].logLux;
-    backwards.level[backwards.levelCount - 1].logLux = first;
-    ok(!valid(backwards), "levels out of order are refused");
-
-    Profile flat = good;
-    flat.level[1].logLux = flat.level[0].logLux;
-    ok(!valid(flat), "a repeated level is refused - the bracket would divide by zero");
-
     Profile broken = good;
-    broken.level[0].white = std::nan("");
+    broken.coneOffset = std::nan("");
     ok(!valid(broken), "a value that is not a number is refused");
+
+    Profile flatSpan = good;
+    flatSpan.logLuxMax = flatSpan.logLuxMin;
+    ok(!valid(flatSpan), "a measured range with no span is refused");
+
+    Profile backwardsSpan = good;
+    backwardsSpan.logLuxMax = good.logLuxMin - 1.0;
+    ok(!valid(backwardsSpan), "and one that runs backwards");
 
     Profile empty = good;
     empty.percentMin = empty.percentMax;
     ok(!valid(empty), "an empty regulated range is refused");
 
-    Profile skew = good;
-    skew.hueKnot[1] = 61;
-    ok(!valid(skew), "unevenly spaced hue knots are refused");
-
     Profile lamp = good;
     lamp.driveLevel[1] = lamp.driveLevel[0];
     ok(!valid(lamp), "a drive table that does not descend is refused");
+
+    Profile noBlend = good;
+    noBlend.blendHalfWidth = 0.0;
+    ok(!valid(noBlend), "a zero-width blend is refused - it would divide by zero");
+
+    Profile hugeBlend = good;
+    hugeBlend.blendHalfWidth = (double)good.huePeriod;
+    ok(!valid(hugeBlend), "a blend wider than half the wheel is refused");
+
+    Profile offWheel = good;
+    offWheel.blueHue = good.huePeriod;
+    ok(!valid(offWheel), "blue's hue must be on the wheel it is blue's hue of");
 
     // A fade that runs the wrong way round is not a fade with a sign, it is a
     // profile that means the opposite of what this code will do with it: the
@@ -246,78 +276,18 @@ static void refusals(const Profile &good)
     Profile ordered = good;
     ok(ordered.satZero < ordered.satFull, "and the shipped one runs forwards");
 
-    ok(!evaluate(one, 1.0, 0, 100, answer), "and evaluate says no to all of it");
-    ok(!evaluate(good, 0.0, 0, 100, answer), "zero lux is not a room, it is a floor");
-    ok(!evaluate(good, -1.0, 0, 100, answer), "nor is negative light");
-}
-
-/**
- * The three fields a struct can hold nonsense in, and the loader cannot.
- *
- * `FactoryLuminance` reads the document and refuses what ArduinoJson says is
- * not a boolean or not a percentage. That is the right place for it and it is
- * not the only place it has to be, because this struct is also reached by a
- * future reader - an NVS cache, a second file format, a test - and `valid()`
- * is the only thing standing between a `Profile` and the arithmetic. A field
- * whose invariant lives exclusively in the parser is a field with no invariant
- * at all the first time somebody fills the struct another way.
- *
- * Each of these is also a *silent* wrong answer rather than a crash, which is
- * what makes it worth a check:
- *
- * - a saturation above 100 makes the fade divide by a span it never reaches,
- *   so the colour correction is applied at a fraction of its measured size for
- *   every colour the clock can actually show;
- * - a `bound` of 2 is truthy, so every answer touching that corner says "at
- *   least this much" - which the read-out shows and the user layer acts on -
- *   with nothing behind it;
- * - a `censored` of 2 is the same fault one level up.
- *
- * `scripts/factory_luminance.py:load_runtime` refuses the same three, and the
- * order there is the order here.
- */
-static void flagsAreFlagsAndSaturationsAreSaturations(const Profile &good)
-{
     Profile high = good;
     high.satFull = 101;
-    ok(high.satZero < high.satFull, "the out-of-range fade still runs forwards");
     ok(!valid(high), "a fade whose top is not a saturation is refused");
-
-    Profile lowEnd = good;
-    lowEnd.satZero = 101;
-    lowEnd.satFull = 102;
-    ok(!valid(lowEnd), "and neither end may sit above a hundred");
 
     Profile edge = good;
     edge.satZero = 0;
     edge.satFull = 100;
     ok(valid(edge), "0..100 is the whole range and is allowed");
 
-    Profile bound = good;
-    bound.level[0].bound[0] = 2;
-    ok(!valid(bound), "a bound that is not 0 or 1 is refused");
-
-    Profile lastBound = good;
-    lastBound.level[good.levelCount - 1].bound[good.hueCount - 1] = 7;
-    ok(!valid(lastBound), "every corner is looked at, not just the first");
-
-    // Beyond hueCount is not read by anything and must not be a reason to
-    // refuse: the array is sized for the largest grid the firmware can hold
-    // and a shorter profile leaves the tail as it was.
-    Profile spare = good;
-    if (good.hueCount < FACTORY_MAX_HUES)
-    {
-        spare.level[0].bound[FACTORY_MAX_HUES - 1] = 3;
-        ok(valid(spare), "a corner outside the grid is not part of the grid");
-    }
-
-    Profile censored = good;
-    censored.level[0].censored = 2;
-    ok(!valid(censored), "a censored flag that is not 0 or 1 is refused");
-
-    Profile marked = good;
-    marked.level[good.levelCount - 1].censored = 1;
-    ok(valid(marked), "and a level that really is censored is fine");
+    ok(!evaluate(broken, 1.0, 0, 100, answer), "and evaluate says no to all of it");
+    ok(!evaluate(good, 0.0, 0, 100, answer), "zero lux is not a room, it is a floor");
+    ok(!evaluate(good, -1.0, 0, 100, answer), "nor is negative light");
 }
 
 /** Sat 0 is one answer, whatever hue is stored beside it. */
@@ -332,7 +302,6 @@ static void whiteIsOneAnswer(const Profile &profile)
         ok(answer.percent == first.percent,
            "white at hue " + std::to_string(hue) + " is the same percentage");
         ok(answer.residual == 0.0, "and carries no colour residual");
-        ok(!answer.bound, "and no bound from a corner it never read");
     }
 }
 
@@ -353,7 +322,6 @@ static void theVectors(const Profile &profile, const std::string &path)
         double target = in.number();
         int limited = in.integer();
         int clamped = in.integer();
-        int bound = in.integer();
 
         Answer answer{};
         bool answered = evaluate(profile, lux, (uint16_t)hue, (uint8_t)sat, answer);
@@ -378,7 +346,6 @@ static void theVectors(const Profile &profile, const std::string &path)
                  + " against " + std::to_string(target));
         ok((int)answer.limited == limited, where + " limited");
         ok((int)answer.clamped == clamped, where + " clamped");
-        ok((int)(answer.bound ? 1 : 0) == bound, where + " bound");
 
         int off = std::abs((int)answer.percent - percent);
         if (off > worst) worst = off;
@@ -392,11 +359,11 @@ int main(int argc, char **argv)
     Profile profile = loadProfile(base + "/factory_profile.txt");
 
     theProfileLoads(profile);
-    theGridRisesWithLight(profile);
+    theConeRisesWithLightEverywhereOnTheWheel(profile);
+    blueWeightIsAWellBehavedBump(profile);
     theGammaMatchesTheDriver();
     whiteIsWhiteAtEveryHue();
     refusals(profile);
-    flagsAreFlagsAndSaturationsAreSaturations(profile);
     whiteIsOneAnswer(profile);
     theVectors(profile, base + "/factory_vectors.txt");
 

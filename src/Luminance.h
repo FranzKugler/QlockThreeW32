@@ -126,6 +126,14 @@
 // to.
 #define LUM_USER_POINTS RESIDUAL_MAX
 
+// A nudge made this close to white is not taught as a colour correction.
+// Teaching one means dividing the observed decades by the saturation fade to
+// get back to the sat-100 size ResidualStore::refit() fits in, and below this
+// fade that division amplifies whatever noise is in the reading by more than
+// a factor of ten - a nudge nobody would trust manufactured into one that
+// looks precise.
+#define LUM_MIN_FADE_TO_LEARN 0.1
+
 // How finely the hue axis of the surface at GET /luminance/surface is walked.
 // The knots are 60 degrees apart and the interesting thing about the surface
 // is what happens *between* them - above all across the seam at 300 back to 0,
@@ -133,6 +141,14 @@
 // Fifteen degrees gives 24 columns: enough to draw a curve, small enough that
 // the whole answer stays under a kilobyte.
 #define LUM_SURFACE_HUE_STEP 15
+
+// How many ambient rows the surface at GET /luminance/surface samples. The
+// cone has no knots of its own any more - it is a straight line - so the rows
+// are chosen rather than read out of the model: evenly spaced in log light
+// between what the fit was actually built from (Profile::logLuxMin/Max),
+// which is enough to draw the curve and to show blue's own line bending away
+// from it without pretending the sampling is a measurement.
+#define LUM_SURFACE_LUX_ROWS 9
 
 namespace Luminance
 {
@@ -167,14 +183,15 @@ namespace Luminance
     };
 
     /**
-     * One correction of the owner's own, on top of the factory model.
+     * One thing the owner taught the clock: Table 2, refit together with
+     * Table 1 rather than averaged into a correction on top of either.
      *
      * Defined in ResidualStore rather than here, because the rules that decide
-     * what may replace what are there - pure, and therefore checked by
-     * tests/host/test_residual_store.cpp rather than by a month of evenings.
-     * Two things that a simpler store gets wrong quietly and this does not:
-     * white has no hue, and two corrections at the same light in different
-     * colours are two statements.
+     * what may replace what, and what refit() does with the result, are there
+     * - pure, and therefore checked by tests/host/test_residual_store.cpp
+     * rather than by a month of evenings. Two things that a simpler store
+     * gets wrong quietly and this does not: white has no hue, and two
+     * corrections at the same light in different colours are two statements.
      */
     typedef ResidualStore::Residual Residual;
 
@@ -184,10 +201,11 @@ namespace Luminance
         // No factory profile, or one this firmware refuses: the learned white
         // line, exactly as every clock behaved before the model existed.
         SOURCE_LEGACY = 0,
-        // The factory grid alone - nothing learned yet, or nothing learned
-        // near enough to this light and colour to say anything about it.
+        // The factory fit alone - nothing taught yet, or nothing taught about
+        // a colour at all (a stray white correction, say).
         SOURCE_FACTORY = 1,
-        // The grid with this clock's owner's own corrections on it.
+        // The nose and blue's line refit from Table 1 and this clock owner's
+        // own Table 2 together.
         SOURCE_FACTORY_USER = 2,
     };
 
@@ -196,10 +214,13 @@ namespace Luminance
     {
         uint8_t percent;        // clamped into the regulated range
         uint8_t source;         // Source
-        uint8_t factory;        // what the grid alone asked for
+        uint8_t factory;        // what the factory fit alone asked for
         float bias;             // decades the user's corrections added
         bool limited;           // the colour cannot emit this at any setting
-        bool bound;             // a grid corner behind it said "at least"
+        // Always false: the parametric fit carries no per-observation "at
+        // least this much" the grid it replaced did. Kept in the struct so
+        // the wire format does not change underneath the web UI.
+        bool bound;
         bool clamped;           // the room is outside anything measured
     };
 
@@ -238,11 +259,25 @@ namespace Luminance
     /** The corrections, oldest first. Returns how many, 0..LUM_USER_POINTS. */
     uint8_t residuals(Residual *out, uint8_t max);
 
+    /**
+     * The nose and blue's line this clock is actually running right now -
+     * whatever ResidualStore::refit() last made of Table 1 and Table 2
+     * together - and whether that is worth showing at all.
+     *
+     * False under exactly the condition targetFor() uses for "nothing was
+     * taught about a colour": no factory profile, or a refit that never
+     * produced anything usable, or a store that holds nothing but a stray
+     * white correction. `out` is untouched in that case, matching every other
+     * accessor here - a caller that checks the return value first never reads
+     * a fit that is not actually in effect.
+     */
+    bool learnedFit(ResidualStore::Fit &out);
+
     /** Forgets one, by its position in residuals(). */
     bool forgetResidual(uint8_t index);
 
     /**
-     * Back to the factory baseline: the corrections go, the grid stays.
+     * Back to the factory baseline: the corrections go, the shipped fit stays.
      *
      * The device calibration is **not** touched. The coupling map is a
      * measurement of where this clock's sensor sits behind its own letters -

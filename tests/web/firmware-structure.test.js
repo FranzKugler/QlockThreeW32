@@ -23,9 +23,6 @@ const SOURCE = fs.readFileSync(
 const FACTORY = fs.readFileSync(
   new URL('../../src/FactoryLuminance.cpp', import.meta.url), 'utf8');
 
-const SHIPPED = JSON.parse(fs.readFileSync(
-  new URL('../../web/public/factory-luminance.json', import.meta.url), 'utf8'));
-
 /**
  * The same source with every literal and comment blanked out, at the same
  * length, so an index into one is an index into the other.
@@ -159,62 +156,13 @@ test('a nudge at the top of the range is kept as a lower bound', () => {
                'and the flag reaches the store');
 });
 
-/*
- * The runtime profile's contract, on the half no compiler here can run.
- *
- * `FactoryProfile::valid()` is pure and `tests/host/` compiles it, so every
- * rule that can live in the struct is checked there by running it. What cannot
- * is the *parser*: `FactoryLuminance::begin()` needs ArduinoJson, LittleFS and
- * NVS, none of which exist in this test run - and it is the parser that
- * decides whether a JSON `true` and a JSON `1` are the same thing.
- *
- * They are not, and the direction matters. `scripts/factory_luminance.py`
- * writes the file and `load_runtime()` refuses anything but a real boolean;
- * the generated file in `web/public/` is what both this and the clock read. A
- * parser here that insisted on 1 and 0 would refuse the very file the project
- * ships - not at build time, not in any test that runs, but on a clock, once,
- * as `factoryShape`. So the shape of that one read is checked, against the
- * shipped bytes rather than against a belief about them.
- */
-test('the shipped profile really does write its flags as booleans', () => {
-  // The premise of the test below. If this ever stops holding, the parser
-  // requirement changes with it and the failure should land here first.
-  const levels = SHIPPED.payload.levels;
-  assert.ok(levels.length >= 2, 'the shipped profile has a grid');
-  for (const level of levels) {
-    assert.equal(typeof level.censored, 'boolean', 'censored is a boolean');
-    for (const flag of level.bounds) {
-      assert.equal(typeof flag, 'boolean', 'a bound is a boolean');
-    }
-  }
-  assert.ok(levels.some((level) => level.bounds.some(Boolean)),
-            'and at least one corner really is bounded, so the branch is live');
-});
-
-test('and the firmware reads a bound as a boolean, not as a number', () => {
-  // `whole(one, 0, 1, value)` was the first version and is exactly wrong: the
-  // helper refuses `is<bool>()` on purpose, so it accepts the 1 and 0 nothing
-  // writes and refuses the `true` and `false` the generator does write.
-  const begin = bodyIn(FACTORY, 'bool FactoryLuminance::begin()',
-                       'FactoryLuminance.cpp');
-  // Comments gone, and the window opened at the loop rather than at the array
-  // it walks: the fix carries a note naming the call it replaced, so matching
-  // against prose would fail the moment somebody wrote down what they fixed,
-  // and a note long enough to explain it pushes the code out of a short slice.
-  const loop = blockIn(begin, 'for (JsonVariantConst one : bounds)');
-  const reading = codeOf(loop);
-  assert.match(reading, /flag\(/,
-               'each bound goes through flag(), which is the boolean reader');
-  assert.doesNotMatch(reading, /whole\(\s*one\s*,\s*0\s*,\s*1\s*,/,
-                      'and not through whole(), which refuses a real boolean');
-});
-
-test('a level still has to say whether it is censored', () => {
-  const begin = bodyIn(FACTORY, 'bool FactoryLuminance::begin()',
-                       'FactoryLuminance.cpp');
-  assert.match(begin, /flag\(level\["censored"\]/,
-               'the censored flag is read as a boolean too');
-});
+// The three tests that used to live here checked that a JSON `true`/`false`
+// for a grid corner's "bound" and "censored" flags survived FactoryLuminance's
+// parser as real booleans rather than as 0/1. That reading is gone with the
+// grid: the parametric fit carries no per-corner "at least this much" (see
+// FactoryProfile::Answer), and FactoryLuminance::begin() no longer parses
+// `bounds` or `censored` at all. Nothing here replaces them - there is no
+// boolean-shaped field left in the payload to get wrong this way.
 
 test('the identity is required to be a string with something in it', () => {
   // Both key something. `profileId` is what the read-out names when somebody

@@ -26,6 +26,11 @@ namespace
     // Below this, log10 has nothing useful to say and the face is off anyway.
     const double OUTPUT_FLOOR = 1e-12;
 
+    // Not M_PI: it is a glibc extension, hidden under -std=c++17 without a
+    // POSIX feature macro, and this file has no business needing one just for
+    // a constant.
+    const double PI = 3.14159265358979323846;
+
     // The stored levels are rounded to ten decimals so the checksum is a
     // statement about the data rather than about the libm that read it.
     // Comparing an unrounded log against them puts 0.02 lx a fraction of a
@@ -213,35 +218,38 @@ double FactoryProfile::logOutput(double output)
     return log10(output);
 }
 
-double FactoryProfile::worstDip(const Profile &profile)
+namespace
 {
-    double worst = 0.0;
-    for (uint8_t i = 0; i + 1 < profile.levelCount; i++)
+    // Shortest signed distance from a to b around a period, always >= 0 - the
+    // "over the wrap" distance, not the "along the numbers" one. hue 355 is 15
+    // away from hue 10 on a 360-degree wheel, not 345.
+    double circularDistance(double a, double b, double period)
     {
-        const Level &low = profile.level[i];
-        const Level &high = profile.level[i + 1];
-
-        // The white line on its own first: a dip can sit there with every
-        // residual flat, and that is a different fault from one in a hue.
-        double fell = low.white - high.white;
-        if (fell > worst) worst = fell;
-
-        for (uint8_t k = 0; k < profile.hueCount; k++)
-        {
-            fell = (low.white + low.residual[k]) - (high.white + high.residual[k]);
-            if (fell > worst) worst = fell;
-        }
+        double d = fmod(fabs(a - b), period);
+        if (d > period / 2.0) d = period - d;
+        return d;
     }
-    return worst;
+}
+
+double FactoryProfile::fadeFor(const Profile &profile, uint8_t sat)
+{
+    if (sat <= profile.satZero) return 0.0;
+    if (sat >= profile.satFull) return 1.0;
+    return (double)(sat - profile.satZero) / (double)(profile.satFull - profile.satZero);
+}
+
+double FactoryProfile::blueWeight(const Profile &profile, uint16_t hue)
+{
+    double d = circularDistance((double)hue, (double)profile.blueHue,
+                                (double)profile.huePeriod);
+    if (d >= profile.blendHalfWidth) return 0.0;
+    return 0.5 * (1.0 + cos(PI * d / profile.blendHalfWidth));
 }
 
 bool FactoryProfile::valid(const Profile &profile)
 {
-    if (profile.levelCount < 2 || profile.levelCount > FACTORY_MAX_LEVELS) return false;
-    if (profile.hueCount < 2 || profile.hueCount > FACTORY_MAX_HUES) return false;
     if (profile.driveCount == 0 || profile.driveCount > FACTORY_MAX_DRIVE) return false;
     if (profile.huePeriod == 0) return false;
-    if (profile.huePeriod % profile.hueCount) return false;
     if (profile.percentMin >= profile.percentMax) return false;
     if (profile.percentMax > 100) return false;
     // Strictly less, not merely different. A fade that runs backwards is not a
@@ -258,35 +266,25 @@ bool FactoryProfile::valid(const Profile &profile)
     // is strictly below it, so this bounds both.
     if (profile.satFull > 100) return false;
 
-    // Evenly spaced knots, because the segment arithmetic below assumes it.
-    uint16_t span = (uint16_t)(profile.huePeriod / profile.hueCount);
-    for (uint8_t i = 0; i < profile.hueCount; i++)
+    if (!isReal(profile.coneSlope) || !isReal(profile.coneOffset)) return false;
+    if (!isReal(profile.logLuxMin) || !isReal(profile.logLuxMax)) return false;
+    if (!(profile.logLuxMax > profile.logLuxMin)) return false;
+    if (!isReal(profile.noseA0) || !isReal(profile.noseA1) || !isReal(profile.noseB1)) return false;
+    if (!isReal(profile.blueSlope) || !isReal(profile.blueOffset)) return false;
+    if (profile.blueHue >= profile.huePeriod) return false;
+    // Zero would divide by zero in blueWeight(); more than half the wheel
+    // would let the far side of it see some of blue, which is not a blend
+    // zone any more, it is the whole circle.
+    if (!(profile.blendHalfWidth > 0.0) || profile.blendHalfWidth > (double)profile.huePeriod / 2.0)
     {
-        if (profile.hueKnot[i] != (uint16_t)(i * span)) return false;
+        return false;
     }
 
-    for (uint8_t i = 0; i < profile.levelCount; i++)
-    {
-        const Level &level = profile.level[i];
-        if (!isReal(level.logLux) || !isReal(level.white)) return false;
-        // Strictly ascending: the bracket search walks the pairs and divides
-        // by the span, so a repeated or descending level answers something
-        // plausible out of the wrong bracket.
-        if (i && !(level.logLux > profile.level[i - 1].logLux)) return false;
-        // A flag, and there is exactly one kind of it: "at least this much",
-        // from an observation that ran out of slider. Anything other than 0 or
-        // 1 is truthy, so every answer touching that corner would report a
-        // bound - which the read-out shows and the user layer acts on - with
-        // nothing behind it. Only the knots in this grid are looked at: the
-        // array is sized for the largest profile the firmware can hold, and
-        // what sits beyond hueCount is not part of the measurement.
-        if (level.censored > 1) return false;
-        for (uint8_t k = 0; k < profile.hueCount; k++)
-        {
-            if (!isReal(level.residual[k])) return false;
-            if (level.bound[k] > 1) return false;
-        }
-    }
+    // The whole monotonicity argument: the cone on its own, and the cone with
+    // blue's line fully blended in - the two extremes blueWeight() ever
+    // interpolates between. See the header comment.
+    if (!(profile.coneSlope > 0.0)) return false;
+    if (!(profile.coneSlope + profile.blueSlope > 0.0)) return false;
 
     // The drive table, as Coupling checks it: strictly descending from a top
     // level of 1..255, nothing negative, and a bottom level that can divide.
@@ -308,12 +306,7 @@ bool FactoryProfile::valid(const Profile &profile)
         if (!isReal(profile.weight[i]) || profile.weight[i] < 0.0) return false;
         sum += profile.weight[i];
     }
-    if (!(sum > 0.0)) return false;
-
-    // Last, because it is the only check that needs every number already known
-    // to be a number. Measured on the grid rather than read out of a status
-    // field: see worstDip().
-    return worstDip(profile) <= FACTORY_MAX_DIP;
+    return sum > 0.0;
 }
 
 bool FactoryProfile::evaluate(const Profile &profile, double lux, uint16_t hue,
@@ -334,81 +327,31 @@ bool FactoryProfile::evaluateWith(const Profile &profile, double lux,
 
     double logLux = roundTen(log10(lux));
 
-    // Which two levels this ambient sits between. Clamped rather than
-    // extrapolated: a straight line run past the last measurement is a claim
-    // nobody made, and this grid is short of exactly the conditions its ends
-    // are at.
-    uint8_t low = 0, high = 0;
-    double along = 0.0;
+    // Informational only - see Profile::logLuxMin. The line below is
+    // evaluated at this logLux either way.
     Clamped clamped = CLAMP_NONE;
-    if (logLux <= profile.level[0].logLux)
-    {
-        low = high = 0;
-        if (logLux < profile.level[0].logLux) clamped = CLAMP_BELOW;
-    }
-    else if (logLux >= profile.level[profile.levelCount - 1].logLux)
-    {
-        low = high = (uint8_t)(profile.levelCount - 1);
-        if (logLux > profile.level[low].logLux) clamped = CLAMP_ABOVE;
-    }
-    else
-    {
-        for (uint8_t i = 0; i + 1 < profile.levelCount; i++)
-        {
-            if (logLux >= profile.level[i].logLux && logLux <= profile.level[i + 1].logLux)
-            {
-                low = i;
-                high = (uint8_t)(i + 1);
-                along = (logLux - profile.level[i].logLux)
-                      / (profile.level[i + 1].logLux - profile.level[i].logLux);
-                break;
-            }
-        }
-    }
+    if (logLux < profile.logLuxMin) clamped = CLAMP_BELOW;
+    else if (logLux > profile.logLuxMax) clamped = CLAMP_ABOVE;
 
-    const Level &lowLevel = profile.level[low];
-    const Level &highLevel = profile.level[high];
-    double white = lowLevel.white + (highLevel.white - lowLevel.white) * along;
+    double white = profile.coneSlope * logLux + profile.coneOffset;
 
-    // Cyclic in hue: 330 sits half way from the last knot back to the first,
-    // over the wrap. That segment has no knot at its far end in the stored
-    // order, which is exactly why it is the one that gets written wrong.
-    uint16_t hueSpan = (uint16_t)(profile.huePeriod / profile.hueCount);
-    double position = (double)(hue % profile.huePeriod) / (double)hueSpan;
-    uint8_t lowHue = (uint8_t)(((int)floor(position)) % profile.hueCount);
-    uint8_t highHue = (uint8_t)((lowHue + 1) % profile.hueCount);
-    double fraction = position - floor(position);
-
-    // A corner only taints the answer if it is actually being read: at
-    // fraction 0 the far knot contributes nothing, and saying "at least" on
-    // its account would report a dependency that is not there.
-    double residualLow = lowLevel.residual[lowHue]
-        + (lowLevel.residual[highHue] - lowLevel.residual[lowHue]) * fraction;
-    bool boundLow = (fraction < 1.0 && lowLevel.bound[lowHue])
-                 || (fraction > 0.0 && lowLevel.bound[highHue]);
-    double residualHigh = highLevel.residual[lowHue]
-        + (highLevel.residual[highHue] - highLevel.residual[lowHue]) * fraction;
-    bool boundHigh = (fraction < 1.0 && highLevel.bound[lowHue])
-                  || (fraction > 0.0 && highLevel.bound[highHue]);
-
-    double residual = residualLow + (residualHigh - residualLow) * along;
-    bool bound = (along < 1.0 && boundLow) || (along > 0.0 && boundHigh);
+    double nose = profile.noseA0
+        + profile.noseA1 * cos(hue * PI / 180.0)
+        + profile.noseB1 * sin(hue * PI / 180.0);
+    double blueLine = profile.blueSlope * logLux + profile.blueOffset;
+    double blend = blueWeight(profile, hue);
+    double residual = nose + blend * (blueLine - nose);
 
     // The fade, declared in the profile and applied here: exactly zero at
     // sat=0 - which is what makes white the same answer whatever hue is stored
     // beside it - and exactly the whole residual at sat=100.
-    double fade;
-    if (sat <= profile.satZero) fade = 0.0;
-    else if (sat >= profile.satFull) fade = 1.0;
-    else fade = (double)(sat - profile.satZero)
-              / (double)(profile.satFull - profile.satZero);
+    double fade = fadeFor(profile, sat);
     residual *= fade;
     if (fade == 0.0)
     {
-        // Nothing of the colour grid reached the answer, so nothing about the
-        // colour grid limits it.
+        // Nothing of the colour model reached the answer, so nothing about it
+        // limits it.
         residual = 0.0;
-        bound = false;
     }
 
     // What the stack does, plus what this person prefers. Added in decades,
@@ -447,6 +390,5 @@ bool FactoryProfile::evaluateWith(const Profile &profile, double lux,
     out.limited = (target > highest) ? LIMITED_CEILING
                 : (target < lowest) ? LIMITED_FLOOR : LIMITED_NONE;
     out.clamped = clamped;
-    out.bound = bound;
     return true;
 }

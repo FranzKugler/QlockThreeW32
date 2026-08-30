@@ -293,6 +293,42 @@ namespace
     // is the storage and the timing.
     ResidualStore::Store user_;
 
+    // What ResidualStore::refit() last made of the factory points and user_
+    // together - the nose and blue's line this clock is actually running,
+    // refit whenever the taught points change rather than on every query.
+    // Seeded from the factory's own numbers so a clock with nothing taught
+    // yet, or no factory profile at all, has something valid to fall back to
+    // even before begin() has run.
+    ResidualStore::Fit learned_;
+    bool learnedValid_ = false;
+
+    /**
+     * Recomputes learned_ from whatever the factory profile and user_ say
+     * right now. Called after every change to either - an add, a forget, a
+     * restore - rather than on every targetFor(), because the fit does not
+     * change between those and a clock spends most of its time answering the
+     * same question with the same numbers.
+     */
+    void refitLearned()
+    {
+        learnedValid_ = FactoryLuminance::available()
+            && ResidualStore::refit(FactoryLuminance::profile(), user_, learned_);
+    }
+
+    /** How much colour data user_ actually holds, white points aside - the
+     *  question "has this clock been taught anything about a colour" needs,
+     *  since a stray white correction (see factoryRuns()) must not make the
+     *  read-out claim a colour correction that was never made. */
+    uint8_t colourCorrections()
+    {
+        uint8_t found = 0;
+        for (uint8_t i = 0; i < user_.count; i++)
+        {
+            if (user_.at[i].sat != 0) found++;
+        }
+        return found;
+    }
+
     /*
      * Whether there is a stored record of corrections that were learned on a
      * *different* profile from the one now installed.
@@ -344,60 +380,77 @@ namespace
         preferences.end();
     }
 
+    /**
+     * Reads user_ from NVS. No early `return` anywhere in the body on
+     * purpose, refitLearned() included - Luminance::begin() was already
+     * bitten once by an early exit silently skipping a step that had to run
+     * regardless, see its own comment, and every failure branch here leaves
+     * user_ at count 0, for which refitting is simply "the factory numbers
+     * stand", not a special case to remember to handle separately.
+     */
     void loadUser()
     {
         user_.count = 0;
         userStale = false;
+        String stored;
 
         Preferences preferences;
-        if (!preferences.begin(LUM_NAMESPACE, true)) return;
-        String stored = preferences.getString(LUM_USER_KEY, "");
-        preferences.end();
-        if (stored.length() == 0) return;
+        if (preferences.begin(LUM_NAMESPACE, true))
+        {
+            stored = preferences.getString(LUM_USER_KEY, "");
+            preferences.end();
+        }
 
         JsonDocument doc;
-        if (deserializeJson(doc, stored) != DeserializationError::Ok)
+        if (stored.length() > 0 && deserializeJson(doc, stored) != DeserializationError::Ok)
         {
             debugE("Luminance: the stored corrections are not readable");
-            return;
+            stored = "";
         }
 
-        // Learned against a different baseline. Kept in NVS rather than
-        // deleted - they are still what somebody said - but not applied, since
-        // adding them to a grid they were not measured on is arithmetic across
-        // two models. The read-out says so and the factory restore clears them.
-        String against = doc["profile"] | "";
-        if (FactoryLuminance::available()
-            && against != FactoryLuminance::sourceChecksum())
+        if (stored.length() > 0)
         {
-            userStale = true;
-            debugW("Luminance: %d corrections were learned on another profile "
-                   "and are not being applied", (int)doc["residuals"].size());
-            return;
+            // Learned against a different baseline. Kept in NVS rather than
+            // deleted - they are still what somebody said - but not applied,
+            // since adding them to a fit they were not measured against is
+            // arithmetic across two models. The read-out says so and the
+            // factory restore clears them.
+            String against = doc["profile"] | "";
+            if (FactoryLuminance::available() && against != FactoryLuminance::sourceChecksum())
+            {
+                userStale = true;
+                debugW("Luminance: %d corrections were learned on another profile "
+                       "and are not being applied", (int)doc["residuals"].size());
+            }
+            else
+            {
+                for (JsonArray one : doc["residuals"].as<JsonArray>())
+                {
+                    if (user_.count >= RESIDUAL_MAX) break;
+
+                    uint16_t hue = one[2] | (uint16_t)LUM_HUE_UNKNOWN;
+                    uint8_t sat = one[3] | (uint8_t)0;
+                    // A correction with no colour cannot be placed on a
+                    // colour-aware fit, and guessing one would put it at hue
+                    // 0, which is red. It belongs to the legacy white line
+                    // and stays there.
+                    if (hue == LUM_HUE_UNKNOWN) continue;
+
+                    ResidualStore::Residual &into = user_.at[user_.count++];
+                    into.logLux = one[0] | 0.0;
+                    into.decades = one[1] | 0.0;
+                    // Canonicalised on the way in as well as on the way out,
+                    // so a record written before white lost its hue reads as
+                    // one white rather than as several.
+                    into.hue = ResidualStore::canonicalHue(hue, sat);
+                    into.sat = sat;
+                    into.seconds = one[4] | (uint32_t)0;
+                    into.bound = (one[5] | 0) ? 1 : 0;
+                }
+            }
         }
 
-        for (JsonArray one : doc["residuals"].as<JsonArray>())
-        {
-            if (user_.count >= RESIDUAL_MAX) break;
-
-            uint16_t hue = one[2] | (uint16_t)LUM_HUE_UNKNOWN;
-            uint8_t sat = one[3] | (uint8_t)0;
-            // A correction with no colour cannot be placed on a colour-aware
-            // grid, and guessing one would put it at hue 0, which is red. It
-            // belongs to the legacy white line and stays there.
-            if (hue == LUM_HUE_UNKNOWN) continue;
-
-            ResidualStore::Residual &into = user_.at[user_.count++];
-            into.logLux = one[0] | 0.0;
-            into.decades = one[1] | 0.0;
-            // Canonicalised on the way in as well as on the way out, so a
-            // record written before white lost its hue reads as one white
-            // rather than as several.
-            into.hue = ResidualStore::canonicalHue(hue, sat);
-            into.sat = sat;
-            into.seconds = one[4] | (uint32_t)0;
-            into.bound = (one[5] | 0) ? 1 : 0;
-        }
+        refitLearned();
     }
 
     /** True when the factory model is the one answering. */
@@ -537,40 +590,57 @@ bool Luminance::poll(float lux)
     waiting = false;
     uint32_t seconds = (uint32_t)(millis() / 1000);
 
-    // With a factory profile, what is learned is a *correction to it*, not a
-    // point on a line of its own. The grid already says what this stack does
-    // at this light in this colour; the person is saying it should be a little
-    // more or a little less, and that difference is what generalises.
+    // With a factory profile, what is learned is a point in the same
+    // coordinate Table 1 is already in - log output relative to the cone, at
+    // the saturation-100 size - so ResidualStore::refit() can fit it and
+    // Table 1 together rather than averaging a correction on top of a fit
+    // that never moves.
     if (factoryRuns(wantedHue))
     {
-        FactoryProfile::Answer asked;
-        if (FactoryLuminance::evaluate(lux, wantedHue, wantedSat, asked))
+        const FactoryProfile::Profile &profile = FactoryLuminance::profile();
+        double x = logLux(lux);
+        double fade = FactoryProfile::fadeFor(profile, wantedSat);
+
+        // Below this the un-fade a few lines down amplifies whatever noise is
+        // in "got" by more than a factor of ten - a nudge made with the face
+        // almost white says almost nothing about a colour correction, and
+        // dividing it back up to sat-100 size would manufacture a number
+        // rather than report one. White itself (fade 0) is excluded by the
+        // same guard rather than as a special case.
+        if (fade >= LUM_MIN_FADE_TO_LEARN)
         {
-            // In decades of emitted light, which is the coordinate the
-            // difference is constant in. Expressed in percent it would mean
-            // something else the next time the colour changed.
             double got = FactoryProfile::logOutput(FactoryProfile::relativeOutput(
-                FactoryLuminance::profile(), wantedHue, wantedSat, wanted));
+                profile, wantedHue, wantedSat, wanted));
+            double white = profile.coneSlope * x + profile.coneOffset;
+            double residual = (got - white) / fade;
+
             // A nudge sitting at the top of the regulated range is a lower
             // bound: the slider had nothing above it to offer, so what was
             // said is "at least this much". Kept as such rather than as an
-            // equality - read as one it would make the model dimmer than the
-            // only thing anybody measured, and it would do so in bright rooms,
-            // where being too dim is worst. The floor is deliberately not
-            // treated the same way; see ResidualStore::Residual::bound.
+            // equality - read as one it would make the fit dimmer than the
+            // only thing anybody measured, and it would do so in bright
+            // rooms, where being too dim is worst. The floor is deliberately
+            // not treated the same way; see ResidualStore::Residual::bound.
             bool censored = (wanted >= rangeHigh);
 
-            ResidualStore::add(user_, logLux(lux), got - asked.target,
-                               wantedHue, wantedSat, seconds, censored);
+            ResidualStore::add(user_, x, residual, wantedHue, wantedSat, seconds, censored);
             storeUser();
+            refitLearned();
 
-            debugI("Luminance: %.2f lx hue %d sat %d - wanted %d%%, the model "
-                   "asked %d%%, keeping %+.3f decades%s (%d corrections)",
-                   lux, wantedHue, wantedSat, wanted, asked.percent,
-                   got - asked.target, censored ? " as a lower bound" : "",
-                   user_.count);
+            debugI("Luminance: %.2f lx hue %d sat %d - wanted %d%%, keeping "
+                   "%+.3f decades relative to the cone%s (%d corrections, "
+                   "nose now %.3f/%.3f/%.3f, blue %.3f/%.3f)",
+                   lux, wantedHue, wantedSat, wanted, residual,
+                   censored ? " as a lower bound" : "", user_.count,
+                   learned_.noseA0, learned_.noseA1, learned_.noseB1,
+                   learned_.blueSlope, learned_.blueOffset);
             return true;
         }
+
+        debugI("Luminance: %.2f lx hue %d sat %d - too close to white (fade "
+               "%.2f) to teach a colour correction from", lux, wantedHue,
+               wantedSat, fade);
+        return true;
     }
 
     // No profile, or a nudge made in a colour nobody recorded. The white line,
@@ -596,23 +666,30 @@ void Luminance::targetFor(float lux, uint16_t hue, uint8_t sat, Target &out)
 
     if (!factoryRuns(hue)) return;
 
-    // What the grid alone asks for, kept separately - the read-out shows both,
-    // because "the model says 42 and you have taught it 47" is the sentence
-    // somebody needs when the automatic feels wrong.
+    // What the factory shipped asks for, kept separately - the read-out shows
+    // both, because "the factory says 42 and what you have taught it says 47"
+    // is the sentence somebody needs when the automatic feels wrong.
     FactoryProfile::Answer plain;
     if (!FactoryLuminance::evaluate(lux, hue, sat, plain)) return;
 
-    double weight = 0.0;
-    double bias = ResidualStore::bias(user_, logLux(lux), hue, sat, weight);
-
+    // The refit answer, if there is one to give: the same profile with the
+    // nose and blue's line replaced by whatever refitLearned() last made of
+    // Table 1 and Table 2 together. A colour correction only, because a stray
+    // white one in user_ (see factoryRuns()) must not make a coloured query
+    // claim a correction that was never made about a colour at all.
     FactoryProfile::Answer answer = plain;
-    if (weight > 0.0
-        && !FactoryProfile::evaluateWith(FactoryLuminance::profile(), (double)lux,
-                                         hue, sat, bias, answer))
+    bool haveLearned = learnedValid_ && colourCorrections() > 0;
+    if (haveLearned)
     {
-        answer = plain;
-        bias = 0.0;
-        weight = 0.0;
+        FactoryProfile::Profile learned = FactoryLuminance::profile();
+        learned.noseA0 = learned_.noseA0; learned.noseA1 = learned_.noseA1;
+        learned.noseB1 = learned_.noseB1;
+        learned.blueSlope = learned_.blueSlope; learned.blueOffset = learned_.blueOffset;
+        if (!FactoryProfile::evaluate(learned, lux, hue, sat, answer))
+        {
+            answer = plain;
+            haveLearned = false;
+        }
     }
 
     // Clamped to the regulated range the owner set on this very screen, which
@@ -623,10 +700,17 @@ void Luminance::targetFor(float lux, uint16_t hue, uint8_t sat, Target &out)
 
     out.percent = (uint8_t)value;
     out.factory = plain.percent;
-    out.bias = (weight > 0.0) ? (float)bias : 0.0f;
-    out.source = (weight > 0.0) ? SOURCE_FACTORY_USER : SOURCE_FACTORY;
+    // Decades of emitted light the refit moved the answer by here, in this
+    // colour - the closest thing to the old "bias" this design still has, and
+    // the same coordinate it was always in.
+    out.bias = haveLearned ? (float)(answer.target - plain.target) : 0.0f;
+    out.source = haveLearned ? SOURCE_FACTORY_USER : SOURCE_FACTORY;
     out.limited = (answer.limited != FactoryProfile::LIMITED_NONE);
-    out.bound = answer.bound;
+    // The parametric fit carries no per-observation "at least this much" the
+    // way the grid it replaced did - a censored point is simply left out of
+    // the fit rather than baked into the surface. A user's own censored nudge
+    // is still a bound; see ResidualStore::Residual::bound, a different layer.
+    out.bound = false;
     out.clamped = (answer.clamped != FactoryProfile::CLAMP_NONE);
 }
 
@@ -639,10 +723,21 @@ uint8_t Luminance::residuals(Residual *out, uint8_t max)
     return given;
 }
 
+bool Luminance::learnedFit(ResidualStore::Fit &out)
+{
+    // The same gate targetFor() uses for "is there a colour correction worth
+    // showing" - a refit that only ever saw a stray white point must not
+    // claim one, and neither may a refit that failed outright.
+    if (!learnedValid_ || colourCorrections() == 0) return false;
+    out = learned_;
+    return true;
+}
+
 bool Luminance::forgetResidual(uint8_t index)
 {
     if (!ResidualStore::forget(user_, index)) return false;
     storeUser();
+    refitLearned();
     debugA("Luminance: correction %d forgotten, %d left", index, user_.count);
     return true;
 }
@@ -658,6 +753,7 @@ bool Luminance::factoryRestore()
     userStale = false;
     waiting = false;
     storeUser();
+    refitLearned();
 
     // The white points are the same preferences said in the old coordinates.
     // Left behind, they would make a restored clock read as restored only

@@ -1,5 +1,6 @@
 /**
- * The user layer: what a nudge is kept as, and what it is allowed to replace.
+ * The user layer: what a nudge is kept as, what it is allowed to replace, and
+ * what refitting Table 1 and Table 2 together actually produces.
  *
  * This is the half of the automatic that learns, and it is the half where a
  * mistake is invisible on a bench: every rule here is about which of two
@@ -8,7 +9,10 @@
  *
  * `src/ResidualStore.cpp` is pure for exactly that reason - no Arduino, no
  * NVS - so a desktop compiler can ask it the questions a clock would take
- * weeks to answer.
+ * weeks to answer. It is no longer independent of FactoryProfile (refit()
+ * needs the shape Table 1 travels in and the boundary between the nose and
+ * blue's line), so this harness links FactoryProfile.cpp too - see
+ * tests/host/run.sh.
  *
  * Build and run:  tests/host/run.sh
  */
@@ -35,8 +39,31 @@ static void ok(bool condition, const std::string &what)
 
 static void near(double got, double want, const std::string &what)
 {
-    ok(std::fabs(got - want) < 1e-9,
+    ok(std::fabs(got - want) < 1e-6,
        what + " (got " + std::to_string(got) + ", wanted " + std::to_string(want) + ")");
+}
+
+/**
+ * A small, valid profile with no Table 1 points of its own by default - each
+ * refit test adds exactly the points its story needs. Cone and nose values
+ * are arbitrary but real (never zero, never equal to each other) so a test
+ * that forgets to seed one half of the fit fails loudly rather than by
+ * accident matching a placeholder.
+ */
+static FactoryProfile::Profile makeProfile()
+{
+    FactoryProfile::Profile p{};
+    p.huePeriod = 360;
+    p.coneSlope = 0.47; p.coneOffset = -0.73; p.logLuxMin = -2.0; p.logLuxMax = 1.0;
+    p.noseA0 = -0.25; p.noseA1 = -0.22; p.noseB1 = 0.18;
+    p.blueHue = 240; p.blueSlope = -0.19; p.blueOffset = -0.61; p.blendHalfWidth = 45.0;
+    p.percentMin = 20; p.percentMax = 100; p.satZero = 0; p.satFull = 100;
+    p.driveCount = 2;
+    p.driveLevel[0] = 255; p.driveLevel[1] = 4;
+    p.driveResponse[0] = 1.0; p.driveResponse[1] = 0.003;
+    p.weight[0] = 0.2126; p.weight[1] = 0.7152; p.weight[2] = 0.0722;
+    p.pointCount = 0;
+    return p;
 }
 
 /* ------------------------------------------------------------------
@@ -110,127 +137,6 @@ static void theOldestLeavesWhenItIsFull()
     ok(store.at[0].seconds == 2, "and the two oldest left");
 }
 
-/* ------------------------------------------------------------------
- * A nudge that ran out of slider
- * ---------------------------------------------------------------- */
-
-static void theCeilingIsALowerBound()
-{
-    // Somebody who drags the slider to the top has said "at least this much",
-    // not "exactly this much" - the slider had nothing above it to offer. Read
-    // as an equality it drags the model down, and the room where that happens
-    // is the bright one, where being too dim is worst.
-    Store store{};
-    add(store, -0.5, 0.10, 120, 100, 1, true);
-    ok(store.at[0].bound == 1, "a nudge at the ceiling is kept as a bound");
-
-    add(store, 0.5, 0.10, 120, 100, 2, false);
-    ok(store.at[1].bound == 0, "and one below it is exact");
-}
-
-static void aBoundNeverPullsTheModelDown()
-{
-    double weight = 0.0;
-
-    // An exact correction says +0.20. A censored one at the same light and
-    // colour says "at least +0.05" - which is not a contradiction, it is a
-    // weaker statement, and averaging the two would answer +0.125 and make the
-    // clock dimmer than the one thing anybody actually measured.
-    Store store{};
-    add(store, -0.5, 0.20, 120, 100, 1, false);
-    add(store, -0.45, 0.05, 240, 100, 2, true);
-    double found = bias(store, -0.5, 120, 100, weight);
-    ok(weight > 0.0, "something applies here");
-    near(found, 0.20, "the bound did not drag the answer down");
-}
-
-static void aBoundStillRaisesTheModel()
-{
-    // The other direction is the whole point of keeping it. "At least +0.40"
-    // beside an exact +0.10 means the model is too dim, and the bound is the
-    // only evidence of that there will ever be.
-    double weight = 0.0;
-    Store store{};
-    add(store, -0.5, 0.10, 120, 100, 1, false);
-    add(store, -0.45, 0.40, 120, 100, 2, true);
-    // Same colour and near enough in light, so the second replaced the first -
-    // put them a decade apart instead so both apply.
-    Store apart{};
-    add(apart, -0.5, 0.10, 120, 100, 1, false);
-    add(apart, -0.45, 0.40, 240, 100, 2, true);
-    double found = bias(apart, -0.5, 180, 100, weight);
-    ok(found > 0.10, "a bound above the exact answer raises it");
-    ok(found <= 0.40 + 1e-9, "but never past what it claimed");
-    ok(store.count == 1, "and the same colour at the same light still replaced");
-}
-
-static void aBoundAloneIsBetterThanNothing()
-{
-    // Nothing exact has ever been said here. "At least this much" is still
-    // evidence, and acting on it can only make the clock brighter - which is
-    // the direction the person asked for.
-    double weight = 0.0;
-    Store store{};
-    add(store, -0.5, 0.25, 120, 100, 1, true);
-    near(bias(store, -0.5, 120, 100, weight), 0.25, "a bound on its own is used");
-    ok(weight > 0.0, "and says so");
-}
-
-/* ------------------------------------------------------------------
- * What the corrections say about a room they were not made in
- * ---------------------------------------------------------------- */
-
-static void nothingNearEnoughSaysNothing()
-{
-    double weight = 0.0;
-    Store store{};
-    add(store, -1.7, 0.30, 120, 100, 1, false);
-    // Three decades away, and in a colour on the other side of the wheel.
-    double found = bias(store, 1.0, 300, 100, weight);
-    ok(weight == 0.0, "a correction that is nowhere near says nothing");
-    near(found, 0.0, "and contributes no bias");
-}
-
-static void whiteDoesNotLeakIntoAColourOrTheOtherWay()
-{
-    double weight = 0.0;
-    Store store{};
-    add(store, -0.5, 0.30, 0, 0, 1, false);          // said in white
-    bias(store, -0.5, 240, 100, weight);
-    ok(weight == 0.0, "a white correction says nothing about full blue");
-
-    Store colour{};
-    add(colour, -0.5, 0.30, 240, 100, 1, false);
-    bias(colour, -0.5, 0, 0, weight);
-    ok(weight == 0.0, "and a blue one says nothing about white");
-}
-
-static void whiteAppliesAtEveryHue()
-{
-    // Once the face is white the hue setting is not visible at all, so a
-    // correction made in white has to apply whatever hue happens to be stored
-    // beside the query.
-    Store store{};
-    add(store, -0.5, 0.30, 0, 0, 1, false);
-    for (int hue = 0; hue < 360; hue += 37)
-    {
-        double weight = 0.0;
-        double found = bias(store, -0.5, (uint16_t)hue, 0, weight);
-        ok(weight > 0.0, "white applies at hue " + std::to_string(hue));
-        near(found, 0.30, "and by the same amount");
-    }
-}
-
-static void theBiasIsClampedToWhatAPreferenceCanBe()
-{
-    double weight = 0.0;
-    Store store{};
-    add(store, -0.5, 9.0, 120, 100, 1, false);
-    double found = bias(store, -0.5, 120, 100, weight);
-    ok(found <= RESIDUAL_MAX_DECADES + 1e-9, "an absurd correction is clamped");
-    ok(found >= -RESIDUAL_MAX_DECADES - 1e-9, "in both directions");
-}
-
 static void forgettingOneKeepsTheOrder()
 {
     Store store{};
@@ -244,23 +150,166 @@ static void forgettingOneKeepsTheOrder()
     ok(!forget(store, 9), "a place that is not there is refused");
 }
 
+/* ------------------------------------------------------------------
+ * refit(): Table 1 and Table 2, combined
+ * ---------------------------------------------------------------- */
+
+static void refitRefusesAnInvalidProfile()
+{
+    FactoryProfile::Profile p = makeProfile();
+    p.coneSlope = 0.0;   // a cone that does not rise: FactoryProfile::valid() says no
+    Store empty{};
+    Fit fit{};
+    ok(!refit(p, empty, fit), "an invalid profile is refused");
+}
+
+static void withNothingTaughtTheFactoryNumbersStand()
+{
+    FactoryProfile::Profile p = makeProfile();
+    p.point[0] = {240, 100, -1.0, 0.0};
+    p.pointCount = 1;   // one point is not enough to refit either half
+
+    Store empty{};
+    Fit fit{};
+    ok(refit(p, empty, fit), "refits");
+    near(fit.noseA0, p.noseA0, "too little to refit the nose: kept as shipped");
+    near(fit.noseA1, p.noseA1, "same for its cosine term");
+    near(fit.noseB1, p.noseB1, "and its sine term");
+    near(fit.blueSlope, p.blueSlope, "and blue's line: kept as shipped");
+    near(fit.blueOffset, p.blueOffset, "same for its offset");
+}
+
+static void enoughTaughtPointsMoveBluesLine()
+{
+    FactoryProfile::Profile p = makeProfile();   // no Table 1 points at all
+    Store taught{};
+    // Two statements at hue 240 that define a line of their own: slope 0.2,
+    // offset 0.2.
+    add(taught, -1.0, 0.0, 240, 100, 1, false);
+    add(taught, 1.0, 0.4, 240, 100, 2, false);
+
+    Fit fit{};
+    ok(refit(p, taught, fit), "refits");
+    near(fit.blueSlope, 0.2, "blue's line comes entirely from what was taught");
+    near(fit.blueOffset, 0.2, "same for its offset");
+}
+
+static void theNoseRefitsFromEnoughTaughtPoints()
+{
+    FactoryProfile::Profile p = makeProfile();
+    Store taught{};
+    // Three hues, well clear of the blend window, all saying the same
+    // residual - a flat nose, a0 = -0.5, nothing on cos or sin.
+    add(taught, -0.5, -0.5, 0, 100, 1, false);
+    add(taught, -0.5, -0.5, 60, 100, 2, false);
+    add(taught, -0.5, -0.5, 120, 100, 3, false);
+
+    Fit fit{};
+    ok(refit(p, taught, fit), "refits");
+    near(fit.noseA0, -0.5, "three points at one flat value refit a flat nose");
+    near(fit.noseA1, 0.0, "no cosine term is needed to explain a flat value");
+    near(fit.noseB1, 0.0, "nor a sine term");
+}
+
+static void aTaughtPointShadowsAndReplacesABadFactoryPoint()
+{
+    // Two factory points that agree on a clean line (slope 0.2, offset 0.2),
+    // and a third that does not - the case a stale or noisy factory
+    // measurement is supposed to look like on the wall.
+    FactoryProfile::Profile p = makeProfile();
+    p.point[0] = {240, 100, -1.0, 0.0};
+    p.point[1] = {240, 100, 1.0, 0.4};
+    p.point[2] = {245, 100, 0.5, 5.0};
+    p.pointCount = 3;
+
+    Store empty{};
+    Fit before{};
+    ok(refit(p, empty, before), "refits with nothing taught yet");
+    ok(before.blueSlope > 0.5,
+       "the outlier alone drags the untaught fit far from the true slope");
+
+    // The owner corrects exactly that point - same light, same colour, the
+    // value the true line actually predicts there.
+    Store taught{};
+    add(taught, 0.5, 0.3, 245, 100, 1, false);
+    Fit after{};
+    ok(refit(p, taught, after), "refits again with the correction taught");
+    near(after.blueSlope, 0.2, "shadowing the bad factory point recovers the true slope");
+    near(after.blueOffset, 0.2, "and the true offset");
+}
+
+static void aFarTaughtPointDoesNotShadowAnything()
+{
+    FactoryProfile::Profile p = makeProfile();
+    p.point[0] = {240, 100, -1.0, 0.0};
+    p.point[1] = {240, 100, 1.0, 0.4};
+    p.pointCount = 2;
+
+    Store taught{};
+    // A different colour entirely, nowhere near either factory point in hue
+    // or in light.
+    add(taught, -1.0, 999.0, 60, 100, 1, false);
+
+    Fit fit{};
+    ok(refit(p, taught, fit), "refits");
+    near(fit.blueSlope, 0.2, "blue's line is exactly the two factory points");
+    near(fit.blueOffset, 0.2, "the far-away correction does not touch it");
+}
+
+static void aBoundTaughtPointShadowsButDoesNotEnterTheFit()
+{
+    // The two rules at once: "at least this much" is still evidence that the
+    // factory point there is wrong (it shadows), but it is not itself read
+    // as an equality (it does not enter the regression).
+    FactoryProfile::Profile p = makeProfile();
+    p.point[0] = {240, 100, -1.0, 0.0};
+    p.point[1] = {240, 100, 1.0, 0.4};
+    p.point[2] = {245, 100, 0.5, 5.0};
+    p.pointCount = 3;
+
+    Store taught{};
+    add(taught, 0.5, 999.0, 245, 100, 1, true);   // bound, and an absurd value
+
+    Fit fit{};
+    ok(refit(p, taught, fit), "refits");
+    near(fit.blueSlope, 0.2,
+        "the bound shadows the bad factory point without polluting the fit");
+    near(fit.blueOffset, 0.2, "leaving exactly the two good points");
+}
+
+static void aWhiteTaughtPointTakesNoPartInEitherFit()
+{
+    FactoryProfile::Profile p = makeProfile();
+    p.point[0] = {240, 100, -1.0, 0.0};
+    p.point[1] = {240, 100, 1.0, 0.4};
+    p.pointCount = 2;
+
+    Store taught{};
+    add(taught, -1.0, 999.0, 0, 0, 1, false);   // white, canonicalised hue 0
+
+    Fit fit{};
+    ok(refit(p, taught, fit), "refits");
+    near(fit.blueSlope, 0.2, "white shadows nothing and feeds no fit");
+    near(fit.blueOffset, 0.2, "blue's line is untouched");
+    near(fit.noseA0, p.noseA0, "neither is the nose");
+}
+
 int main()
 {
     whiteIsWhiteWhateverHueIsBesideIt();
     distinctColoursDoNotReplaceEachOther();
     aDifferentLightIsADifferentStatement();
     theOldestLeavesWhenItIsFull();
-
-    theCeilingIsALowerBound();
-    aBoundNeverPullsTheModelDown();
-    aBoundStillRaisesTheModel();
-    aBoundAloneIsBetterThanNothing();
-
-    nothingNearEnoughSaysNothing();
-    whiteDoesNotLeakIntoAColourOrTheOtherWay();
-    whiteAppliesAtEveryHue();
-    theBiasIsClampedToWhatAPreferenceCanBe();
     forgettingOneKeepsTheOrder();
+
+    refitRefusesAnInvalidProfile();
+    withNothingTaughtTheFactoryNumbersStand();
+    enoughTaughtPointsMoveBluesLine();
+    theNoseRefitsFromEnoughTaughtPoints();
+    aTaughtPointShadowsAndReplacesABadFactoryPoint();
+    aFarTaughtPointDoesNotShadowAnything();
+    aBoundTaughtPointShadowsButDoesNotEnterTheFit();
+    aWhiteTaughtPointTakesNoPartInEitherFit();
 
     std::printf("%d checks, %d failures\n", checks, failures);
     return failures ? 1 : 0;

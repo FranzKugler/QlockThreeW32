@@ -662,10 +662,11 @@ void updateLight()
  * nobody measured), and **what it says right now** in the colour the face is
  * actually showing.
  *
- * What is not here is the measurement. The levels, the residual grid and the
- * drive table are 3 KB and change never; the diagram fetches them once from
- * /luminance/surface. Putting them in a response polled once a second would
- * be sending a constant over and over on a synchronous web server.
+ * What is not here is the measurement. The cone, the nose, blue's line and
+ * the drive table change only on a filesystem update; the diagram fetches
+ * them once from /luminance/surface. Putting them in a response polled once a
+ * second would be sending a constant over and over on a synchronous web
+ * server.
  */
 static void describeFactory(JsonDocument &doc)
 {
@@ -676,11 +677,11 @@ static void describeFactory(JsonDocument &doc)
     factory["stackId"]   = FactoryLuminance::stackId();
     factory["checksum"]  = FactoryLuminance::sourceChecksum();
 
-    // The two monotonicity answers, which read alike and are not. See
-    // FactoryLuminance.h: one is about the observations, one about the grid.
+    // Whether the raw observations behind the fit rose with light - see
+    // FactoryLuminance.h. The fit itself is monotone by construction
+    // (FactoryProfile::valid()), so there is no second, model-side answer to
+    // report beside it any more.
     factory["observationsMonotone"] = FactoryLuminance::observationsMonotone();
-    factory["gridMonotone"] = FactoryLuminance::gridMonotone();
-    factory["gridDip"]      = FactoryLuminance::gridDip();
 
     factory["acceptanceMet"] = FactoryLuminance::acceptanceMet();
     factory["maxError"]      = FactoryLuminance::maxError();
@@ -700,15 +701,23 @@ static void describeFactory(JsonDocument &doc)
     if (FactoryLuminance::available())
     {
         const FactoryProfile::Profile &model = FactoryLuminance::profile();
-        factory["levels"] = model.levelCount;
         factory["huePeriod"] = model.huePeriod;
-        JsonArray hues = factory["hueKnots"].to<JsonArray>();
-        for (uint8_t i = 0; i < model.hueCount; i++) hues.add(model.hueKnot[i]);
-        JsonArray luxes = factory["luxKnots"].to<JsonArray>();
-        for (uint8_t i = 0; i < model.levelCount; i++)
-        {
-            luxes.add(pow(10.0, model.level[i].logLux));
-        }
+        factory["coneSlope"] = model.coneSlope;
+        factory["coneOffset"] = model.coneOffset;
+        factory["luxMin"] = pow(10.0, model.logLuxMin);
+        factory["luxMax"] = pow(10.0, model.logLuxMax);
+        factory["blueHue"] = model.blueHue;
+        factory["blendHalfWidth"] = model.blendHalfWidth;
+
+        // The shipped nose and blue's line, as measured - shown beside
+        // `user.fit` below rather than only kept internally, because "what
+        // the fit actually is" is exactly the number somebody reaching for
+        // the geek section wants, not only what it predicts at one hue.
+        factory["noseA0"] = model.noseA0;
+        factory["noseA1"] = model.noseA1;
+        factory["noseB1"] = model.noseB1;
+        factory["blueSlope"] = model.blueSlope;
+        factory["blueOffset"] = model.blueOffset;
     }
 
     // What it asks for here, now, in the colour on the face - and what the
@@ -752,6 +761,50 @@ static void describeFactory(JsonDocument &doc)
         // exact while the model quietly treats it as a bound is the worst of
         // both. See ResidualStore::Residual::bound.
         one["bound"]   = kept[i].bound != 0;
+
+        // Where this statement sits on the sat-100 surface the diagram draws -
+        // computed here, not in the browser, for the same reason the surface
+        // itself is: the conversion from a decades residual to a percentage is
+        // the inversion FactoryProfile::evaluate already does, and a second
+        // implementation in JavaScript would be exactly the kind of drift this
+        // project's own rule warns against. White has no hue and is left off a
+        // diagram whose one axis is hue.
+        //
+        // Two calls rather than one: evaluate() first, to read off what the
+        // model itself would say at this hue (`plain.residual`), then
+        // evaluateWith() with the gap between that and what was actually
+        // taught folded in as `bias` - which lands the target exactly on
+        // `white + decades`, the taught statement itself, rather than on
+        // `white + decades + the model's own opinion` counted twice.
+        if (FactoryLuminance::available() && kept[i].sat > 0)
+        {
+            const FactoryProfile::Profile &model = FactoryLuminance::profile();
+            double lux = pow(10.0, kept[i].logLux);
+            FactoryProfile::Answer plain, taught;
+            if (FactoryProfile::evaluate(model, lux, kept[i].hue, 100, plain)
+                && FactoryProfile::evaluateWith(model, lux, kept[i].hue, 100,
+                                                kept[i].decades - plain.residual, taught))
+            {
+                one["percent"] = taught.percent;
+            }
+        }
+    }
+
+    // What the taught points above actually made of the nose and blue's line -
+    // the numbers `refit()` produced, not only what they predict at one hue.
+    // Absent rather than equal to the factory's own when nothing has been
+    // taught about a colour yet: a fit that quietly repeats the factory
+    // numbers would look like a second, redundant measurement rather than
+    // "there is nothing to show here yet".
+    ResidualStore::Fit fit;
+    if (Luminance::learnedFit(fit))
+    {
+        JsonObject learned = user["fit"].to<JsonObject>();
+        learned["noseA0"] = fit.noseA0;
+        learned["noseA1"] = fit.noseA1;
+        learned["noseB1"] = fit.noseB1;
+        learned["blueSlope"] = fit.blueSlope;
+        learned["blueOffset"] = fit.blueOffset;
     }
 }
 
@@ -793,28 +846,34 @@ void sendLuminanceSurface()
     doc["minPercent"] = Luminance::minPercent();
     doc["maxPercent"] = Luminance::maxPercent();
 
+    // The cone has no ambient rows of its own - it is a straight line - so
+    // LUM_SURFACE_LUX_ROWS of them are chosen, evenly spaced in log light
+    // over what the fit was actually built from. See Luminance.h.
+    double logLuxMin = model.logLuxMin, logLuxSpan = model.logLuxMax - model.logLuxMin;
     JsonArray luxes = doc["lux"].to<JsonArray>();
-    for (uint8_t i = 0; i < model.levelCount; i++)
+    for (uint8_t i = 0; i < LUM_SURFACE_LUX_ROWS; i++)
     {
-        luxes.add(pow(10.0, model.level[i].logLux));
+        double logLux = logLuxMin + logLuxSpan * i / (double)(LUM_SURFACE_LUX_ROWS - 1);
+        luxes.add(pow(10.0, logLux));
     }
 
     JsonArray hues = doc["hue"].to<JsonArray>();
     for (int hue = 0; hue < model.huePeriod; hue += LUM_SURFACE_HUE_STEP) hues.add(hue);
 
-    // Row per ambient level, column per hue. Three parallel grids rather than
-    // objects per cell: the percentages are what is drawn, and the two flags
-    // are what is shaded - a reader of `curl` output can line them up, and the
-    // response stays a few hundred bytes rather than a few thousand.
+    // Row per ambient level, column per hue. Two parallel grids rather than
+    // objects per cell: the percentages are what is drawn, `limited` is what
+    // is shaded - a reader of `curl` output can line them up, and the
+    // response stays a few hundred bytes rather than a few thousand. There is
+    // no third grid any more: the parametric fit carries no per-cell "at
+    // least this much" the way the grid it replaced did.
     JsonArray percent = doc["percent"].to<JsonArray>();
     JsonArray limited = doc["limited"].to<JsonArray>();
-    JsonArray bound = doc["bound"].to<JsonArray>();
-    for (uint8_t i = 0; i < model.levelCount; i++)
+    for (uint8_t i = 0; i < LUM_SURFACE_LUX_ROWS; i++)
     {
-        double lux = pow(10.0, model.level[i].logLux);
+        double logLux = logLuxMin + logLuxSpan * i / (double)(LUM_SURFACE_LUX_ROWS - 1);
+        double lux = pow(10.0, logLux);
         JsonArray row = percent.add<JsonArray>();
         JsonArray limitedRow = limited.add<JsonArray>();
-        JsonArray boundRow = bound.add<JsonArray>();
         for (int hue = 0; hue < model.huePeriod; hue += LUM_SURFACE_HUE_STEP)
         {
             FactoryProfile::Answer answer;
@@ -822,12 +881,10 @@ void sendLuminanceSurface()
             {
                 row.add(0);
                 limitedRow.add(false);
-                boundRow.add(false);
                 continue;
             }
             row.add(answer.percent);
             limitedRow.add(answer.limited != FactoryProfile::LIMITED_NONE);
-            boundRow.add(answer.bound);
         }
     }
 

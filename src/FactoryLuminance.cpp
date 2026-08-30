@@ -30,7 +30,6 @@ namespace
 
     String profileId_, stackId_, checksum_, recorded_;
     bool monotone_ = true;
-    double gridDip_ = 0.0;
     bool acceptanceMet_ = false;
     int maxError_ = -1;
     int worstHue_ = -1;
@@ -239,25 +238,35 @@ bool FactoryLuminance::begin()
     FactoryProfile::Profile built{};
     long value = 0;
 
-    JsonArrayConst knots = doc["hueKnots"];
-    if (knots.isNull() || knots.size() < 2 || knots.size() > FACTORY_MAX_HUES)
-    {
-        return refuse("factoryShape", "the hue knots are not a row this can hold");
-    }
-    built.hueCount = (uint8_t)knots.size();
     if (!whole(doc["huePeriod"], 1, 3600, value))
     {
         return refuse("factoryShape", "the hue period is not a whole number of degrees");
     }
     built.huePeriod = (uint16_t)value;
-    uint8_t at = 0;
-    for (JsonVariantConst knot : knots)
+
+    if (!number(doc["cone"]["slope"], built.coneSlope)
+        || !number(doc["cone"]["offset"], built.coneOffset)
+        || !number(doc["cone"]["logLuxMin"], built.logLuxMin)
+        || !number(doc["cone"]["logLuxMax"], built.logLuxMax))
     {
-        if (!whole(knot, 0, built.huePeriod - 1, value))
-        {
-            return refuse("factoryShape", "a hue knot is not a hue");
-        }
-        built.hueKnot[at++] = (uint16_t)value;
+        return refuse("factoryShape", "the cone is not four numbers");
+    }
+    if (!number(doc["nose"]["a0"], built.noseA0)
+        || !number(doc["nose"]["a1"], built.noseA1)
+        || !number(doc["nose"]["b1"], built.noseB1))
+    {
+        return refuse("factoryShape", "the hue nose is not three numbers");
+    }
+    if (!whole(doc["blue"]["hue"], 0, built.huePeriod - 1, value))
+    {
+        return refuse("factoryShape", "blue's hue is not a hue on this wheel");
+    }
+    built.blueHue = (uint16_t)value;
+    if (!number(doc["blue"]["slope"], built.blueSlope)
+        || !number(doc["blue"]["offset"], built.blueOffset)
+        || !number(doc["blue"]["blendHalfWidth"], built.blendHalfWidth))
+    {
+        return refuse("factoryShape", "blue's line is not three numbers");
     }
 
     if (!whole(doc["percentRange"]["min"], 0, 100, value))
@@ -282,66 +291,6 @@ bool FactoryLuminance::begin()
     }
     built.satFull = (uint8_t)value;
 
-    JsonArrayConst levels = doc["levels"];
-    if (levels.isNull() || levels.size() < 2 || levels.size() > FACTORY_MAX_LEVELS)
-    {
-        return refuse("factoryShape", "the ambient levels are not a grid this can hold");
-    }
-    built.levelCount = (uint8_t)levels.size();
-    uint8_t index = 0;
-    for (JsonObjectConst level : levels)
-    {
-        FactoryProfile::Level &into = built.level[index++];
-        if (!number(level["logLux"], into.logLux) || !number(level["white"], into.white))
-        {
-            return refuse("factoryShape", "a level carries something that is not a number");
-        }
-        JsonArrayConst residuals = level["residuals"];
-        JsonArrayConst bounds = level["bounds"];
-        if (residuals.isNull() || bounds.isNull()
-            || residuals.size() != built.hueCount || bounds.size() != built.hueCount)
-        {
-            return refuse("factoryShape",
-                          "a level's residuals do not match the hue knots");
-        }
-        uint8_t k = 0;
-        for (JsonVariantConst one : residuals)
-        {
-            if (!number(one, into.residual[k++]))
-            {
-                return refuse("factoryShape", "a residual is not a number");
-            }
-        }
-        k = 0;
-        for (JsonVariantConst one : bounds)
-        {
-            // A boolean, and nothing that merely converts to one. Read as
-            // "anything truthy" a string would become a bound and every answer
-            // touching that corner would say "at least" without cause.
-            //
-            // `flag()` rather than `whole(one, 0, 1, ...)`, which was the first
-            // version and is exactly wrong in both directions: `whole()`
-            // refuses `is<bool>()` on purpose, so it accepted the 1 and 0
-            // nothing writes and refused the `true` and `false` the generator
-            // does. That is a file the project ships and the clock will not
-            // load - and it fails as `factoryShape` on a clock, once, where
-            // nothing here would ever have seen it. The generator's
-            // `load_runtime` refuses the same shapes; see _exact_flag() there.
-            bool marked = false;
-            if (!flag(one, marked))
-            {
-                return refuse("factoryShape", "a bound flag is not a flag");
-            }
-            into.bound[k++] = marked ? 1 : 0;
-        }
-        bool censored = false;
-        if (!flag(level["censored"], censored))
-        {
-            return refuse("factoryShape", "a level does not say whether it is censored");
-        }
-        into.censored = censored ? 1 : 0;
-    }
-
     JsonArrayConst driveLevels = doc["drive"]["levels"];
     JsonArrayConst driveResponse = doc["drive"]["response"];
     if (driveLevels.isNull() || driveResponse.isNull()
@@ -351,7 +300,7 @@ bool FactoryLuminance::begin()
         return refuse("factoryShape", "the drive table is not one this can hold");
     }
     built.driveCount = (uint8_t)driveLevels.size();
-    at = 0;
+    uint8_t at = 0;
     for (JsonVariantConst one : driveLevels)
     {
         if (!whole(one, 0, 255, value))
@@ -383,23 +332,56 @@ bool FactoryLuminance::begin()
         }
     }
 
-    // The same list scripts/factory_luminance.py refuses on, in the same order,
-    // and it ends with the one check that needs every number already known to
-    // be a number: whether the grid rises with light. Measured on the grid,
-    // never read out of `status` - see FactoryProfile::worstDip().
-    double dip = FactoryProfile::worstDip(built);
+    // Table 1: not part of the arithmetic model, but as much a part of the
+    // shape as the drive table is - ResidualStore::refit() cannot combine it
+    // with Table 2 if it never arrived. Refused on the same terms as
+    // everything else here rather than silently left empty, because a profile
+    // that cannot refit is a different, weaker thing than one that can, and
+    // the difference is worth a boot log line rather than a quiet fallback.
+    JsonArrayConst points = doc["points"];
+    if (points.isNull() || points.size() > FACTORY_MAX_POINTS)
+    {
+        return refuse("factoryShape", "Table 1 is not one this can hold");
+    }
+    built.pointCount = (uint8_t)points.size();
+    at = 0;
+    for (JsonObjectConst one : points)
+    {
+        FactoryProfile::Point &into = built.point[at++];
+        long pointValue = 0;
+        if (!whole(one["hue"], 0, built.huePeriod - 1, pointValue))
+        {
+            return refuse("factoryShape", "a Table 1 point's hue is not a hue");
+        }
+        into.hue = (uint16_t)pointValue;
+        if (!whole(one["sat"], 0, 100, pointValue))
+        {
+            return refuse("factoryShape", "a Table 1 point's saturation is not one");
+        }
+        into.sat = (uint8_t)pointValue;
+        if (!number(one["logLux"], into.logLux) || !number(one["residual"], into.residual))
+        {
+            return refuse("factoryShape", "a Table 1 point carries something that is not a number");
+        }
+    }
+
+    // The same list scripts/factory_luminance.py refuses on, in the same
+    // order, and it ends with the one check that needs every number already
+    // known to be a number: whether the cone rises with light on its own and
+    // with blue's line fully blended in. See FactoryProfile::valid().
     if (!FactoryProfile::valid(built))
     {
-        if (dip > FACTORY_MAX_DIP)
+        if (!(built.coneSlope > 0.0) || !(built.coneSlope + built.blueSlope > 0.0))
         {
             return refuse("factoryNotMonotone",
-                          "the grid falls between two ambient levels, so a "
-                          "clock regulating on it would get dimmer as the sun "
-                          "came up");
+                          "the cone does not rise with light everywhere on the "
+                          "wheel, so a clock regulating on it would get dimmer "
+                          "as the sun came up");
         }
         return refuse("factoryShape",
-                      "the grid is not one the evaluator may walk: levels out "
-                      "of order, knots unevenly spaced, or a range with no span");
+                      "the model is not one the evaluator may act on: a range "
+                      "with no span, a blend wider than the wheel, or a "
+                      "percentage or saturation out of bounds");
     }
 
     // The identity, before anything is committed. A profile that cannot say
@@ -441,7 +423,6 @@ bool FactoryLuminance::begin()
     // Only now, and all of it together. Everything above either succeeded or
     // left the clock exactly as it was.
     model_ = built;
-    gridDip_ = dip;
     loaded_ = true;
     error_ = "";
     profileId_ = candidateId;
@@ -452,22 +433,19 @@ bool FactoryLuminance::begin()
     maxError_ = candidateMaxError;
     worstHue_ = candidateWorstHue;
 
-    // The status travels with the model and is never folded into an answer.
-    // Two things in it read alike and are not: `monotone` is about the
-    // **observations** the profile was fitted to, where one hue falls a
-    // quarter of a decade, and the grid is monotone all the same because the
-    // isotonic step pooled the levels that disagreement sits between. The
-    // clock reports both and takes neither on trust - gridDip_ above is
-    // measured, not read.
+    // `monotone_` is about the **observations** the fit was built from, kept
+    // as provenance - see observationsMonotone(). The fit itself is monotone
+    // by construction, checked in FactoryProfile::valid() above, so there is
+    // nothing left here to measure and report about the model itself.
 
-    debugA("Factory profile %s (%s): %d levels, %d hues, %d..%d %%%s",
-           profileId_.c_str(), stackId_.c_str(), model_.levelCount,
-           model_.hueCount, model_.percentMin, model_.percentMax,
-           acceptanceMet_ ? "" : ", acceptance goal not met");
+    debugA("Factory profile %s (%s): cone slope %.3f, blue %.3f/%.3f, %d..%d %%%s",
+           profileId_.c_str(), stackId_.c_str(), model_.coneSlope,
+           model_.blueSlope, model_.blueOffset, model_.percentMin,
+           model_.percentMax, acceptanceMet_ ? "" : ", acceptance goal not met");
     if (!monotone_)
     {
         debugI("Factory profile: the observations behind it are not monotone; "
-               "the grid that was shipped is (worst dip %.2e)", gridDip_);
+               "the fit that was shipped is anyway");
     }
     return true;
 }
@@ -478,8 +456,6 @@ const char *FactoryLuminance::profileId() { return profileId_.c_str(); }
 const char *FactoryLuminance::stackId() { return stackId_.c_str(); }
 const char *FactoryLuminance::sourceChecksum() { return checksum_.c_str(); }
 bool FactoryLuminance::observationsMonotone() { return monotone_; }
-double FactoryLuminance::gridDip() { return gridDip_; }
-bool FactoryLuminance::gridMonotone() { return loaded_ && gridDip_ <= FACTORY_MAX_DIP; }
 bool FactoryLuminance::acceptanceMet() { return acceptanceMet_; }
 int FactoryLuminance::maxError() { return maxError_; }
 int FactoryLuminance::worstHue() { return worstHue_; }

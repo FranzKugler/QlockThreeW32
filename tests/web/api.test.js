@@ -72,35 +72,39 @@ after(() => mock?.kill());
 test('/luminance names the profile and says whether it may be acted on', async () => {
   const { factory } = await get('/luminance');
   assert.equal(factory.valid, true);
-  assert.equal(factory.profileId, 'current-diffuser-before-mask-6levels-6hues');
+  assert.equal(factory.profileId,
+              'cone-plus-first-harmonic-hue-nose-current-diffuser-before-mask');
   assert.equal(factory.stackId, 'current-diffuser-before-mask');
   assert.match(factory.checksum, /^[0-9a-f]{64}$/);
 });
 
-test('and carries the axes the diagram needs, but not the measurement', async () => {
+test('and carries the shape of the fit, but not the measurement', async () => {
   const { factory } = await get('/luminance');
-  assert.deepEqual(factory.hueKnots, [0, 60, 120, 180, 240, 300]);
   assert.equal(factory.huePeriod, 360);
-  assert.equal(factory.luxKnots.length, factory.levels);
-  // The grid itself belongs to the surface endpoint: this response is polled
-  // once a second and the measurement never changes.
-  assert.equal(factory.levelsData, undefined);
+  assert.equal(typeof factory.coneSlope, 'number');
+  assert.equal(typeof factory.coneOffset, 'number');
+  assert.ok(factory.luxMax > factory.luxMin);
+  assert.equal(factory.blueHue, 240);
+  assert.ok(factory.blendHalfWidth > 0);
+  // The surface itself belongs to the surface endpoint: this response is
+  // polled once a second and the fit does not change underneath it.
+  assert.equal(factory.levels, undefined);
   assert.equal(factory.residuals, undefined);
 });
 
-test('the two monotonicity answers are reported apart', async () => {
+test('the fit is monotone by construction, whatever the raw observations do', async () => {
   const { factory } = await get('/luminance');
-  // The reviewed profile's observations contradict themselves at one hue and
-  // the grid that was shipped rises everywhere all the same. Reading one for
-  // the other makes the clock announce a fault it does not have.
+  // The reviewed measurement contradicts itself at one hue - a real
+  // observation whose light rose while its own output did not - and the fit
+  // fitted to it rises everywhere all the same, by construction rather than
+  // by measurement. See FactoryProfile::valid().
   assert.equal(factory.observationsMonotone, false);
-  assert.equal(factory.gridMonotone, true);
 });
 
 test('the profile does not hide what it is worth', async () => {
   const { factory } = await get('/luminance');
   assert.equal(factory.acceptanceMet, false);
-  assert.equal(factory.maxError, 15);
+  assert.equal(factory.maxError, 17);
   assert.equal(factory.worstHue, 240);
 });
 
@@ -125,7 +129,7 @@ test('corrections at the same light in different colours both survive', async ()
   assert.ok(near.every((one) => Number.isFinite(one.decades)));
 });
 
-test('the surface is a grid with both axes and both flags', async () => {
+test('the surface is a grid with both axes and a limited flag', async () => {
   const surface = await get('/luminance/surface');
   assert.equal(surface.valid, true);
   assert.equal(surface.sat, 100);
@@ -133,7 +137,9 @@ test('the surface is a grid with both axes and both flags', async () => {
   assert.equal(surface.percent.length, surface.lux.length);
   for (const row of surface.percent) assert.equal(row.length, surface.hue.length);
   assert.equal(surface.limited.length, surface.lux.length);
-  assert.equal(surface.bound.length, surface.lux.length);
+  // There is no `bound` grid any more: the parametric fit carries no
+  // per-cell "at least this much" the six-knot grid it replaced did.
+  assert.equal(surface.bound, undefined);
   // Hue starts at 0 and stops short of the period: the last column joins back
   // to the first, and repeating 0 at the end would draw the seam twice.
   assert.equal(surface.hue[0], 0);

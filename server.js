@@ -464,12 +464,18 @@ function loadFactory() {
       profileId: payload.profileId,
       stackId: payload.stackId,
       checksum: payload.sourceChecksum,
-      hueKnots: payload.hueKnots,
       huePeriod: payload.huePeriod,
-      luxKnots: payload.levels.map((level) => Number((10 ** level.logLux).toFixed(4))),
-      levels: payload.levels,
+      cone: payload.cone,
+      nose: payload.nose,
+      blue: payload.blue,
       percentRange: payload.percentRange,
-      status: payload.status
+      status: payload.status,
+      // Table 1 - the measurements the shipped nose and blue's line were
+      // fitted from - carried along so this mock can refit them together
+      // with a taught correction the same way ResidualStore::refit() does,
+      // rather than leaving "what did teaching it change" unanswerable in
+      // development.
+      points: payload.points ?? []
     };
   } catch (err) {
     // A clock whose image predates the model behaves exactly as it did before
@@ -512,75 +518,156 @@ let residuals = factory.valid
 // what is interesting is between them - the seam at 300 back to 0 above all.
 const LUM_SURFACE_HUE_STEP = 15;
 
+// LUM_SURFACE_LUX_ROWS in src/Luminance.h. The cone has no ambient rows of
+// its own - it is a straight line - so this many are sampled evenly in log
+// light between what the fit was built from.
+const LUM_SURFACE_LUX_ROWS = 9;
+
 const LUM_USER_POINTS = 8;
-const LUM_USER_LUX_SPAN = 0.9;
-const LUM_USER_HUE_SPAN = 90;
-const LUM_USER_SAT_SPAN = 60;
 
-const hueDistance = (a, b) => {
-  const gap = Math.abs(a - b) % 360;
-  return gap > 180 ? 360 - gap : gap;
+// RESIDUAL_SHADOW_HUE / RESIDUAL_SHADOW_LUX in src/ResidualStore.h - the
+// sphere a taught point shadows a factory one within, and the same "same
+// light" ratio a near-neighbour replaces under. log10(1.3) both times.
+const RESIDUAL_SHADOW_HUE = 30;
+const RESIDUAL_SHADOW_LUX = Math.log10(1.3);
+
+const hueDistance = (a, b, period) => {
+  const gap = Math.abs(a - b) % period;
+  return gap > period / 2 ? period - gap : gap;
 };
-const taper = (distance, span) => Math.max(0, 1 - Math.abs(distance) / span);
 
-/** What the stored corrections say here, and whether they say anything. */
-function userBias(lux, hue, sat) {
-  let top = 0;
-  let bottom = 0;
-  for (const one of residuals) {
-    const weight = taper(logLux(lux) - logLux(one.lux), LUM_USER_LUX_SPAN)
-      * taper(hueDistance(hue, one.hue), LUM_USER_HUE_SPAN)
-      * taper(sat - one.sat, LUM_USER_SAT_SPAN);
-    if (weight <= 0) continue;
-    top += weight * one.decades;
-    bottom += weight;
+/**
+ * The nose's three coefficients by ordinary least squares, mirroring
+ * ResidualStore.cpp's solveNose() - a0 + a1*cos + b1*sin against `targets`.
+ * `null` below three points or on a singular system, the same refusal.
+ */
+function solveNose(rows, targets) {
+  const n = rows.length;
+  if (n < 3) return null;
+  const a = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+  for (let p = 0; p < n; p++) {
+    for (let i = 0; i < 3; i++) {
+      a[i][3] += rows[p][i] * targets[p];
+      for (let j = 0; j < 3; j++) a[i][j] += rows[p][i] * rows[p][j];
+    }
   }
-  return { bias: bottom > 0 ? top / bottom : 0, weight: bottom };
+  for (let col = 0; col < 3; col++) {
+    let pivot = col;
+    for (let r = col + 1; r < 3; r++) {
+      if (Math.abs(a[r][col]) > Math.abs(a[pivot][col])) pivot = r;
+    }
+    if (Math.abs(a[pivot][col]) < 1e-12) return null;
+    if (pivot !== col) { const t = a[col]; a[col] = a[pivot]; a[pivot] = t; }
+    const scale = a[col][col];
+    for (let j = col; j < 4; j++) a[col][j] /= scale;
+    for (let r = 0; r < 3; r++) {
+      if (r === col) continue;
+      const factor = a[r][col];
+      for (let j = col; j < 4; j++) a[r][j] -= factor * a[col][j];
+    }
+  }
+  return [a[0][3], a[1][3], a[2][3]];
+}
+
+/** A straight line by ordinary least squares - solveLine() in ResidualStore.cpp. */
+function solveLine(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return null;
+  const meanX = xs.reduce((s, x) => s + x, 0) / n;
+  const meanY = ys.reduce((s, y) => s + y, 0) / n;
+  let covariance = 0, variance = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - meanX;
+    covariance += dx * (ys[i] - meanY);
+    variance += dx * dx;
+  }
+  if (variance < 1e-12) return null;
+  const slope = covariance / variance;
+  return [slope, meanY - slope * meanX];
 }
 
 /**
- * The stand-in surface: the white line of the real profile, plus the real
- * residual grid, turned into a percentage by a monotone map rather than by the
- * firmware's inversion. See the note above for why it is not the real one.
+ * Table 1 and Table 2, refit together - the stand-in for ResidualStore::refit().
+ * A taught point (not white, not a bound) shadows a factory point inside its
+ * sphere; whatever survives, split by distance from blue's own hue, is fitted
+ * again by ordinary least squares. Seeded from the factory's own numbers, the
+ * same fallback the firmware uses when a half cannot be refit.
  */
-function factoryPercent(lux, hue, sat) {
-  if (!factory.valid) return null;
-  const levels = factory.levels;
-  const x = logLux(lux);
-  const xs = levels.map((level) => level.logLux);
+function refit() {
+  const { nose, blue, huePeriod, points } = factory;
+  const fit = { noseA0: nose.a0, noseA1: nose.a1, noseB1: nose.b1,
+                blueSlope: blue.slope, blueOffset: blue.offset };
 
-  let low = 0;
-  let high = 0;
-  let along = 0;
-  let clamped = false;
-  if (x <= xs[0]) { clamped = x < xs[0]; }
-  else if (x >= xs[xs.length - 1]) { low = high = xs.length - 1; clamped = x > xs[xs.length - 1]; }
-  else {
-    for (let i = 0; i + 1 < xs.length; i++) {
-      if (x >= xs[i] && x <= xs[i + 1]) {
-        low = i; high = i + 1; along = (x - xs[i]) / (xs[i + 1] - xs[i]);
-        break;
-      }
-    }
+  const shadowed = points.map((p) =>
+    residuals.some((r) => {
+      if (r.sat === 0) return false;
+      const dh = hueDistance(p.hue, r.hue, huePeriod) / RESIDUAL_SHADOW_HUE;
+      const dx = (p.logLux - logLux(r.lux)) / RESIDUAL_SHADOW_LUX;
+      return dh * dh + dx * dx < 1;
+    }));
+
+  const noseRows = [], noseTargets = [], blueXs = [], blueYs = [];
+  const inBlue = (hue) => hueDistance(hue, blue.hue, huePeriod) < blue.blendHalfWidth;
+  points.forEach((p, i) => {
+    if (shadowed[i]) return;
+    if (inBlue(p.hue)) { blueXs.push(p.logLux); blueYs.push(p.residual); return; }
+    const rad = (p.hue * Math.PI) / 180;
+    noseRows.push([1, Math.cos(rad), Math.sin(rad)]);
+    noseTargets.push(p.residual);
+  });
+  for (const r of residuals) {
+    if (r.sat === 0 || r.bound) continue;
+    const x = logLux(r.lux);
+    if (inBlue(r.hue)) { blueXs.push(x); blueYs.push(r.decades); continue; }
+    const rad = (r.hue * Math.PI) / 180;
+    noseRows.push([1, Math.cos(rad), Math.sin(rad)]);
+    noseTargets.push(r.decades);
   }
 
-  const knots = factory.hueKnots;
-  const span = factory.huePeriod / knots.length;
-  const position = ((hue % factory.huePeriod) + factory.huePeriod) % factory.huePeriod / span;
-  const lowHue = Math.floor(position) % knots.length;
-  const highHue = (lowHue + 1) % knots.length;
-  const fraction = position - Math.floor(position);
+  const noseSolved = solveNose(noseRows, noseTargets);
+  if (noseSolved) [fit.noseA0, fit.noseA1, fit.noseB1] = noseSolved;
+  const blueSolved = solveLine(blueXs, blueYs);
+  if (blueSolved) [fit.blueSlope, fit.blueOffset] = blueSolved;
+  return fit;
+}
 
-  const residualAt = (level) => level.residuals[lowHue]
-    + (level.residuals[highHue] - level.residuals[lowHue]) * fraction;
-  const boundAt = (level) => (fraction < 1 && level.bounds[lowHue])
-    || (fraction > 0 && level.bounds[highHue]);
+/** The raised-cosine weight blue's own line carries at this hue - see
+ *  FactoryProfile::blueWeight(). 1 at blue's own hue, 0 at and beyond
+ *  blendHalfWidth degrees either side of it. */
+function blueWeight(hue) {
+  const { blue, huePeriod } = factory;
+  const gap = Math.abs(hue - blue.hue) % huePeriod;
+  const distance = gap > huePeriod / 2 ? huePeriod - gap : gap;
+  if (distance >= blue.blendHalfWidth) return 0;
+  return 0.5 * (1 + Math.cos((Math.PI * distance) / blue.blendHalfWidth));
+}
 
-  const white = levels[low].white + (levels[high].white - levels[low].white) * along;
-  const fade = Math.min(1, Math.max(0, sat / 100));
-  const residual = (residualAt(levels[low])
-    + (residualAt(levels[high]) - residualAt(levels[low])) * along) * fade;
-  const bound = fade > 0 && Boolean(boundAt(levels[low]) || boundAt(levels[high]));
+/**
+ * The stand-in surface: the real cone and hue nose, turned into a percentage
+ * by a monotone map rather than by the firmware's inversion. See the note
+ * above for why it is not the real one.
+ *
+ * `fit` overrides the nose and blue's line - the factory's own by default, or
+ * whatever refit() last made of Table 1 and Table 2 together, so this one
+ * function draws both the uncorrected surface and the taught one instead of
+ * a bias bolted on afterwards.
+ */
+function factoryPercent(lux, hue, sat, fit = factory.nose && factory.blue
+  ? { noseA0: factory.nose.a0, noseA1: factory.nose.a1, noseB1: factory.nose.b1,
+      blueSlope: factory.blue.slope, blueOffset: factory.blue.offset }
+  : null) {
+  if (!factory.valid) return null;
+  const { cone } = factory;
+  const x = logLux(lux);
+  const clamped = x < cone.logLuxMin || x > cone.logLuxMax;
+
+  const white = cone.slope * x + cone.offset;
+  const rad = (hue * Math.PI) / 180;
+  const noseValue = fit.noseA0 + fit.noseA1 * Math.cos(rad) + fit.noseB1 * Math.sin(rad);
+  const blueLine = fit.blueSlope * x + fit.blueOffset;
+  const weight = blueWeight(hue);
+  const residual = (noseValue + weight * (blueLine - noseValue))
+    * Math.min(1, Math.max(0, sat / 100));
 
   // The map from decades to percent. Not the firmware's; monotone, so the
   // shape of the surface is right even though the numbers are a stand-in.
@@ -591,9 +678,25 @@ function factoryPercent(lux, hue, sat) {
     percent: Math.min(max, Math.max(min, percent)),
     target,
     limited: percent > max,
-    bound,
     clamped
   };
+}
+
+/**
+ * Where a taught point sits on the same stand-in surface, at saturation 100 -
+ * Table 1's own coordinate, and the one factoryPercent() draws the diagram
+ * at. Not `factoryPercent(lux, hue, 100)`: that would ask the model what it
+ * thinks a hue is worth and add the taught decades on top, counting the
+ * model's own opinion twice. This instead puts the decades that were
+ * actually taught directly on the cone, which is what "where does this
+ * statement land" has to mean.
+ */
+function percentForTaught(lux, decades) {
+  if (!factory.valid) return null;
+  const { cone, percentRange } = factory;
+  const white = cone.slope * logLux(lux) + cone.offset;
+  const percent = Math.round(100 * 10 ** ((white + decades) / 2.2));
+  return Math.min(percentRange.max, Math.max(percentRange.min, percent));
 }
 
 /*
@@ -772,6 +875,7 @@ app.get('/luminance', (req, res) => res.json(luminanceState()));
 function luminanceState() {
   settle();
   const lux = currentLux();
+  const colour = factoryState(lux);
   return {
     lux,
     raw: 7.1 + Math.sin(Date.now() / 3000) * 3,
@@ -789,11 +893,17 @@ function luminanceState() {
     slope: curve.slope,
     offset: curve.offset,
     fitted: curve.fitted,
+    // The plain white curve alone - kept for the geek section's comparison,
+    // and not what the clock actually shows once a factory profile is
+    // loaded. `target.percent` below is that number; see brightnessToApply()
+    // in main .cpp, which never looks at this once a profile answers.
     brightness: brightnessForLux(lux),
-    // The clock shows the nudge outright while one is being waited out, so
-    // the mock has to as well: `applied` is the number somebody compares
-    // against the wall, and it must not quietly follow the curve instead.
-    applied: nudge ? nudge.percent : brightnessForLux(lux),
+    // The clock shows the nudge outright while one is being waited out; once
+    // it has settled, `applied` follows the colour-aware target exactly as
+    // brightnessToApply() does, not the plain white curve - conflating the
+    // two is the exact bug this mock exists to catch before the firmware
+    // ships it.
+    applied: nudge ? nudge.percent : colour.target.percent,
     minPercent: curve.minPercent,
     maxPercent: curve.maxPercent,
     capacity: LUM_POINTS,
@@ -804,7 +914,7 @@ function luminanceState() {
     points: curve.points.map((p) => ({
       ...p, used: p.used !== false, curve: brightnessForLux(p.lux)
     })),
-    ...factoryState(lux)
+    ...colour
   };
 }
 
@@ -816,15 +926,18 @@ function luminanceState() {
  * describeFactory() in src/WebRoutes.cpp, which this mirrors field for field.
  */
 function factoryState(lux) {
-  const asked = factoryPercent(lux, state.hue, state.sat);
-  const { bias, weight } = userBias(lux, state.hue, state.sat);
+  // What the factory shipped, alone - and what refit() makes of it together
+  // with whatever has been taught. Two calls rather than one bias bolted on
+  // afterwards, the same change ResidualStore::refit() made to the firmware:
+  // a correction moves the model itself, and how much depends on whether it
+  // fell close enough to a factory point to replace it.
+  const plain = factoryPercent(lux, state.hue, state.sat);
+  const haveLearned = residuals.some((r) => r.sat > 0);
+  const fit = haveLearned ? refit() : null;
+  const asked = haveLearned ? factoryPercent(lux, state.hue, state.sat, fit) : plain;
 
-  // The bias moves the target, and in the stand-in map above that comes out as
-  // a multiplication on the percentage. The real clock re-inverts through the
-  // gamma and the drive table; see the note beside factoryPercent().
   const percent = asked
-    ? Math.min(curve.maxPercent, Math.max(curve.minPercent,
-        Math.round(asked.percent * 10 ** (weight > 0 ? bias / 2.2 : 0))))
+    ? Math.min(curve.maxPercent, Math.max(curve.minPercent, asked.percent))
     : brightnessForLux(lux);
 
   return {
@@ -834,38 +947,51 @@ function factoryState(lux) {
       profileId: factory.profileId ?? '',
       stackId: factory.stackId ?? '',
       checksum: factory.checksum ?? '',
-      // Two monotonicity answers that read alike and are not: one is about the
-      // observations the profile was fitted to, one about the grid that was
-      // shipped. The reviewed profile is `false` for the first and `true` for
-      // the second, and confusing them makes the clock report a fault it does
-      // not have.
+      // The fit itself is monotone by construction (FactoryProfile::valid());
+      // this is provenance about the raw observations it was built from.
       observationsMonotone: factory.status?.monotone ?? true,
-      gridMonotone: factory.valid,
-      gridDip: 0,
       acceptanceMet: factory.status?.acceptanceMet ?? false,
       maxError: factory.status?.maxError ?? -1,
       worstHue: factory.status?.worstHue ?? -1,
       recorded: recordedProfile,
       matched: residuals.length === 0 || residualsProfile === factory.checksum,
-      levels: factory.levels?.length ?? 0,
       huePeriod: factory.huePeriod ?? 360,
-      hueKnots: factory.hueKnots ?? [],
-      luxKnots: factory.luxKnots ?? []
+      coneSlope: factory.cone?.slope ?? 0,
+      coneOffset: factory.cone?.offset ?? 0,
+      luxMin: factory.cone ? 10 ** factory.cone.logLuxMin : 0,
+      luxMax: factory.cone ? 10 ** factory.cone.logLuxMax : 0,
+      blueHue: factory.blue?.hue ?? 240,
+      blendHalfWidth: factory.blue?.blendHalfWidth ?? 0,
+      // The shipped nose and blue's line themselves - see `user.fit` below
+      // for what teaching made of them.
+      noseA0: factory.nose?.a0 ?? 0,
+      noseA1: factory.nose?.a1 ?? 0,
+      noseB1: factory.nose?.b1 ?? 0,
+      blueSlope: factory.blue?.slope ?? 0,
+      blueOffset: factory.blue?.offset ?? 0
     },
     target: {
       percent,
-      factory: asked ? asked.percent : brightnessForLux(lux),
-      bias: weight > 0 ? bias : 0,
+      factory: plain ? plain.percent : brightnessForLux(lux),
+      bias: haveLearned && plain ? asked.target - plain.target : 0,
       hue: state.hue,
       sat: state.sat,
       limited: Boolean(asked?.limited),
-      bound: Boolean(asked?.bound),
+      bound: false,
       clamped: Boolean(asked?.clamped),
-      source: !factory.valid ? 'legacy' : (weight > 0 ? 'factory+user' : 'factory')
+      source: !factory.valid ? 'legacy' : (haveLearned ? 'factory+user' : 'factory')
     },
     user: {
       capacity: LUM_USER_POINTS,
-      residuals: residuals.map((one) => ({ ...one }))
+      residuals: residuals.map((one) => ({
+        ...one,
+        ...(one.sat > 0 ? { percent: percentForTaught(one.lux, one.decades) } : {})
+      })),
+      // Present only once something has actually been refit from a colour
+      // correction - Luminance::learnedFit()'s own gate, mirrored here so a
+      // fit that quietly repeats the factory numbers does not masquerade as
+      // "something was learned".
+      ...(fit ? { fit } : {})
     }
   };
 }
@@ -885,13 +1011,17 @@ app.get('/luminance/surface', (req, res) => {
   for (let degrees = 0; degrees < factory.huePeriod; degrees += LUM_SURFACE_HUE_STEP) {
     hue.push(degrees);
   }
+  const { logLuxMin, logLuxMax } = factory.cone;
+  const lux = [];
+  for (let i = 0; i < LUM_SURFACE_LUX_ROWS; i += 1) {
+    const logLux = logLuxMin + ((logLuxMax - logLuxMin) * i) / (LUM_SURFACE_LUX_ROWS - 1);
+    lux.push(10 ** logLux);
+  }
   const percent = [];
   const limited = [];
-  const bound = [];
-  for (const lux of factory.luxKnots) {
-    percent.push(hue.map((one) => factoryPercent(lux, one, 100).percent));
-    limited.push(hue.map((one) => factoryPercent(lux, one, 100).limited));
-    bound.push(hue.map((one) => factoryPercent(lux, one, 100).bound));
+  for (const one of lux) {
+    percent.push(hue.map((degrees) => factoryPercent(one, degrees, 100).percent));
+    limited.push(hue.map((degrees) => factoryPercent(one, degrees, 100).limited));
   }
   res.json({
     valid: true,
@@ -901,11 +1031,10 @@ app.get('/luminance/surface', (req, res) => {
     sat: 100,
     minPercent: curve.minPercent,
     maxPercent: curve.maxPercent,
-    lux: factory.luxKnots,
+    lux,
     hue,
     percent,
-    limited,
-    bound
+    limited
   });
 });
 
