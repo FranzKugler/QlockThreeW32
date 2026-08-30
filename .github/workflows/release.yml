@@ -180,18 +180,32 @@ jobs:
             --boot-app0 "$BUILD/boot_app0.bin" \
             "$BUILD"
 
+      # Idempotent on purpose: unlike edge, a stable release is never deleted
+      # and recreated, since it is meant to stay put once tagged - but a
+      # workflow_dispatch re-run against a tag that already published (say,
+      # to pick up a fix here, or to redo a Pages deploy that failed after
+      # the release itself succeeded) must not die on "release already
+      # exists". `gh release upload --clobber` replaces the assets in place
+      # without touching the title or the generated notes a first run wrote.
       - name: Publish the stable release
         if: steps.meta.outputs.channel == 'stable'
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD: .pio/build/seeed_xiao_esp32s3
         run: |
-          gh release create "${{ steps.meta.outputs.tag }}" \
-            --title "${{ steps.meta.outputs.tag }}" \
-            --generate-notes \
-            "$BUILD/firmware.bin" "$BUILD/littlefs.bin" manifest.json \
-            "$BUILD/bootloader.bin" "$BUILD/partitions.bin" "$BUILD/boot_app0.bin" \
+          assets=(
+            "$BUILD/firmware.bin" "$BUILD/littlefs.bin" manifest.json
+            "$BUILD/bootloader.bin" "$BUILD/partitions.bin" "$BUILD/boot_app0.bin"
             esp-web-tools-manifest.json
+          )
+          if gh release view "${{ steps.meta.outputs.tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ steps.meta.outputs.tag }}" "${assets[@]}" --clobber
+          else
+            gh release create "${{ steps.meta.outputs.tag }}" \
+              --title "${{ steps.meta.outputs.tag }}" \
+              --generate-notes \
+              "${assets[@]}"
+          fi
 
       - name: Stage the flashing page
         if: steps.meta.outputs.channel == 'stable'
