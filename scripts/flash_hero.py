@@ -72,7 +72,7 @@ LIT = {
 # The page's own tokens (docs/index.html) - light mode only, since this is a
 # still image and cannot follow prefers-color-scheme the way the page's CSS
 # does. --bg, white, --accent.
-BACKGROUND = (244, 245, 247)
+BACKGROUND = (200, 200, 200)
 MASK = (255, 255, 255)
 LIT_COLOUR = (59, 110, 165)
 
