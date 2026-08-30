@@ -27,7 +27,9 @@ internet access at all.
   real face — the lit letters are read back out of the clock's own frame
   buffer, not guessed at in the browser.
 - **Automatic brightness** from an ambient light sensor, on a curve the clock
-  learns from the way you use the slider. There is no "remember this" button.
+  learns from the way you use the slider — and, on a calibrated clock,
+  **colour-aware**: the same setting emits far less light in deep blue than
+  in green, and the automatic knows it. There is no "remember this" button.
 - **Time from NTP**, with a region/place picker over both daylight-saving
   changeover rules, which stay editable by hand underneath.
 - **Firmware and interface updates** from the browser, or automatically from a
@@ -225,6 +227,25 @@ brighter is refused outright.
 The reset button in the colour tab throws it all away and restores a cautious
 default line.
 
+### Colour-aware, on a calibrated clock
+
+That single line is the fallback. A clock shipped with a measured optical
+profile knows that a percentage is not an amount of light — the same setting
+emits far less in deep blue than in the green this clock normally shows — and
+regulates on a small model of the diffuser and LEDs instead: one line shared
+by every colour, plus how each hue departs from it. Nudging the slider still
+teaches it, now per colour, and a taught correction only overrides the factory
+measurement where it actually disagrees with it — elsewhere the factory
+number keeps speaking for itself, which is why a handful of evening
+corrections in one colour do not retune the whole curve.
+
+`#luminance` — reachable without unlocking expert mode, since there is no
+secret in a brightness curve — draws the model as an interactive 3D surface:
+hue running round, ambient light out from the centre (logarithmically,
+brighter towards the middle), brightness as the height, with every taught
+correction marked on it. A collapsible "fit parameters" section beside it has
+the numbers themselves, for anyone curious.
+
 ## The two stores
 
 The clock keeps things in two places, and the difference decides what survives
@@ -292,6 +313,9 @@ src/            firmware (PlatformIO / Arduino-ESP32)
   LedDriver*      WS2812B output, colour and brightness
   LightSensor.*   TSL2591 / VEML7700 behind one interface, sampled on core 0
   Luminance.*     the brightness curve, and how it is learned
+  FactoryProfile.*    the colour-aware model, as pure arithmetic
+  FactoryLuminance.*  loads and validates the measured profile from LittleFS
+  ResidualStore.*     what an owner has taught it, refit online against the profile
   Settings.*      persistence in NVS
   WebRoutes.*     the HTTP handlers; OtaUpdate, FileRoutes, NvsRoutes beside it
 web/            configuration interface (Svelte 5 + Vite), built into data/

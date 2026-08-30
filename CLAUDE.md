@@ -29,7 +29,12 @@ pio run -t buildfs               # build littlefs.bin without flashing (for a br
 pio device monitor                # serial monitor (115200 baud)
 ```
 
-There are no automated tests in this project.
+```
+sh tests/host/run.sh             # the pure C++ halves, against golden vectors - see tests/host/run.sh
+npm test                         # node --test tests/web/*.test.js - the web UI and the mock
+```
+
+Both are plain enough to run from this environment even without `pio` on PATH; only the firmware build itself needs the full toolchain.
 
 [platformio.ini](platformio.ini) defines a single build environment, `seeed_xiao_esp32s3` (`LED_OUTPUT_PIN=4`, USB serial upload via esptool at 460800 baud).
 
@@ -49,6 +54,10 @@ API routes listed in `vite.config.js` to the mock, so the SPA behaves as it
 does on the device — a new endpoint has to be added to that list. To
 check a production build instead, run `npm run build` and open the mock server
 on :8080 directly, which serves `data/` statically.
+
+### Development container
+
+[.devcontainer/](.devcontainer/) pins the toolchain (PlatformIO, Node, Python, Claude Code) into a reproducible Debian container so a fresh checkout does not depend on what happens to be installed on the host. `./scripts/dev-container.sh up|shell|build|claude|down` from the repository root; see [.devcontainer/README.md](.devcontainer/README.md) for the rest, including the fixed UID it runs as and why USB flashing is deliberately not exposed by default.
 
 ## Architecture
 
@@ -103,7 +112,9 @@ Settings changes made through the REST API mark `needsUpdateFromRtc = true` and 
 - `POST /autoluminance` — toggle automatic brightness.
 - `GET /light` — `{sensor, present, available, lux, raw}` from the ambient light sensor, plus `display` (what the clock's own face contributed to that raw reading) and `coupled` (how many cells the stored map describes, 0 for none — so `raw - display` is what the averages were fed), plus the fitted line (`slope`, `offset`, `fitted`), the `brightness` it yields for the current reading, the regulated range (`minPercent`, `maxPercent`), how many points have been `taught`, and whether a nudge is being waited out (`adjusting`). Not part of `/currentState`: the measurement is not a setting, and the colour tab polls it.
 - `POST /light` — `{reset: true}` throws the curve away; `{coupling: {cells, drive}}` stores the map measured by `scripts/lab.py`, and `{couplingReset: true}` removes it. The curve is not configured any more, it is taught through `POST /color`; see "Automatic brightness". **The two coupling branches are behind the lock and the reset is not**, which is not an oversight: a reset discards what the clock has been told and can be told again, while the map changes how the clock reads its own sensor for good — and it is the one thing here nobody types by hand.
-- `GET /luminance` — the same line plus every calibration point and what the line makes of it. The workbench at `#luminance`; read-only, and deliberately outside expert mode.
+- `GET /luminance` — the same line plus every calibration point and what the line makes of it, and — once a factory profile is loaded — the colour-aware half beside it: `factory` (the shipped profile's identity, cone/nose/blue coefficients, and its own cross-validation numbers), `target` (what the model asks for right now, in the colour the face is actually showing: `percent`, `factory` alone, `bias`, `limited`/`bound`/`clamped`, `source`), and `user` (the taught colour corrections — Table 2 — each with `lux`/`decades`/`hue`/`sat`/`seconds`/`bound` and, where computable, `percent`; plus `fit`, the nose and blue's-line coefficients Table 1 and Table 2 refit to together, present only once a colour has actually been taught). See "The colour-aware model". The workbench at `#luminance`; read-only, and deliberately outside expert mode.
+- `POST /luminance` — `{minPercent, maxPercent}` moves the regulated range; `{forget: n}` removes one white point and `{forgetResidual: n}` removes one colour correction, both by position; `{factoryRestore: true}` clears every taught correction (colour and white) and returns to the shipped profile, refused when there is none to return to. Behind the lock, unlike the `GET`.
+- `GET /luminance/surface` — the colour-aware model as a grid: `lux[]` and `hue[]` (the two axes), `percent[][]` (one row per ambient level) and `limited[][]` alongside it, all at saturation 100 — where the colour term is whole and the surface has any shape at all. Fetched once by the `#luminance` diagram rather than polled: it only changes with the profile, which is a filesystem update away.
 - `POST /configuration` — language, corner LED direction/color. **Refuses a language from another panel on an enrolled clock that is locked** — `403 {"error":"languageNotOnPanel"}`, see "One clock, one panel".
 - `POST /timezone` — NTP server + manual DST/timezone rule fields, plus `tzZone` (the picked IANA name, a label only — see "Timezone picker").
 - `POST /hostname` — `{hostname}`; renames the clock, answers with the name actually stored.
@@ -507,6 +518,51 @@ Same ten cells, same order, drive table identical to three decimals (0.477 again
 - **`base_colour()` in the script taught the clock three junk points**, and the mechanism is worth remembering: with the automatic on, `POST /color` is not a setting, it is a lesson. The function turned the brightness to 100 and back to read the colour off the strip, and the clock stored "0 lx deserves 50 %" three times — the lab had blanked the strip — collapsing the fitted slope from 27.5 to 3.6 %/decade. It switches the automatic off first now. Reading the colour without writing at all was the other option and is worse: at a drive of eighteen the colour comes back `[36, 255, 0]` where it is really `[32, 245, 11]`.
 - **The `feedback` table divided by the dark reading**, which is zero in the dark room the run needs, and printed a serene `0.0 %` for every row — the one number it exists to produce, printed without having been computed. It measures against the model where there is no room to measure against.
 
+#### The colour-aware model
+
+A percentage on the brightness slider is not an amount of light: what a setting emits depends on the colour the face is showing, and measured on this clock full blue emits about a tenth of what the green it normally runs does. Expressed in percent that correction is neither an offset nor a factor — both wander by three to one across the range — and expressed in the log of the emitted light it is close to a constant, so the model lives there:
+
+```
+log L = cone(log lux) + residual(hue, log lux) * fade(sat)
+```
+
+[src/FactoryProfile.h](src/FactoryProfile.h)/[.cpp](src/FactoryProfile.cpp) is that arithmetic and nothing else — no Arduino, no NVS, no logging, so `tests/host/` can compile it with a desktop compiler and run it against golden vectors an independent Python model writes. [src/FactoryLuminance.h](src/FactoryLuminance.h)/[.cpp](src/FactoryLuminance.cpp) is everything around it: loading `factory-luminance.json` from LittleFS, checking its checksum and schema, and remembering which profile a clock is on.
+
+- **`cone(x)` is one straight line**, shared by white and every saturated colour — the slope this diffuser turns a decade of ambient light into.
+- **`residual(hue)` for every hue but one is a single first-harmonic wave** — `a0 + a1·cos(hue) + b1·sin(hue)`, three numbers for the whole wheel. It carries no light-level term: red through magenta held flat to within noise across six ambient levels on the measurement this was fitted from.
+- **Blue is not on the wave.** Its own residual measurably has a slope in light the other five colours do not, so it gets its own line, blended into the wave over `blendHalfWidth` degrees either side of `blueHue` by a raised cosine — full weight at the centre, nothing discontinuous at the edges. See `blueWeight()`.
+- **This replaced a six-knot residual grid**, one row per measured ambient level, read back by interpolation. It cross-validated at 6.9 % RMS against a 6 % goal on around forty measurements with roughly as many free numbers as points — an overfitting gap between that and its 4.1 % in-sample figure that a model with this few parameters does not get to have. The grid's shape is still in git history (`FACTORY_MODEL_ID "white-baseline-plus-cyclic-hue-loglux-residual-grid"`, tagged `v2.2.3`) if it is ever wanted again.
+- **The percentage is the inverse of the gamma, the per-channel scaling and the measured drive table**, found by a bounded search over the integers in the regulated range rather than attempted algebraically — every step of the forward direction rounds, and a closed-form inverse would disagree with it at exactly the settings the clock spends its evenings at.
+- **The numbers are never compiled in.** They are measured on one clock, through one diffuser, behind one mask, and travel as `web/public/factory-luminance.json` — generated by [scripts/build_cone_profile.py](scripts/build_cone_profile.py) from real fixture data, committed like `zones.json` and the panel letters. A guessed profile would be worse than none: it would look exactly like a measured one.
+- **`FactoryLuminance::available()` is false, not a guess, when the file is missing, fails its checksum, or fails `FactoryProfile::valid()`** — a clock without one behaves exactly as it always did, on the plain white line below. `Luminance::targetFor()` is the one call that makes that fallback automatic; nothing else in the firmware branches on whether a profile exists.
+
+#### Table 1, Table 2, and the online refit
+
+[src/ResidualStore.h](src/ResidualStore.h)/[.cpp](src/ResidualStore.cpp) is what an owner has taught the clock — **Table 2** — and how it is combined with **Table 1**, the factory measurement points the shipped nose and blue's line were fitted from, which travel with the profile (`Profile::point[]`) for exactly this reason.
+
+**This replaced a bias.** The first version answered a locally weighted average of nearby corrections, added to whatever the factory nose and blue's line already said. That works, but it never moves the model itself: a dozen corrections in one colour taught the clock to argue with its own fit at every query rather than teaching the fit. What is here instead refits the actual parameters — three numbers for the nose, two for blue's line — online, which is only possible because the model is now small enough to refit in a fraction of a second.
+
+- **A taught point shadows a factory point inside its sphere**, rather than merely outvoting it in an average — a radius in hue (30°) and a ratio in light (1.3×, `log10(1.3)` in log space). Inside it, the factory number is what the owner just said is wrong, at the light and colour they said it at, and keeping it in the fit would average the model's own contradiction with itself. Outside it, Table 1 stands — which is what lets ten evening corrections in one colour still leave a factory profile with something to say about the other five.
+- **Refit, not re-weighted**: every surviving Table 1 point plus every non-white, non-bound Table 2 point is split by distance from `blueHue` and each half solved again by ordinary least squares — the same fit `scripts/build_cone_profile.py` ran once at measurement time, run again on the clock.
+- **Blue is fully learnable**, the same as every other colour — no special case in the refit, just the group whose points fall inside `blendHalfWidth` of `blueHue` instead of the nose's.
+- **A censored nudge** — one that sat at the top of the slider, so "at least this much" rather than "exactly this much" — still shadows a factory point (it is still evidence that number is wrong) but never enters the regression, which would otherwise read a lower bound as an equality and make the model dimmer than the one thing anybody measured.
+- **White teaches nothing about a colour**, on either side: it shadows no factory point and never enters either regression, the same rule the old bias had.
+- A half that ends up with too few surviving points to solve — fewer than three for the nose, fewer than two for blue's line — is left exactly as the factory shipped it rather than zeroed, seeded from `factory.noseA0`/`.blueSlope` and so on before the regression is even attempted.
+- `Luminance::learnedFit()` is the accessor: false, and `out` untouched, under the same condition `targetFor()` uses for "nothing has been taught about a colour yet" — a store holding only a stray white correction must not make a query in any colour claim one.
+- `server.js` carries its own port of the same refit (`refit()` in [server.js](server.js)), rather than the locally weighted average it used to run — a change to the model is as much part of the API contract as a field name, and `npm run dev` had disagreed with the firmware silently before.
+- Verified with a host test that recovers an exact known line: two clean points and one deliberately corrupted factory point, then one taught correction at the corrupted point's exact light and colour — the corrupted point is shadowed and the clean line comes back exactly.
+
+#### The colour-aware surface, in 3D
+
+[LuminanceSurface.svelte](web/src/sections/LuminanceSurface.svelte) draws `GET /luminance/surface` as a cylinder rather than a flat chart, because the model answers two questions at once — how bright, at how much light, *in which colour* — and six flat charts, one per hue, would be six charts nobody compares.
+
+- **Hue is the azimuth, ambient light is the radius, the percentage is the height.** Hue has no first value and no last one, so a straight axis would have to cut the wheel somewhere and grow a seam the model does not have; wrapped round, the seam is a joint instead.
+- **The radius is log light**, and reversed — brightest room in the centre, darkest at the rim — with an inner ring (`INNER_RADIUS`) rather than a point at the centre, so the dimmest ambient level a person actually reads the clock in still gets a real cell rather than a triangle with no hue left in it.
+- **No 3D library.** A WebGL or Plotly bundle is hundreds of kilobytes into a 3.5 MB filesystem partition that also holds the rest of this SPA. [web/src/lib/surface3d.js](web/src/lib/surface3d.js) is a plain module — a rotation, an orthographic projection and a painter's algorithm — with no Svelte and no DOM, so `tests/web/` runs it under `node --test`; the parts that can be wrong without *looking* wrong (which cell is where, whether the seam closes, whether a drag left and a drag right land back in the same place) are exactly the parts a screenshot cannot check.
+- **Table 2 is drawn on it**, one marker per taught colour correction, converted from a decades residual to a percentage by the same inversion the surface itself is built from (`WebRoutes.cpp`'s `describeFactory()`) rather than a second implementation in JavaScript — a bound correction is dashed, a white one is left off entirely, since a diagram whose one axis is hue has nowhere honest to put it.
+- **The view turns, and there is always a way back** — drag, arrow keys, or Home/`0` to the frozen `DEFAULT_VIEW` — because a closed cylinder hides half of itself behind the other half and no single angle answers "what does my hue do" for every hue.
+- The lux axis rounds to **three significant figures** (`formatLux()`): the knots are sampled evenly in log light rather than at round numbers, so the raw doubles carry far more precision than a reader can use.
+
 #### The brightness screen — one screen, two ways in
 
 [Luminance.svelte](web/src/sections/Luminance.svelte) holds everything about the automatic: the line, every point with what the line makes of *its* light, both averages, and how much of the sensor's reading is the clock's own face. The chart is in log light — plotted against plain lux it would be a curve, hiding the one thing worth seeing, which is whether the points sit on a line at all.
@@ -520,6 +576,9 @@ That split is the point. Looking at the curve is what somebody does when the aut
 - **`POST /luminance {forget: n}`** removes one point. A point can be wrong rather than merely old — a correction made ten seconds after the room went dark was stored at 0.1184 lx when the room was at 0.0008 — and until this existed the only remedy was throwing the whole calibration away. Addressed by position, so the screen refuses a second click while one is in flight; two deletes racing would remove the wrong point.
 - **A 307 redirect is a trap here.** The mock's writes first answered by redirecting to `/luminance`, which re-sends the POST to the handler that issued it. Both writes share `luminanceState()` instead.
 - Polled once a second, faster than the colour tab, because this is the screen somebody watches *while* dragging the slider.
+- **The headline number used to be the wrong curve.** The "measured" line read `data.brightness` — the plain white line, computed independently and still exposed for comparison — which is what "what the curve wants" meant before a factory profile could answer in colour, and stopped meaning it the day one could. On a coloured face the two disagree by design, so the read-out looked like the automatic had reverted a correction it had actually kept exactly: `applied` and the colour-aware `target.percent` agreed the whole time, and only the number beside them was stale. Fixed to read `target.percent`; the white line moved into the section below instead of standing in for it.
+- **"Fit parameters" is its own collapsible heading** — the `<summary>` doing the job an icon would otherwise have to, styled like the `h3` beside it rather than as a description underneath one — holding the cone, the nose and blue's line (factory and, once something has been taught, learned, side by side), the plain white curve for comparison, and the factory profile's own cross-validation figures. That cross-validation used to sit unfolded above the corrections list; moved here because it is a fact about the shipped measurement, not about what the automatic is doing right now, and three Fourier coefficients are not something using a word clock requires looking at.
+- **Only eight colour corrections are kept**, against the white ring's ten — deliberately: the factory profile already carries the shape of the curve, so what is left to learn is a level and a little colour preference. Said out loud in the hint text now, because a smaller number with no explanation reads as a bug report waiting to happen.
 
 #### Subtracting the clock's own face
 
