@@ -178,6 +178,23 @@
     color: var(--accent);
   }
 
+  .step-qr {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .step-qr img {
+    width: 96px;
+    height: 96px;
+    flex: none;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px;
+  }
+  .step-qr p { margin: 0; flex: 1 1 14rem; }
+
   details summary {
     cursor: pointer;
     font-weight: 600;
@@ -255,14 +272,35 @@
 
   <section>
     <h2>After it's flashed</h2>
-    <p>
-      The clock reboots and, with no WiFi configured yet, opens its own access
-      point named <code>QlockThreeW32</code>. Connect to it from a phone or
-      laptop — a captive portal asks for your network. From then on the clock
-      is reachable at <code>http://qlockthreew32.local</code> or by its address
-      on the network, where the rest of the setup — language, colour, the
-      automatic brightness — happens in the browser.
-    </p>
+    <ol class="steps">
+      <li>
+        <div class="step-qr">
+          <img src="qr-ap.png" width="240" height="240" alt="QR code that joins the WiFi network QlockThreeW32">
+          <p>
+            The clock reboots with no WiFi configured yet and opens its own
+            access point, <code>QlockThreeW32</code>, no password needed.
+            Scan to join it from a phone, or pick it by hand in WiFi
+            settings.
+          </p>
+        </div>
+      </li>
+      <li>
+        Joining opens a captive portal asking for your own network's name and
+        password. Once the clock has them it restarts onto your network and
+        its own access point disappears.
+      </li>
+      <li>
+        <div class="step-qr">
+          <img src="qr-clock.png" width="240" height="240" alt="QR code that opens http://qlockthreew32.local">
+          <p>
+            From then on the clock answers at
+            <code>http://qlockthreew32.local</code> — scan to open it, or type
+            the address. That is where the rest of the setup — language,
+            colour, the automatic brightness — happens.
+          </p>
+        </div>
+      </li>
+    </ol>
     <p>
       Firmware and interface updates after this one never need a cable again:
       they go through the clock's own <strong>Update</strong> tab, or happen by
