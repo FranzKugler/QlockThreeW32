@@ -250,6 +250,18 @@ export default {
     'mismo a la red anterior. Tras un cambio la dirección puede variar — ' +
     `entonces es accesible en ${host}.local.`,
 
+  // --- portal de configuración ---
+  portalTitle: 'Configurar la red',
+  portalIntro: (apName) =>
+    `Este reloj todavía no está en ninguna red y ha abierto su propio ` +
+    `punto de acceso, «${apName}». Elige tu WiFi abajo e introduce su ` +
+    `contraseña.`,
+  portalConnected: (ssid, ip) => `Conectado a ${ssid} como ${ip}.`,
+  portalConnecting: (ssid) => `Conectando a ${ssid} …`,
+  portalDone:
+    'El reloj se está reiniciando y enseguida será accesible con su propio ' +
+    'nombre en la red.',
+
   // --- update tab ---
   installed: 'Instalado',
   firmware: 'Firmware',
@@ -456,6 +468,8 @@ export default {
   err_hostnameInvalid: 'Ese nombre no contiene caracteres utilizables',
   err_wifiConnect: (ssid) => `No se ha podido conectar a «${ssid}»`,
   err_wifiFallback: (ssid) => `Volver a «${ssid}» también ha fallado`,
+  err_wifiNoSsid: 'No se ha indicado ningún nombre de red',
+  err_portalBusy: 'Ya hay un intento de conexión en curso',
 
   err_languageNotOnPanel: 'Ese idioma no encaja con el panel de letras del reloj — se cambia en modo experto',
   err_expertLocked: 'El modo experto está bloqueado',

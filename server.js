@@ -4,8 +4,9 @@
  * hardware. Mirrors the endpoints in `src/main .cpp`; the initial values are
  * the defaults from the Settings constructor in `src/Settings.cpp`.
  *
- *   npm run mock   # this server on :8080
- *   npm run dev    # Vite dev server, proxies the API routes here
+ *   npm run mock            # this server on :8080
+ *   npm run mock -- portal  # ...in setup-portal mode instead, see Portal.h
+ *   npm run dev             # Vite dev server, proxies the API routes here
  *
  * It also serves data/ statically, so a production build can be checked
  * against the mock by opening http://localhost:8080 directly.
@@ -24,6 +25,28 @@ const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Moved ahead of every route: a request for a real file must be served
+// exactly as it would be from data/ regardless of what runs after this,
+// portal-mode gating included.
+app.use(express.static('data'));
+
+// `npm run mock -- portal` simulates the setup portal instead of normal
+// operation - see src/Portal.h. The two are mutually exclusive on the clock
+// itself: an open access point is not somewhere to expose the rest of the
+// API, so main .cpp registers either the portal's routes or the others and
+// never both. Placed after the static middleware above (so the built
+// portal.html and its bundle still load) and before every other route
+// (so nothing else answers) - a mistake here now fails in `npm run dev` too,
+// rather than only on real hardware.
+const PORTAL_MODE = process.argv.includes('portal');
+app.use((req, res, next) => {
+  // Reachable exactly when the mode matches: the portal's own routes only in
+  // portal mode, everything else only outside it - the same "never both" the
+  // firmware gets from registering one set of handlers or the other.
+  if (PORTAL_MODE === req.path.startsWith('/portal/')) return next();
+  res.status(404).json({ error: 'fsNotFound' });
+});
 
 /*
  * Expert mode, the same contract the firmware implements.
@@ -124,8 +147,6 @@ app.post('/expert', (req, res) => {
   expert.on = true;
   res.json(expertState());
 });
-
-app.use(express.static('data'));
 
 const state = {
   display: 1,
@@ -1342,6 +1363,67 @@ app.post('/wifi', (req, res) => {
   }, 4000);
 });
 
+/* ------------------------------------------------------------ portal ---- */
+/* The setup portal's own endpoints - see src/Portal.h and PORTAL_MODE above.
+ * `/portal/scan` answers in the same shape as `/wifi/scan` on purpose: one
+ * Svelte component (NetworkList.svelte) draws both. Connect with the
+ * password `wrong` to exercise the failure path, same convention as `/wifi`
+ * above. */
+
+const portal = { state: 'idle', ssid: '', ip: '', error: '', errorDetail: '' };
+let portalScanFinishedAt = 0;
+
+app.get('/portal/status', (req, res) =>
+  res.json({
+    portal: true,
+    apName: state.hostname,
+    hostname: state.hostname,
+    state: portal.state,
+    ssid: portal.ssid,
+    ip: portal.ip,
+    error: portal.error,
+    errorDetail: portal.errorDetail
+  })
+);
+
+app.get('/portal/scan', (req, res) => {
+  const now = Date.now();
+  if (!portalScanFinishedAt) {
+    portalScanFinishedAt = now + 2500;
+  }
+  if (now < portalScanFinishedAt) {
+    return res.json({ scanning: true });
+  }
+  portalScanFinishedAt = 0;
+  res.json({ scanning: false, networks: FAKE_NETWORKS });
+});
+
+app.post('/portal/connect', (req, res) => {
+  const { ssid, password } = req.body ?? {};
+  if (!ssid) return res.status(400).json({ error: 'wifiNoSsid' });
+  if (portal.state === 'connecting') return res.status(409).json({ error: 'portalBusy' });
+
+  portal.ssid = ssid;
+  portal.state = 'connecting';
+  portal.error = '';
+  portal.errorDetail = '';
+  portal.ip = '';
+  console.log('/portal/connect', { ssid, password: '***' });
+  res.json({ state: portal.state, ssid: portal.ssid });
+
+  setTimeout(() => {
+    if (password === 'wrong') {
+      portal.state = 'failed';
+      portal.error = 'wifiConnect';
+      portal.errorDetail = ssid;
+    } else {
+      portal.state = 'connected';
+      portal.ip = '192.168.1.' + (40 + Math.floor(Math.random() * 20));
+    }
+    console.log('/portal/connect finished:', portal.error || `connected as ${portal.ip}`);
+  }, 4000);
+});
+
 // ----------------------------------------------------------------- OTA ----
 // Simulates a firmware update from the browser: the upload is throttled to a
 // plausible WiFi rate so the progress bar can be judged, and afterwards the
@@ -1935,4 +2017,9 @@ app.post('/restart', (req, res) => {
 // has to set anything. The override exists for the API-shape tests, which
 // start a second copy and must not fight a mock somebody left running.
 const PORT = Number(process.env.QLOCK_MOCK_PORT || 8080);
-app.listen(PORT, () => console.log(`QlockThreeW32 mock API on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`QlockThreeW32 mock API on http://localhost:${PORT}`);
+  console.log(PORTAL_MODE
+    ? 'Setup portal mode - open /portal.html through the Vite dev server.'
+    : 'Normal operation - open /index.html (or / ) through the Vite dev server.');
+});

@@ -95,3 +95,20 @@ export function setLanguage(language) {
 export function dict() {
   return DICTS[ui.locale] ?? de;
 }
+
+/**
+ * Picks a UI language from the browser instead of from a clock - for the
+ * setup portal, which is served before any clock exists to follow. Called
+ * once, from portal.js; main.js never calls this, so the SPA's own default
+ * (German, until the `$effect` on clock.language overrides it) is untouched.
+ */
+export function preferBrowserLanguage() {
+  const wanted = (navigator.languages ?? [navigator.language ?? 'de']).map((tag) =>
+    String(tag).toLowerCase().split('-')[0]
+  );
+  const locale = wanted.find((code) => code in DICTS) ?? 'de';
+  if (locale !== ui.locale) {
+    ui.locale = locale;
+    document.documentElement.lang = locale;
+  }
+}

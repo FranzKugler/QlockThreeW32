@@ -251,6 +251,18 @@ export default {
     "torna da solo alla rete precedente. Dopo un cambio l'indirizzo può " +
     `cambiare — allora è raggiungibile su ${host}.local.`,
 
+  // --- portale di configurazione ---
+  portalTitle: 'Configura la rete',
+  portalIntro: (apName) =>
+    `Questo orologio non è ancora su una rete e ha aperto il proprio ` +
+    `punto di accesso, «${apName}». Scegli il tuo WiFi qui sotto e ` +
+    `inserisci la password.`,
+  portalConnected: (ssid, ip) => `Connesso a ${ssid} come ${ip}.`,
+  portalConnecting: (ssid) => `Connessione a ${ssid} …`,
+  portalDone:
+    "L'orologio si sta riavviando e sarà presto raggiungibile con il " +
+    'proprio nome sulla rete.',
+
   // --- update tab ---
   installed: 'Installato',
   firmware: 'Firmware',
@@ -457,6 +469,8 @@ export default {
   err_hostnameInvalid: 'Questo nome non contiene caratteri utilizzabili',
   err_wifiConnect: (ssid) => `Impossibile connettersi a «${ssid}»`,
   err_wifiFallback: (ssid) => `Anche il ritorno a «${ssid}» non è riuscito`,
+  err_wifiNoSsid: 'Nessun nome di rete indicato',
+  err_portalBusy: 'È già in corso un tentativo di connessione',
 
   err_languageNotOnPanel: 'Questa lingua non corrisponde al pannello di lettere dell’orologio — modificabile in modalità esperto',
   err_expertLocked: 'La modalità esperto è bloccata',

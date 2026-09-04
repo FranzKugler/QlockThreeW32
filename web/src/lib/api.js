@@ -41,6 +41,18 @@ async function post(path, body) {
   }
 }
 
+/** The clock's refusal as a sentence, or the status when it did not say. */
+async function failure(res, what) {
+  try {
+    const err = await res.json();
+    const said = errorText(dict(), err.error, err.errorDetail);
+    if (said) return said;
+  } catch {
+    /* not JSON, or no body */
+  }
+  return `${what}: HTTP ${res.status}`;
+}
+
 /** Loads the full settings object. Throws, so the caller can offer a retry. */
 export async function fetchState() {
   const res = await fetch('/currentState');
@@ -259,6 +271,38 @@ export async function fetchWifiScan() {
 }
 
 export const connectWifi = ({ ssid, password }) => post('/wifi', { ssid, password });
+
+/* ------ the setup portal ------
+ *
+ * Separate routes from the ones above, and deliberately so: the portal runs in
+ * access-point mode with a different state machine behind it, and the two
+ * would only be one set of endpoints if they meant the same thing. The scan
+ * answers in the same *shape*, which is what lets NetworkList.svelte draw
+ * both.
+ */
+
+export async function fetchPortalStatus() {
+  const res = await fetch('/portal/status');
+  if (!res.ok) throw new Error(`/portal/status: HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchPortalScan() {
+  const res = await fetch('/portal/scan');
+  if (!res.ok) throw new Error(`/portal/scan: HTTP ${res.status}`);
+  return res.json();
+}
+
+/** Throws: the portal is the one screen where a refusal has to be shown at once. */
+export async function portalConnect({ ssid, password }) {
+  const res = await fetch('/portal/connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ssid, password })
+  });
+  if (!res.ok) throw new Error(await failure(res, '/portal/connect'));
+  return res.json();
+}
 
 /**
  * Renames the clock. Answers with the name that was actually stored, which the

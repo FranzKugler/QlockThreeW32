@@ -249,6 +249,18 @@ export default {
     'vanzelf terug naar het vorige netwerk. Na een wissel kan het adres ' +
     `veranderen — dan is hij bereikbaar op ${host}.local.`,
 
+  // --- installatieportaal ---
+  portalTitle: 'Netwerk instellen',
+  portalIntro: (apName) =>
+    `Deze klok staat nog op geen enkel netwerk en heeft zijn eigen ` +
+    `toegangspunt geopend, „${apName}”. Kies hieronder je WiFi en voer ` +
+    `het wachtwoord in.`,
+  portalConnected: (ssid, ip) => `Verbonden met ${ssid} als ${ip}.`,
+  portalConnecting: (ssid) => `Verbinden met ${ssid} …`,
+  portalDone:
+    'De klok start nu opnieuw op en is straks bereikbaar onder zijn eigen ' +
+    'naam op het netwerk.',
+
   // --- update tab ---
   installed: 'Geïnstalleerd',
   firmware: 'Firmware',
@@ -453,6 +465,8 @@ export default {
   err_hostnameInvalid: 'Deze naam bevat geen bruikbare tekens',
   err_wifiConnect: (ssid) => `Verbinden met “${ssid}” is mislukt`,
   err_wifiFallback: (ssid) => `Terugvallen op “${ssid}” is ook mislukt`,
+  err_wifiNoSsid: 'Geen netwerknaam opgegeven',
+  err_portalBusy: 'Er loopt al een verbindingspoging',
 
   err_languageNotOnPanel: 'Deze taal past niet bij het letterpaneel van de klok — aan te passen in de expertmodus',
   err_expertLocked: 'De expertmodus is vergrendeld',

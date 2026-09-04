@@ -248,6 +248,17 @@ export default {
     'to the previous network by itself. After a switch the address may change ' +
     `— it can then be reached at ${host}.local.`,
 
+  // --- setup portal ---
+  portalTitle: 'Set up the network',
+  portalIntro: (apName) =>
+    `This clock is not on a network yet and has opened its own access ` +
+    `point, “${apName}”. Pick your WiFi below and enter its password.`,
+  portalConnected: (ssid, ip) => `Connected to ${ssid} as ${ip}.`,
+  portalConnecting: (ssid) => `Connecting to ${ssid} …`,
+  portalDone:
+    'The clock is restarting and will shortly be reachable under its own ' +
+    'name on the network.',
+
   // --- update tab ---
   installed: 'Installed',
   firmware: 'Firmware',
@@ -451,6 +462,8 @@ export default {
   err_hostnameInvalid: 'That name contains no usable characters',
   err_wifiConnect: (ssid) => `Could not connect to “${ssid}”`,
   err_wifiFallback: (ssid) => `Falling back to “${ssid}” failed as well`,
+  err_wifiNoSsid: 'No network name given',
+  err_portalBusy: 'A connection attempt is already in progress',
 
   err_languageNotOnPanel: 'That language does not fit this clock’s letter panel — change it in expert mode',
   err_expertLocked: 'Expert mode is locked',

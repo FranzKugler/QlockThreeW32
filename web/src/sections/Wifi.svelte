@@ -3,7 +3,7 @@
    * Wifi
    * WLAN tab: connection status, network scan and switching networks.
    * First-time setup is not covered here - without a connection the SPA is
-   * unreachable and WiFiManager's own portal takes over.
+   * unreachable and the setup portal (Portal.svelte) takes over instead.
    *
    * @author   Franz Kugler / franz _AT_ franz _MINUS_ kugler _DOT_ de
    * @version  2.0
@@ -15,6 +15,8 @@
   import { dict } from '../lib/i18n.svelte.js';
   import { errorText } from '../lib/errors.js';
   import { setAppName } from '../lib/appname.svelte.js';
+  import { bars } from '../lib/signal.js';
+  import NetworkList from '../lib/NetworkList.svelte';
 
   const t = $derived(dict());
 
@@ -27,8 +29,6 @@
 
   let status = $state(null);
   let statusError = $state(null);
-  let networks = $state([]);
-  let scanning = $state(false);
   let selected = $state('');
   let password = $state('');
   let connecting = $state(false);
@@ -48,46 +48,6 @@
       if (!quiet) statusError = err.message;
       return false;
     }
-  }
-
-  /**
-   * One entry per network name, strongest first.
-   *
-   * A mesh or a dual-band router answers a scan several times under the same
-   * SSID. You join a network by name, not by radio, so the repeats are noise -
-   * and they were fatal here: the list below is keyed by SSID, and Svelte
-   * throws on a duplicate key, which took the whole list down rather than one
-   * row. Hidden networks come back nameless and cannot be picked, so they go
-   * as well.
-   */
-  function strongestPerName(found) {
-    const best = new Map();
-    for (const net of found) {
-      if (!net.ssid) continue;
-      const seen = best.get(net.ssid);
-      if (!seen || net.rssi > seen.rssi) best.set(net.ssid, net);
-    }
-    return [...best.values()].sort((a, b) => b.rssi - a.rssi);
-  }
-
-  // The clock scans asynchronously, so poll until it reports a result.
-  async function scan() {
-    scanning = true;
-    networks = [];
-    for (let i = 0; i < 15 && !destroyed; i++) {
-      try {
-        const res = await api.fetchWifiScan();
-        if (!res.scanning) {
-          networks = strongestPerName(res.networks ?? []);
-          scanning = false;
-          return;
-        }
-      } catch {
-        // keep polling; a scan makes the clock briefly unresponsive
-      }
-      await sleep(1200);
-    }
-    scanning = false;
   }
 
   async function connect(event) {
@@ -113,14 +73,6 @@
     }
     connecting = false;
     note = t.noResponse;
-  }
-
-  /** Signal strength as 1..4 bars; t.quality holds the matching labels. */
-  function bars(rssi) {
-    if (rssi >= -55) return 4;
-    if (rssi >= -67) return 3;
-    if (rssi >= -75) return 2;
-    return 1;
   }
 
   /**
@@ -180,7 +132,6 @@
     await loadStatus();
     selected = status?.ssid ?? '';
     hostname = status?.hostname ?? '';
-    scan();
   });
 </script>
 
@@ -241,33 +192,7 @@
 
 <section class="card">
   <h2>{t.availableNetworks}</h2>
-
-  {#if scanning}
-    <p class="hint">{t.scanning}</p>
-  {:else if networks.length === 0}
-    <p class="hint">{t.noNetworks}</p>
-  {:else}
-    <ul class="netlist">
-      {#each networks as net (net.ssid)}
-        <li>
-          <label class="choice">
-            <input type="radio" name="ssid" value={net.ssid} bind:group={selected} />
-            <span class="netname">{net.ssid}</span>
-            <span class="bars" title="{net.rssi} dBm" aria-label={t.quality[bars(net.rssi) - 1]}>
-              {#each [1, 2, 3, 4] as bar (bar)}
-                <i class:on={bar <= bars(net.rssi)}></i>
-              {/each}
-            </span>
-            {#if net.secure}<span class="lock" title={t.encrypted}>🔒</span>{/if}
-          </label>
-        </li>
-      {/each}
-    </ul>
-  {/if}
-
-  <button type="button" class="secondary" onclick={scan} disabled={scanning || connecting}>
-    {t.rescan}
-  </button>
+  <NetworkList poll={api.fetchWifiScan} bind:selected busy={connecting} />
 </section>
 
 <section class="card">

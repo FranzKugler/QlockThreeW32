@@ -251,6 +251,18 @@ export default {
     "revient d'elle-même au réseau précédent. Après un changement, l'adresse " +
     `peut changer — elle est alors accessible à ${host}.local.`,
 
+  // --- portail de configuration ---
+  portalTitle: 'Configurer le réseau',
+  portalIntro: (apName) =>
+    `Cette horloge n'est pas encore sur un réseau et a ouvert son propre ` +
+    `point d'accès, « ${apName} ». Choisissez votre WiFi ci-dessous et ` +
+    `saisissez son mot de passe.`,
+  portalConnected: (ssid, ip) => `Connectée à ${ssid} en tant que ${ip}.`,
+  portalConnecting: (ssid) => `Connexion à ${ssid} …`,
+  portalDone:
+    "L'horloge redémarre et sera bientôt accessible sous son propre nom " +
+    'sur le réseau.',
+
   // --- update tab ---
   installed: 'Installé',
   firmware: 'Micrologiciel',
@@ -457,6 +469,8 @@ export default {
   err_hostnameInvalid: 'Ce nom ne contient aucun caractère utilisable',
   err_wifiConnect: (ssid) => `Impossible de se connecter à « ${ssid} »`,
   err_wifiFallback: (ssid) => `Le retour à « ${ssid} » a également échoué`,
+  err_wifiNoSsid: 'Aucun nom de réseau indiqué',
+  err_portalBusy: 'Une tentative de connexion est déjà en cours',
 
   err_languageNotOnPanel: 'Cette langue ne correspond pas au panneau de lettres de l’horloge — modifiable en mode expert',
   err_expertLocked: 'Le mode expert est verrouillé',

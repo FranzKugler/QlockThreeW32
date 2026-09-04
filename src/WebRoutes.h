@@ -35,11 +35,12 @@ namespace Web
     bool switchingNetwork();
 
     /**
-     * The stylesheet injected into WiFiManager's setup portal, which is the
-     * only face the clock has before it is on a network. Mirrors the SPA's
-     * colours, so change it when those change.
+     * Sends one file out of LittleFS by path, or answers false if there is
+     * none. Shared with Portal.cpp, which serves the same SPA build out of
+     * the same filesystem while the clock has no network yet - so the
+     * extension-to-MIME table exists once rather than twice.
      */
-    const char *portalStyle();
+    bool serveFromFilesystem(String path);
 }
 
 #endif

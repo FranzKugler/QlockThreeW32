@@ -251,6 +251,18 @@ export default {
     'sie automatisch ins bisherige Netz zurück. Nach einem Wechsel kann sich ' +
     `die Adresse ändern — dann ist sie unter ${host}.local erreichbar.`,
 
+  // --- setup portal ---
+  portalTitle: 'Netzwerk einrichten',
+  portalIntro: (apName) =>
+    `Diese Uhr ist noch mit keinem Netz verbunden und hat ihren eigenen ` +
+    `Zugangspunkt „${apName}“ geöffnet. Wähle unten dein WLAN und gib das ` +
+    `Passwort ein.`,
+  portalConnected: (ssid, ip) => `Verbunden mit ${ssid} als ${ip}.`,
+  portalConnecting: (ssid) => `Verbinde mit ${ssid} …`,
+  portalDone:
+    'Die Uhr startet jetzt neu und ist gleich unter ihrem eigenen Namen im ' +
+    'Netz erreichbar.',
+
   // --- update tab ---
   installed: 'Installiert',
   firmware: 'Firmware',
@@ -456,6 +468,8 @@ export default {
   err_hostnameInvalid: 'Dieser Name enthält keine verwendbaren Zeichen',
   err_wifiConnect: (ssid) => `Verbindung zu „${ssid}“ fehlgeschlagen`,
   err_wifiFallback: (ssid) => `Auch der Rückfall auf „${ssid}“ ist fehlgeschlagen`,
+  err_wifiNoSsid: 'Kein Netzwerkname angegeben',
+  err_portalBusy: 'Es läuft schon ein Verbindungsversuch',
 
   err_languageNotOnPanel: 'Diese Sprache passt nicht zum Buchstabenpanel der Uhr — im Expertenmodus änderbar',
   err_expertLocked: 'Der Expertenmodus ist gesperrt',

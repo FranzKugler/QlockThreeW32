@@ -1,8 +1,7 @@
 /**
  * WebRoutes
- * The clock's HTTP interface: every handler the web UI talks to, the styling
- * of WiFiManager's setup portal, and the state machine behind a network
- * switch.
+ * The clock's HTTP interface: every handler the web UI talks to, plus the
+ * state machine behind a network switch.
  *
  * That last one is not a route, but it belongs with them: POST /wifi only
  * records the request and answers immediately, because the response would
@@ -10,7 +9,9 @@
  * by step from loop(). Splitting the two halves apart would hide that.
  *
  * The /ota routes are not here - those come with the module that serves them,
- * see OtaUpdate.h.
+ * see OtaUpdate.h. Neither are the /portal/* ones, reachable only before the
+ * clock is on a network at all - see Portal.h - though Portal.cpp does reuse
+ * this module's serveFromFilesystem() rather than a second copy.
  *
  * What this reaches for and does not own is listed below. It is a longer list
  * than OtaUpdate's, which is in the nature of the thing: these handlers exist
@@ -125,10 +126,10 @@ String getContentType(String filename)
 }
 
 // send the right file to the client (if it exists)
-bool handleFileRead(String path) 
+bool Web::serveFromFilesystem(String path) 
 { 
-    //Serial.println("handleFileRead: " + path);
-    debugI("handleFileRead: %s", path.c_str());
+    //Serial.println("Web::serveFromFilesystem: " + path);
+    debugI("Web::serveFromFilesystem: %s", path.c_str());
     if (path.endsWith("/")) path += "index.html";           // If a folder is requested, send the index file
     String contentType = getContentType(path);              // Get the MIME type
     if (LittleFS.exists(path)) 
@@ -353,23 +354,6 @@ void updateTimezone()
     
     server.send(200, "application/json", "{\"msg\":\"\"}");       
 }
-
-// Restyles the WiFiManager config portal to match the SPA in LittleFS. The
-// portal is only reachable in AP mode, where the SPA does not exist, so this is
-// the only way to give first-time setup the same look. Follows the system
-// light/dark preference, like the SPA does.
-static const char PORTAL_STYLE[] = R"CSS(<style>
-:root{--bg:#f4f5f7;--surface:#fff;--text:#1c1f23;--muted:#6b7280;--border:#d9dce1;--accent:#3b6ea5}
-@media(prefers-color-scheme:dark){:root{--bg:#16181c;--surface:#1f2228;--text:#e6e8eb;--muted:#9aa1ab;--border:#343941;--accent:#6ea8dc}}
-body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-.wrap{max-width:26rem;padding:0 1rem}
-h1,h3{font-weight:600;letter-spacing:.02em}
-button,.b{background:var(--accent);border:0;border-radius:7px;color:#fff;font-size:1rem;padding:.65rem}
-input,select{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:.45rem .55rem;font-size:1rem}
-a,a:hover{color:var(--accent)}
-.q{color:var(--muted)}
-.msg{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem}
-</style>)CSS";
 
 // ------ WiFi endpoints for the web UI ------
 
@@ -1624,7 +1608,7 @@ void Web::begin()
     // where the web UI itself lives.
     server.onNotFound([]()
     {
-        if (!handleFileRead(server.uri()))
+        if (!Web::serveFromFilesystem(server.uri()))
         {
             server.send(404, "text/plain", "404: Not Found");
         }
@@ -1667,9 +1651,4 @@ void Web::poll()
 bool Web::switchingNetwork()
 {
     return wifiSwitchState != WIFI_SWITCH_IDLE;
-}
-
-const char *Web::portalStyle()
-{
-    return PORTAL_STYLE;
 }

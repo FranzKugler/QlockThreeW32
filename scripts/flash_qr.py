@@ -7,11 +7,11 @@ the real network.
 No service, no key, no subscription - a QR code is just a Reed-Solomon-coded
 bitmap of the text it carries, and the `qrcode` package computes that offline
 from a fixed string. Both codes here point at *this project's own* constants
-(the AP name and password WiFiManager starts with, see setup() in
-main .cpp, and the hostname every unconfigured clock answers to before
-someone renames it), so generating them once and committing the result is the
-same call as zones.json or the panel letters: nothing here changes unless the
-project's own defaults do.
+(the AP name and password the setup portal starts with, see Portal::begin()
+in src/Portal.cpp, and the hostname every unconfigured clock answers to
+before someone renames it), so generating them once and committing the
+result is the same call as zones.json or the panel letters: nothing here
+changes unless the project's own defaults do.
 
 Plain black on white, deliberately not the page's accent blue - colour inside
 a QR code only narrows the contrast a camera has to work with, and this one
@@ -37,9 +37,9 @@ except ImportError:
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS_DIR = os.path.join(PROJECT_DIR, "docs")
 
-# The AP WiFiManager opens in setup() when no network is stored - see
-# wifiManager.autoConnect(settings.getHostname()) in main .cpp. A single
-# argument to autoConnect() means no password; "QlockThreeW32" is
+# The AP the setup portal opens when no network is stored - see
+# WiFi.softAP(apName.c_str()) in Portal::begin() (src/Portal.cpp). A single
+# argument to softAP() means no password; "QlockThreeW32" is
 # Settings::Hostname's default, which is what an unconfigured clock is still
 # running at exactly the point this code is meant to be scanned.
 AP_SSID = "QlockThreeW32"

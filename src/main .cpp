@@ -16,16 +16,10 @@
 #include <LittleFS.h>
 
 #include <WiFi.h>
-
-// needed for WifiConfig library
-//#include <DNSServer.h>
-//#include <mDNS.h> 
-//#include <WebServer.h>
-
-#include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager
 #include <ESPmDNS.h>
 #include <WebServer.h>
 #include <uri/UriBraces.h>
+#include <esp_wifi.h>             // reading back stored credentials before connecting
 
 // over the air updates
 #include <ArduinoOTA.h>           // flashing from PlatformIO over the network
@@ -55,6 +49,7 @@
 #include "Coupling.h"
 #include "Calibration.h"
 #include "OtaUpdate.h"
+#include "Portal.h"
 #include "DisplayModes.h"
 #include "WebRoutes.h"
 #include "FileRoutes.h"
@@ -125,21 +120,6 @@ Renderer renderer;
 
 // LED driver. A value here has no effect - it has to be a constant in LedDriverWS2812FastLED.
 LedDriverWS2812FastLED ledDriver;
-
-// WiFiManager. It lives here rather than as a local in setup(), which is what
-// the library's own example shows and what this used to do, with the comment
-// "once its business is done, there is no need to keep it around".
-//
-// That is true on the ESP8266 and false here. On the ESP32, WiFi_autoReconnect()
-// hands the Arduino core a callback bound to this object:
-//
-//     wm_event_id = WiFi.onEvent(std::bind(&WiFiManager::WiFiEvent,this,_1,_2));
-//
-// A std::bind of a member function with two placeholders does not fit in
-// std::function's small buffer, so the target is on the heap, and the core keeps
-// it in its event list. The object therefore has to outlive every WiFi event -
-// which means the whole run of the program, not the run of setup().
-WiFiManager wifiManager;
 
 // The light sensor
 
@@ -212,6 +192,67 @@ void scheduleSettingsSave()
 }
 
 // ------ WIFI connection functions ------
+
+// How long the very first connection attempt at boot is given before it
+// counts as failed and the setup portal takes over. Matches DoorOpener's own
+// constant of the same name and purpose.
+#define WIFI_BOOT_TIMEOUT 20000
+
+/**
+ * Tries the network the driver already knows about.
+ *
+ * The credentials are the WiFi driver's own, in its own NVS namespace: they
+ * are put there by WiFi.begin(ssid, pass) - from the setup portal or from the
+ * WLAN tab - and read back by WiFi.begin() with no arguments. Keeping a second
+ * copy in this project's settings was the obvious alternative and is worse:
+ * two stores of the same secret that can disagree, and the driver would still
+ * hold the one that actually decides.
+ *
+ * @return true when connected; false when there was nothing to try or it did
+ *         not come up in time. `hadCredentials` says which of the two.
+ */
+static bool connectStoredNetwork(bool &hadCredentials)
+{
+    WiFi.mode(WIFI_STA);
+    // The name the router lists the clock under. Only read while the
+    // interface comes up, so it has to be set before the connection is made.
+    WiFi.setHostname(settings.getHostname());
+    // Off, or the radio parks itself between beacons and the web UI answers
+    // half a second late for no gain on a mains-powered clock.
+    WiFi.setSleep(false);
+
+    // Asked of the driver rather than inferred from what WiFi.begin() returns:
+    // before the first attempt WiFi.SSID() is empty whether or not anything is
+    // stored, and the difference decides between "start the portal and stay
+    // there" and "start the portal but retry in ten minutes".
+    wifi_config_t stored;
+    hadCredentials = esp_wifi_get_config(WIFI_IF_STA, &stored) == ESP_OK &&
+                     stored.sta.ssid[0] != '\0';
+    if (!hadCredentials)
+    {
+        debugA("No stored network");
+        return false;
+    }
+
+    debugA("Connecting to %s", (const char *)stored.sta.ssid);
+    WiFi.begin();
+
+    unsigned long deadline = millis() + WIFI_BOOT_TIMEOUT;
+    while (WiFi.status() != WL_CONNECTED && (long)(millis() - deadline) < 0)
+    {
+        delay(250);
+    }
+
+    if (WiFi.status() != WL_CONNECTED)
+    {
+        debugW("Could not reach %s within %d s", WiFi.SSID().c_str(), WIFI_BOOT_TIMEOUT / 1000);
+        return false;
+    }
+
+    debugA("Connected - local IP %s", WiFi.localIP().toString().c_str());
+    return true;
+}
+
 void WiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info)
 {
     debugI("[WiFi-event] event: %d", event);
@@ -532,13 +573,10 @@ void setup()
     // serial echo is on or a telnet client has connected, so every debugX
     // between here and Debug.begin() used to be discarded. That is the whole
     // of the boot: mounting the filesystem, loading the settings, and
-    // WiFiManager deciding between the stored network and its own portal.
-    // None of it ever reached the cable either.
+    // deciding between the stored network and the setup portal. None of it
+    // ever reached the cable either.
     Log::begin();
     Debug.setSerialEnabled(true);
-
-    //reset settings - for testing
-    //wifiManager.resetSettings();
 
     if (!LittleFS.begin())
     {
@@ -548,10 +586,6 @@ void setup()
     else 
     {
         debugA("LittleFS Mount succesfull");
-        // version of the web UI in flash, for the update tab
-        // Reads the web UI's version out of the filesystem and hangs the
-        // /ota routes on the server.
-        Ota::begin();
         // load settings from NVS (and take over an old qlockconf.json once)
         settings.loadSettings();
 
@@ -586,30 +620,17 @@ void setup()
     setSyncInterval(60);
     sntp_set_time_sync_notification_cb(onNtpSync);
 
-    // give the config portal the same look as the SPA
-    wifiManager.setTitle(settings.getHostname());
-    wifiManager.setCustomHeadElement(Web::portalStyle());
-
-    // The name the router lists the clock under. Only read while the interface
-    // comes up, so it has to be set before the connection is made.
-    WiFi.setHostname(settings.getHostname());
-
-    //tries to connect to last known settings
-    //if it does not connect it starts an access point with the specified name
-    //and goes into a blocking loop awaiting configuration
-    wifiManager.setConfigPortalTimeout(5*60);
-    if (!wifiManager.autoConnect(settings.getHostname()))
+    // Tries the stored network; on failure, hands off to the setup portal
+    // instead of restarting blind. See Portal.h for why this clock has its
+    // own portal rather than WiFiManager's.
+    bool hadCredentials = false;
+    wifiConnected = connectStoredNetwork(hadCredentials);
+    if (!wifiConnected)
     {
-        debugE("failed to connect, we should reset and see if it connects");
-        delay(3000);
-        ESP.restart();
-        delay(5000);
+        Portal::begin(hadCredentials);
+        return;
     }
-    else
-    {
-        wifiConnected = true;
-    }
-    
+
     // start debug server since we now have IP connection
     Debug.begin(settings.getHostname(), RemoteDebug::INFO);
     Debug.setSerialEnabled(true);
@@ -664,9 +685,6 @@ void setup()
         debugE("Error setting up MDNS responder!");
     }
 
-    // The settings, WLAN and light endpoints, plus the fallback that serves
-    // the web UI out of the filesystem. The /ota routes came earlier, with
-    // Ota::begin().
     // Confirms that the letters under every word really spell what the word
     // says. Microseconds, and it catches the one mistake a new panel invites:
     // a word one column out, which renders something plausible and wrong.
@@ -703,6 +721,10 @@ void setup()
                FactoryLuminance::profileId());
     }
 
+    // Reads the web UI's version out of the filesystem and hangs the /ota
+    // routes on the server. Only reached on the connected path - see Portal.h
+    // for why nothing here may be registered while the setup portal is up.
+    Ota::begin();
     Web::begin();
     Files::begin();
     Nvs::begin();
@@ -777,6 +799,17 @@ void loop()
             server.stop();
             ESP.restart();
         }
+        return;
+    }
+
+    // The setup portal is up instead of normal operation - see Portal.h.
+    // Nothing below this may run: the WiFi reconnect a few lines down would
+    // fight the portal's own AP+DNS state, and nothing else here is even
+    // registered on the server yet.
+    if (Portal::active())
+    {
+        Portal::poll();
+        server.handleClient();
         return;
     }
 
